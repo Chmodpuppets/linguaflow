@@ -6,10 +6,8 @@ import { Language, CEFRLevel, AssessmentResult, TypingContent, WritingFeedback, 
 // chat completions endpoint. TTS uses sambert-zhide-v1; STT uses paraformer-v2.
 // When Qwen's quota/rate-limit is exhausted, requests fall back to OpenRouter.
 const QWEN_BASE_URL =
-  (typeof process !== "undefined" && process.env && process.env.QWEN_BASE_URL) ||
-  "https://dashscope.aliyuncs.com/compatible-mode/v1";
-const QWEN_API_KEY =
-  (typeof process !== "undefined" && process.env && process.env.QWEN_API_KEY) || "";
+  process.env.QWEN_BASE_URL || "https://dashscope.aliyuncs.com/compatible-mode/v1";
+const QWEN_API_KEY = process.env.QWEN_API_KEY || "";
 if (!QWEN_API_KEY) {
   console.warn("[LinguaFlow] QWEN_API_KEY is not set. Copy .env.example to .env and add your DashScope API key.");
 }
@@ -20,8 +18,7 @@ const QWEN_HOST = QWEN_BASE_URL.replace(/\/compatible-mode\/v1\/?$/, "");
 
 // Fallback provider (used when Qwen quota/rate-limit is hit).
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
-const OPENROUTER_API_KEY =
-  (typeof process !== "undefined" && process.env && process.env.API_KEY) || "";
+const OPENROUTER_API_KEY = process.env.API_KEY || "";
 const OPENROUTER_LLM_MODEL = "google/gemini-2.5-flash";
 
 interface LLMProvider {
