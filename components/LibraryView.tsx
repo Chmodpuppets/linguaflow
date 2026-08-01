@@ -1,0 +1,381 @@
+
+import React, { useState, useEffect } from 'react';
+import { UserProfile, UserContent, ReadingReflection } from '../types';
+import { getLibrary, saveLibraryItem, deleteLibraryItem } from '../services/storageService';
+import { analyzeReadingContent } from '../services/geminiService';
+import { Plus, Trash2, Save, BookOpen, PenLine, Type, ArrowLeft, Sparkles, BrainCircuit, ChevronDown, ChevronUp, FileText } from 'lucide-react';
+
+interface LibraryViewProps {
+  user: UserProfile;
+  onPractice: (content: { text: string; title: string; notes?: string }) => void;
+}
+
+const LibraryView: React.FC<LibraryViewProps> = ({ user, onPractice }) => {
+  const [items, setItems] = useState<UserContent[]>([]);
+  const [selectedItem, setSelectedItem] = useState<UserContent | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+
+  // Form State
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [notes, setNotes] = useState('');
+
+  // Reflection State
+  const [showReflection, setShowReflection] = useState(false);
+  const [reflectionTopic, setReflectionTopic] = useState('');
+  const [reflectionPoint, setReflectionPoint] = useState('');
+  const [reflectionExamples, setReflectionExamples] = useState('');
+  const [reflectionOpinion, setReflectionOpinion] = useState('');
+  const [reflectionSummary, setReflectionSummary] = useState('');
+  const [isAnalyzingReflection, setIsAnalyzingReflection] = useState(false);
+
+  useEffect(() => {
+    setItems(getLibrary().filter(i => i.language === user.learningLanguage));
+  }, [user.learningLanguage]);
+
+  useEffect(() => {
+    if (selectedItem) {
+      setTitle(selectedItem.title);
+      setContent(selectedItem.content);
+      setNotes(selectedItem.notes);
+      
+      // Load reflection data if exists
+      if (selectedItem.reflection) {
+          setShowReflection(true);
+          setReflectionTopic(selectedItem.reflection.topic || '');
+          setReflectionPoint(selectedItem.reflection.impressivePoint || '');
+          setReflectionExamples(selectedItem.reflection.examples || '');
+          setReflectionOpinion(selectedItem.reflection.userOpinion || '');
+          setReflectionSummary(selectedItem.reflection.summary || '');
+      } else {
+          setShowReflection(false);
+          resetReflectionFields();
+      }
+      
+      setIsCreating(false);
+    }
+  }, [selectedItem]);
+
+  const resetReflectionFields = () => {
+      setReflectionTopic('');
+      setReflectionPoint('');
+      setReflectionExamples('');
+      setReflectionOpinion('');
+      setReflectionSummary('');
+  };
+
+  const handleCreateNew = () => {
+    setSelectedItem(null);
+    setIsCreating(true);
+    setTitle('');
+    setContent('');
+    setNotes('');
+    setShowReflection(false); // Default to standard notes
+    resetReflectionFields();
+  };
+
+  const handleCreateReadingLog = () => {
+    handleCreateNew();
+    setShowReflection(true); // Force open the Reflection tab
+  };
+
+  const handleSave = () => {
+    if (!title.trim() || !content.trim()) return;
+
+    // Construct reflection object if enabled or populated
+    let reflection: ReadingReflection | undefined = undefined;
+    if (showReflection) {
+        reflection = {
+            topic: reflectionTopic,
+            impressivePoint: reflectionPoint,
+            examples: reflectionExamples,
+            userOpinion: reflectionOpinion,
+            summary: reflectionSummary
+        };
+    }
+
+    const newItem: UserContent = {
+      id: selectedItem?.id || crypto.randomUUID(),
+      title,
+      content,
+      notes,
+      language: user.learningLanguage,
+      createdAt: selectedItem?.createdAt || Date.now(),
+      reflection
+    };
+
+    saveLibraryItem(newItem);
+    setItems(getLibrary().filter(i => i.language === user.learningLanguage));
+    setSelectedItem(newItem);
+    setIsCreating(false);
+  };
+
+  const handleDelete = (id: string) => {
+    deleteLibraryItem(id);
+    setItems(prev => prev.filter(i => i.id !== id));
+    if (selectedItem?.id === id) {
+      setSelectedItem(null);
+      setIsCreating(false);
+    }
+  };
+
+  const handleAnalyzeReflection = async () => {
+      if (!content.trim()) return;
+      setIsAnalyzingReflection(true);
+      try {
+          const result = await analyzeReadingContent(content, user.learningLanguage, user.nativeLanguage);
+          if (result.topic) setReflectionTopic(result.topic);
+          if (result.impressivePoint) setReflectionPoint(result.impressivePoint);
+          if (result.examples) setReflectionExamples(result.examples);
+          if (result.summary) setReflectionSummary(result.summary);
+      } catch (e) {
+          console.error(e);
+      } finally {
+          setIsAnalyzingReflection(false);
+      }
+  };
+
+  return (
+    <div className="flex flex-col lg:flex-row h-[calc(100vh-140px)] gap-6">
+      {/* Sidebar List */}
+      <div className={`w-full lg:w-1/3 bg-card border border-gray-700 rounded-xl flex flex-col ${selectedItem || isCreating ? 'hidden lg:flex' : 'flex'}`}>
+        <div className="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-900/50">
+          <h2 className="font-bold text-white flex items-center gap-2">
+            <BookOpen size={20} className="text-secondary" />
+            Memory Bank
+          </h2>
+          <div className="flex gap-2">
+              <button 
+                onClick={handleCreateReadingLog}
+                className="p-2 bg-secondary/20 hover:bg-secondary/30 text-secondary border border-secondary/50 rounded-lg transition-colors"
+                title="New Reading Reflection Log"
+              >
+                <BrainCircuit size={20} />
+              </button>
+              <button 
+                onClick={handleCreateNew}
+                className="p-2 bg-primary hover:bg-primary/80 rounded-lg text-white transition-colors shadow-lg shadow-primary/20"
+                title="Add new standard memory"
+              >
+                <Plus size={20} />
+              </button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-2">
+          {items.length === 0 ? (
+             <div className="flex flex-col items-center justify-center h-64 text-gray-500 text-sm text-center px-4">
+                <Sparkles className="mb-4 opacity-30" size={48} />
+                <p className="text-lg font-medium text-gray-400 mb-2">Empty Bank</p>
+                <p className="mb-6 opacity-70 max-w-[200px]">Save articles, book excerpts, or thoughts here.</p>
+                <div className="flex flex-col gap-3 w-full max-w-[200px]">
+                    <button 
+                        onClick={handleCreateNew}
+                        className="flex items-center justify-center gap-2 py-2 px-4 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg transition-colors font-medium text-white"
+                    >
+                        <FileText size={16} /> Add Text
+                    </button>
+                    <button 
+                        onClick={handleCreateReadingLog}
+                        className="flex items-center justify-center gap-2 py-2 px-4 bg-secondary/10 hover:bg-secondary/20 border border-secondary/30 text-secondary rounded-lg transition-colors font-medium"
+                    >
+                        <BrainCircuit size={16} /> Log Reading
+                    </button>
+                </div>
+             </div>
+          ) : (
+            items.map(item => (
+              <button
+                key={item.id}
+                onClick={() => setSelectedItem(item)}
+                className={`w-full text-left p-3 rounded-lg transition-colors border ${selectedItem?.id === item.id ? 'bg-secondary/20 border-secondary text-white' : 'border-transparent text-gray-300 hover:bg-gray-800'}`}
+              >
+                <div className="font-semibold truncate flex items-center gap-2">
+                    {item.reflection ? <BrainCircuit size={14} className="text-secondary shrink-0" /> : <FileText size={14} className="text-gray-500 shrink-0" />}
+                    <span className="truncate">{item.title}</span>
+                </div>
+                <div className="text-xs text-gray-500 mt-1 truncate pl-6">{item.content.substring(0, 40)}...</div>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <div className={`w-full flex-1 bg-card border border-gray-700 rounded-xl flex flex-col ${!selectedItem && !isCreating ? 'hidden lg:flex justify-center items-center text-gray-500' : 'flex'}`}>
+        
+        {/* Placeholder if nothing selected */}
+        {!selectedItem && !isCreating && (
+          <div className="flex flex-col items-center opacity-50">
+            <BookOpen size={48} className="mb-4" />
+            <p>Select a memory to review or add a new one.</p>
+          </div>
+        )}
+
+        {/* Editor / Reader View */}
+        {(selectedItem || isCreating) && (
+          <div className="flex flex-col h-full">
+            {/* Toolbar */}
+            <div className="p-4 border-b border-gray-700 flex justify-between items-center gap-4 bg-gray-900/20">
+              <div className="flex items-center gap-2 flex-1">
+                 <button className="lg:hidden p-2 text-gray-400" onClick={() => {setSelectedItem(null); setIsCreating(false)}}>
+                    <ArrowLeft size={20} />
+                 </button>
+                 <input 
+                    type="text" 
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="Title (e.g., Favorite Poem, Daily Mantra)"
+                    className="bg-transparent text-lg font-bold text-white outline-none w-full placeholder-gray-600"
+                 />
+              </div>
+              <div className="flex items-center gap-2">
+                 {!isCreating && (
+                    <button 
+                        onClick={() => handleDelete(selectedItem!.id)}
+                        className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-900/10 rounded-lg transition-colors"
+                        title="Delete"
+                    >
+                        <Trash2 size={20} />
+                    </button>
+                 )}
+                 <button 
+                    onClick={handleSave}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg font-medium transition-colors shadow-lg shadow-green-900/20"
+                 >
+                    <Save size={18} /> Save
+                 </button>
+              </div>
+            </div>
+
+            {/* Split View: Content & Notes/Reflection */}
+            <div className="flex-1 flex flex-col md:flex-row overflow-hidden divide-y md:divide-y-0 md:divide-x divide-gray-700">
+                {/* Source Content */}
+                <div className="flex-1 flex flex-col p-4 overflow-y-auto custom-scrollbar relative group bg-gradient-to-b from-gray-900/0 to-gray-900/10">
+                    <div className="flex justify-between items-center mb-2">
+                         <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Passage Content</span>
+                         {!isCreating && (
+                             <button 
+                                onClick={() => onPractice({ text: content, title, notes })}
+                                className="text-xs flex items-center gap-1 bg-blue-600/20 text-blue-400 px-3 py-1.5 rounded-full hover:bg-blue-600/40 transition-colors font-medium border border-blue-500/30"
+                             >
+                                <Type size={12} /> Practice in Drill
+                             </button>
+                         )}
+                    </div>
+                    <textarea 
+                        value={content}
+                        onChange={(e) => setContent(e.target.value)}
+                        placeholder="Paste a beautiful paragraph, a quote, or an article snippet here..."
+                        className="flex-1 bg-transparent resize-none outline-none text-gray-200 leading-relaxed custom-scrollbar placeholder-gray-700 text-lg font-serif"
+                    />
+                </div>
+
+                {/* Right Panel: Notes & Deep Reading Log */}
+                <div className="flex-1 flex flex-col bg-dark/20 overflow-hidden">
+                    {/* Toggle */}
+                    <div className="flex border-b border-gray-700">
+                        <button 
+                            onClick={() => setShowReflection(false)}
+                            className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${!showReflection ? 'text-white bg-transparent border-b-2 border-primary' : 'text-gray-500 hover:text-gray-300 border-b-2 border-transparent bg-black/20'}`}
+                        >
+                            <PenLine size={14} className="inline mr-1 -mt-0.5" /> Quick Notes
+                        </button>
+                        <button 
+                             onClick={() => setShowReflection(true)}
+                             className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${showReflection ? 'text-secondary bg-secondary/5 border-b-2 border-secondary' : 'text-gray-500 hover:text-gray-300 border-b-2 border-transparent bg-black/20'}`}
+                        >
+                            <BrainCircuit size={14} className="inline mr-1 -mt-0.5" /> Deep Reading Log
+                        </button>
+                    </div>
+
+                    {showReflection ? (
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4 bg-secondary/5">
+                            <div className="flex justify-between items-center">
+                                <h4 className="text-sm font-bold text-secondary flex items-center gap-2">
+                                    <Sparkles size={14} /> Guided Reflection
+                                </h4>
+                                <button 
+                                    onClick={handleAnalyzeReflection}
+                                    disabled={!content.trim() || isAnalyzingReflection}
+                                    className="text-xs flex items-center gap-1 bg-secondary text-white px-3 py-1.5 rounded-lg hover:bg-secondary/90 transition-colors disabled:opacity-50 shadow-lg shadow-secondary/20"
+                                >
+                                    {isAnalyzingReflection ? <Sparkles size={12} className="animate-spin" /> : <BrainCircuit size={12} />} 
+                                    {isAnalyzingReflection ? 'Analyzing...' : 'AI Analyze Text'}
+                                </button>
+                            </div>
+                            
+                            {!content.trim() && (
+                                <div className="p-3 bg-yellow-900/20 border border-yellow-800/30 text-yellow-500 text-xs rounded-lg">
+                                    Paste your text on the left to use AI analysis.
+                                </div>
+                            )}
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-400 mb-1.5">What is the main topic?</label>
+                                    <input 
+                                        type="text" 
+                                        value={reflectionTopic}
+                                        onChange={e => setReflectionTopic(e.target.value)}
+                                        className="w-full bg-dark border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:border-secondary outline-none transition-colors"
+                                        placeholder="e.g. The benefits of daily writing..."
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-400 mb-1.5">Most impressive/key point?</label>
+                                    <textarea 
+                                        value={reflectionPoint}
+                                        onChange={e => setReflectionPoint(e.target.value)}
+                                        className="w-full bg-dark border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:border-secondary outline-none resize-none h-20 transition-colors"
+                                        placeholder="What stood out to you?"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-400 mb-1.5">Examples given by author?</label>
+                                    <textarea 
+                                        value={reflectionExamples}
+                                        onChange={e => setReflectionExamples(e.target.value)}
+                                        className="w-full bg-dark border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:border-secondary outline-none resize-none h-20 transition-colors"
+                                        placeholder="List examples mentioned..."
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-400 mb-1.5">Your own opinion?</label>
+                                    <textarea 
+                                        value={reflectionOpinion}
+                                        onChange={e => setReflectionOpinion(e.target.value)}
+                                        className="w-full bg-dark border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:border-secondary outline-none resize-none h-20 transition-colors"
+                                        placeholder="Do you agree? Why or why not?"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-400 mb-1.5">One sentence summary</label>
+                                    <textarea 
+                                        value={reflectionSummary}
+                                        onChange={e => setReflectionSummary(e.target.value)}
+                                        className="w-full bg-dark border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:border-secondary outline-none resize-none h-16 transition-colors"
+                                        placeholder="Summarize the core message..."
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex-1 flex flex-col p-4 overflow-y-auto custom-scrollbar">
+                            <textarea 
+                                value={notes}
+                                onChange={(e) => setNotes(e.target.value)}
+                                placeholder="Write vocabulary notes, grammar breakdowns, or your thoughts here..."
+                                className="flex-1 bg-transparent resize-none outline-none text-yellow-100/80 font-mono text-sm leading-relaxed custom-scrollbar placeholder-gray-700/50"
+                            />
+                        </div>
+                    )}
+                </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default LibraryView;

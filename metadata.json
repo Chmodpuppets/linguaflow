@@ -1,0 +1,8 @@
+{
+  "name": "LinguaFlow: Multilingual Mastery",
+  "description": "A comprehensive language trainer combining AI assessment, writing practice, and memory-reinforcing typing drills with phonetic input support.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": []
+}

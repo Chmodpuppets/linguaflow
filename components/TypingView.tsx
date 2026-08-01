@@ -1,0 +1,1135 @@
+
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { TypingContent, UserProfile, UserContent, CEFRLevel, VocabularyItem } from '../types';
+import { generateTypingContent, generateSpeech } from '../services/geminiService';
+import { addActivity, getLibrary, saveLibraryItem, saveVocabularyItem } from '../services/storageService';
+import { TYPING_STAGES, DRILL_TOPICS } from '../constants';
+import { RefreshCw, Play, Keyboard, Eye, EyeOff, BookOpen, Zap, Star, Sparkles, LayoutGrid, Book, Volume2, StopCircle, Loader2, Mic, Square, Trash2, Ear, Pause, X, Lock, CheckCircle2, Swords, Crown, ShieldAlert, Download, Plus, Check, Bookmark } from 'lucide-react';
+
+interface TypingViewProps {
+  user: UserProfile;
+  onComplete: (user: UserProfile) => void;
+  initialData?: { text: string; title: string; notes?: string } | null;
+}
+
+// --- Helper: Safe ID Generation ---
+function generateId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+}
+
+// --- Helper: Parse Notes for Context ---
+const parseNotes = (notes: string) => {
+    const translationMatch = notes.match(/\[Translation\]\n([\s\S]*?)(?=\n\[|$)/);
+    const phoneticMatch = notes.match(/\[Phonetic Guide\]\n([\s\S]*?)(?=\n\[|$)/);
+    return {
+        translation: translationMatch ? translationMatch[1].trim() : "Translation unavailable",
+        phoneticGuide: phoneticMatch ? phoneticMatch[1].trim() : ""
+    };
+};
+
+// --- Audio Helpers for Gemini TTS ---
+function decodeBase64(base64: string) {
+    const binaryString = atob(base64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes;
+}
+
+async function decodeAudioData(
+    data: Uint8Array,
+    ctx: AudioContext,
+    sampleRate: number = 24000,
+    numChannels: number = 1,
+): Promise<AudioBuffer> {
+    const dataInt16 = new Int16Array(data.buffer);
+    const frameCount = dataInt16.length / numChannels;
+    const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
+
+    for (let channel = 0; channel < numChannels; channel++) {
+        const channelData = buffer.getChannelData(channel);
+        for (let i = 0; i < frameCount; i++) {
+            channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+        }
+    }
+    return buffer;
+}
+
+// Helper to download AudioBuffer as WAV
+function bufferToWav(abuffer: AudioBuffer, len: number) {
+  let numOfChan = abuffer.numberOfChannels,
+      length = len * numOfChan * 2 + 44,
+      buffer = new ArrayBuffer(length),
+      view = new DataView(buffer),
+      channels = [], i, sample,
+      offset = 0,
+      pos = 0;
+
+  // write WAVE header
+  setUint32(0x46464952);                         // "RIFF"
+  setUint32(length - 8);                         // file length - 8
+  setUint32(0x45564157);                         // "WAVE"
+
+  setUint32(0x20746d66);                         // "fmt " chunk
+  setUint32(16);                                 // length = 16
+  setUint16(1);                                  // PCM (uncompressed)
+  setUint16(numOfChan);
+  setUint32(abuffer.sampleRate);
+  setUint32(abuffer.sampleRate * 2 * numOfChan); // avg. bytes/sec
+  setUint16(numOfChan * 2);                      // block-align
+  setUint16(16);                                 // 16-bit (hardcoded in this app)
+
+  setUint32(0x61746164);                         // "data" - chunk
+  setUint32(length - pos - 4);                   // chunk length
+
+  // write interleaved data
+  for(i = 0; i < abuffer.numberOfChannels; i++)
+    channels.push(abuffer.getChannelData(i));
+
+  while(pos < len) {
+    for(i = 0; i < numOfChan; i++) {             // interleave channels
+      sample = Math.max(-1, Math.min(1, channels[i][pos])); // clamp
+      sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767)|0; // scale to 16-bit signed int
+      view.setInt16(44 + offset, sample, true);          // write 16-bit sample
+      offset += 2;
+    }
+    pos++;
+  }
+
+  return new Blob([buffer], { type: "audio/wav" });
+
+  function setUint16(data: number) {
+    view.setUint16(pos, data, true);
+    pos += 2;
+  }
+
+  function setUint32(data: number) {
+    view.setUint32(pos, data, true);
+    pos += 4;
+  }
+}
+
+const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }) => {
+  const [content, setContent] = useState<TypingContent | null>(null);
+  const [activeStage, setActiveStage] = useState<typeof TYPING_STAGES[0] | null>(null);
+
+  const [inputValue, setInputValue] = useState('');
+  const [startTime, setStartTime] = useState<number | null>(null);
+  const [wpm, setWpm] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showPhonetic, setShowPhonetic] = useState(true);
+  const [showTranslation, setShowTranslation] = useState(false);
+  const [finished, setFinished] = useState(false);
+  const [passedStage, setPassedStage] = useState(false);
+  const [savedToLibrary, setSavedToLibrary] = useState(false);
+  
+  // Track if current content is from AI (for auto-saving)
+  const [isAISource, setIsAISource] = useState(false);
+  
+  // Error state for API issues
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Vocabulary state
+  const [addedVocabWords, setAddedVocabWords] = useState<Set<string>>(new Set());
+
+  // Audio State (AI TTS)
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
+  const [cachedAudioBuffer, setCachedAudioBuffer] = useState<AudioBuffer | null>(null);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
+  const [audioDuration, setAudioDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  
+  // A-B Loop State
+  const [loopStart, setLoopStart] = useState<number | null>(null);
+  const [loopEnd, setLoopEnd] = useState<number | null>(null);
+
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const startTimeRef = useRef<number>(0);
+  const startOffsetRef = useRef<number>(0);
+  const rafRef = useRef<number | null>(null);
+  
+  // Recording State (User Voice)
+  const [isRecording, setIsRecording] = useState(false);
+  const [userAudioUrl, setUserAudioUrl] = useState<string | null>(null);
+  const [isPlayingUser, setIsPlayingUser] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
+  const userAudioPlayerRef = useRef<HTMLAudioElement | null>(null);
+
+  // Selection Mode State
+  const [activeTab, setActiveTab] = useState<'campaign' | 'practice' | 'memory'>('campaign');
+  const [libraryItems, setLibraryItems] = useState<UserContent[]>([]);
+  
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+      setLibraryItems(getLibrary().filter(i => i.language === user.learningLanguage));
+  }, [user.learningLanguage]);
+
+  // Cleanup audio on unmount
+  useEffect(() => {
+      return () => {
+          stopAudio();
+          if (audioContextRef.current) {
+              audioContextRef.current.close();
+              audioContextRef.current = null;
+          }
+          if (userAudioUrl) {
+              URL.revokeObjectURL(userAudioUrl);
+          }
+          if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      };
+  }, []);
+
+  // Reset cache and stop audio when content changes
+  useEffect(() => {
+      stopAudio();
+      setCachedAudioBuffer(null);
+      setAudioDuration(0);
+      setCurrentTime(0);
+      setLoopStart(null);
+      setLoopEnd(null);
+      deleteUserRecording();
+      setSavedToLibrary(false);
+      setAddedVocabWords(new Set());
+      setErrorMsg(null);
+  }, [content]);
+
+  // --- Audio Engine Logic ---
+
+  const initAudioContext = () => {
+      if (!audioContextRef.current) {
+          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+      }
+      return audioContextRef.current;
+  };
+
+  const stopAudio = (resetTime = true) => {
+      if (audioSourceRef.current) {
+          try {
+              audioSourceRef.current.stop();
+          } catch (e) { /* ignore */ }
+          audioSourceRef.current = null;
+      }
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      setIsSpeaking(false);
+      setIsGeneratingAudio(false);
+      if (resetTime) {
+        setCurrentTime(0);
+      }
+  };
+
+  const startPlayback = (buffer: AudioBuffer, offset: number) => {
+      const ctx = initAudioContext();
+      if (ctx.state === 'suspended') {
+          ctx.resume();
+      }
+
+      if (audioSourceRef.current) {
+          try { audioSourceRef.current.stop(); } catch(e){}
+      }
+
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.playbackRate.value = playbackSpeed;
+
+      if (loopStart !== null && loopEnd !== null) {
+          source.loop = true;
+          source.loopStart = loopStart;
+          source.loopEnd = loopEnd;
+      }
+
+      source.connect(ctx.destination);
+      source.onended = () => {
+      };
+
+      source.start(0, offset);
+      
+      audioSourceRef.current = source;
+      startTimeRef.current = ctx.currentTime;
+      startOffsetRef.current = offset;
+      setIsSpeaking(true);
+
+      const updateProgress = () => {
+          if (!audioSourceRef.current || !ctx) return;
+          
+          const rawElapsed = ctx.currentTime - startTimeRef.current;
+          const adjustedElapsed = rawElapsed * playbackSpeed;
+          let newTime = startOffsetRef.current + adjustedElapsed;
+
+          if (loopStart !== null && loopEnd !== null) {
+             if (newTime >= loopEnd) {
+                 const loopDuration = loopEnd - loopStart;
+                 const timeInLoop = (newTime - loopStart) % loopDuration;
+                 newTime = loopStart + timeInLoop;
+             }
+          } else {
+             if (newTime >= buffer.duration) {
+                 newTime = buffer.duration;
+                 setIsSpeaking(false);
+                 cancelAnimationFrame(rafRef.current!);
+                 return; 
+             }
+          }
+
+          setCurrentTime(newTime);
+          rafRef.current = requestAnimationFrame(updateProgress);
+      };
+      
+      rafRef.current = requestAnimationFrame(updateProgress);
+  };
+
+  const togglePlayback = async () => {
+      if (isSpeaking) {
+          stopAudio(false); 
+          return;
+      }
+
+      if (cachedAudioBuffer) {
+          let startAt = currentTime;
+          if (startAt >= cachedAudioBuffer.duration) startAt = 0;
+          
+          if (loopStart !== null && loopEnd !== null) {
+              if (startAt < loopStart || startAt >= loopEnd) {
+                  startAt = loopStart;
+              }
+          }
+
+          startPlayback(cachedAudioBuffer, startAt);
+      } else {
+          await fetchAndPlay();
+      }
+  };
+
+  const fetchAndPlay = async () => {
+      if (!content) return;
+      setIsGeneratingAudio(true);
+      try {
+          const base64Audio = await generateSpeech(content.text);
+          if (!base64Audio) throw new Error("No audio returned");
+
+          const ctx = initAudioContext();
+          const bytes = decodeBase64(base64Audio);
+          const buffer = await decodeAudioData(bytes, ctx);
+          
+          setCachedAudioBuffer(buffer);
+          setAudioDuration(buffer.duration);
+          setIsGeneratingAudio(false);
+          
+          startPlayback(buffer, 0);
+      } catch (error) {
+          console.error("Audio playback failed:", error);
+          setIsGeneratingAudio(false);
+      }
+  };
+
+  const handleDownloadAudio = () => {
+      if (!cachedAudioBuffer) return;
+      const wavBlob = bufferToWav(cachedAudioBuffer, cachedAudioBuffer.length);
+      const url = URL.createObjectURL(wavBlob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `linguaflow-${content?.topic || 'drill'}.wav`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+  };
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newTime = parseFloat(e.target.value);
+      setCurrentTime(newTime);
+      
+      if (isSpeaking && cachedAudioBuffer) {
+          startPlayback(cachedAudioBuffer, newTime);
+      }
+  };
+
+  useEffect(() => {
+      if (audioSourceRef.current) {
+          if (loopStart !== null && loopEnd !== null) {
+              audioSourceRef.current.loop = true;
+              audioSourceRef.current.loopStart = loopStart;
+              audioSourceRef.current.loopEnd = loopEnd;
+          } else {
+              audioSourceRef.current.loop = false;
+          }
+      }
+  }, [loopStart, loopEnd]);
+
+  useEffect(() => {
+      if (audioSourceRef.current && audioContextRef.current) {
+          if (isSpeaking && cachedAudioBuffer) {
+              startPlayback(cachedAudioBuffer, currentTime);
+          }
+      }
+  }, [playbackSpeed]);
+
+
+  const toggleSpeed = () => {
+      const speeds = [0.75, 1.0, 1.25];
+      const nextIdx = (speeds.indexOf(playbackSpeed) + 1) % speeds.length;
+      setPlaybackSpeed(speeds[nextIdx]);
+  };
+
+  const setLoopA = () => {
+      if (loopEnd !== null && currentTime >= loopEnd) {
+          setLoopEnd(null);
+      }
+      setLoopStart(currentTime);
+  };
+
+  const setLoopB = () => {
+      if (loopStart === null) setLoopStart(0);
+      if (currentTime > (loopStart || 0)) {
+        setLoopEnd(currentTime);
+      }
+  };
+
+  const clearLoop = () => {
+      setLoopStart(null);
+      setLoopEnd(null);
+  };
+
+  // --- User Recording Logic ---
+  const startRecording = async () => {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = mediaRecorder;
+        chunksRef.current = [];
+
+        mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) chunksRef.current.push(e.data);
+        };
+
+        mediaRecorder.onstop = () => {
+            const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+            const url = URL.createObjectURL(blob);
+            setUserAudioUrl(url);
+            stream.getTracks().forEach(track => track.stop());
+        };
+
+        mediaRecorder.start();
+        setIsRecording(true);
+    } catch (err) {
+        alert("Could not access microphone.");
+    }
+  };
+
+  const stopRecording = () => {
+      if (mediaRecorderRef.current && isRecording) {
+          mediaRecorderRef.current.stop();
+          setIsRecording(false);
+      }
+  };
+
+  const playUserRecording = () => {
+      if (!userAudioUrl) return;
+      if (isPlayingUser && userAudioPlayerRef.current) {
+          userAudioPlayerRef.current.pause();
+          userAudioPlayerRef.current.currentTime = 0;
+          setIsPlayingUser(false);
+          return;
+      }
+      const audio = new Audio(userAudioUrl);
+      userAudioPlayerRef.current = audio;
+      audio.onended = () => setIsPlayingUser(false);
+      setIsPlayingUser(true);
+      audio.play();
+  };
+
+  const deleteUserRecording = () => {
+      if (userAudioPlayerRef.current) {
+          userAudioPlayerRef.current.pause();
+          userAudioPlayerRef.current = null;
+      }
+      setIsPlayingUser(false);
+      if (userAudioUrl) {
+          URL.revokeObjectURL(userAudioUrl);
+          setUserAudioUrl(null);
+      }
+  };
+
+  // --- Vocabulary Logic ---
+
+  const handleAddVocabulary = (vocabItem: { word: string; meaning: string; partOfSpeech: string }) => {
+      if (addedVocabWords.has(vocabItem.word)) return;
+
+      const newItem: VocabularyItem = {
+          id: generateId(),
+          word: vocabItem.word,
+          definition: vocabItem.meaning,
+          exampleSentence: "", // Could be enhanced in future
+          partOfSpeech: vocabItem.partOfSpeech,
+          language: user.learningLanguage,
+          createdAt: Date.now()
+      };
+
+      saveVocabularyItem(newItem);
+      setAddedVocabWords(prev => new Set(prev).add(vocabItem.word));
+  };
+
+
+  // --- Content & Game Logic ---
+
+  const fetchStageContent = async (stage: typeof TYPING_STAGES[0]) => {
+      stopAudio();
+      setIsLoading(true);
+      setErrorMsg(null);
+      setInputValue('');
+      setStartTime(null);
+      setWpm(0);
+      setFinished(false);
+      setPassedStage(false);
+      setActiveStage(stage);
+      setIsAISource(true); // MARK AS AI SOURCE
+
+      try {
+          // Extra instructions for the AI based on stage type
+          const instructions = stage.isBoss 
+            ? "Create a challenging, dense paragraph with complex sentence structures. Focus on accuracy."
+            : `Create a text focusing on ${stage.description}. Keep difficulty consistent with ${stage.cefr}.`;
+          
+          const data = await generateTypingContent(user.learningLanguage, user.nativeLanguage, stage.cefr, stage.title, instructions);
+          setContent(data);
+          setTimeout(() => inputRef.current?.focus(), 100);
+      } catch (error) {
+          console.error(error);
+          setErrorMsg("Failed to generate content. The server might be busy. Please try again.");
+          setContent(null);
+      } finally {
+          setIsLoading(false);
+      }
+  };
+
+  const fetchPracticeContent = async (topic: string) => {
+      stopAudio();
+      setIsLoading(true);
+      setErrorMsg(null);
+      setInputValue('');
+      setStartTime(null);
+      setWpm(0);
+      setFinished(false);
+      setPassedStage(false);
+      setActiveStage(null);
+      setIsAISource(true); // MARK AS AI SOURCE
+
+      try {
+          const currentLevel = user.progress[user.learningLanguage]?.cefrLevel || CEFRLevel.A1;
+          const data = await generateTypingContent(user.learningLanguage, user.nativeLanguage, currentLevel, topic);
+          setContent(data);
+          setTimeout(() => inputRef.current?.focus(), 100);
+      } catch (error) {
+          console.error(error);
+          setErrorMsg("Failed to generate content. Please check your connection.");
+          setContent(null);
+      } finally {
+          setIsLoading(false);
+      }
+  };
+
+  // Manual Save Function
+  const handleManualSave = () => {
+    if (!content) return;
+    
+    // Build notes string from context
+    const notesParts = [];
+    if (content.translation) {
+        notesParts.push(`[Translation]\n${content.translation}`);
+    }
+    if (content.phoneticGuide) {
+        notesParts.push(`[Phonetic Guide]\n${content.phoneticGuide}`);
+    }
+
+    const newItem: UserContent = {
+      id: generateId(),
+      title: content.topic || 'Typing Practice',
+      content: content.text,
+      notes: notesParts.join('\n\n'), // Persist translation/phonetics here
+      language: user.learningLanguage,
+      createdAt: Date.now()
+    };
+    
+    saveLibraryItem(newItem);
+    setSavedToLibrary(true);
+  };
+
+  // Handle Initial Data or Clean Start
+  useEffect(() => {
+    if (initialData) {
+        stopAudio();
+        // Use provided content (e.g. from Library)
+        // Try to parse translation/phonetics from notes if available
+        const parsed = initialData.notes ? parseNotes(initialData.notes) : { translation: "Custom Memory Bank content", phoneticGuide: "" };
+
+        setContent({
+            text: initialData.text,
+            topic: initialData.title,
+            translation: parsed.translation,
+            phoneticGuide: parsed.phoneticGuide, 
+            keyVocabulary: []
+        });
+        setActiveStage(null); 
+        setActiveTab('memory');
+        setIsAISource(false); // LOADED FROM LIBRARY, NOT AI SOURCE
+        setInputValue('');
+        setStartTime(null);
+        setWpm(0);
+        setFinished(false);
+        setTimeout(() => inputRef.current?.focus(), 100);
+    } else {
+        // Reset if we switch back to generic mode without data
+        stopAudio();
+        setContent(null);
+        setInputValue('');
+        setFinished(false);
+    }
+  }, [initialData]);
+
+  const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (finished) return;
+    const val = e.target.value;
+    if (!startTime) setStartTime(Date.now());
+    setInputValue(val);
+
+    if (startTime) {
+      const timeElapsed = (Date.now() - startTime) / 60000;
+      const wordsTyped = val.length / 5;
+      setWpm(Math.round(wordsTyped / timeElapsed) || 0);
+    }
+
+    if (content && content.text && val === content.text) {
+        finishDrill(val.length);
+    }
+  };
+
+  const finishDrill = (length: number) => {
+      setFinished(true);
+      
+      const baseXP = 20;
+      const lengthXP = Math.floor(length / 5);
+      const speedBonus = wpm > 40 ? 10 : 0;
+      const totalXP = baseXP + lengthXP + speedBonus;
+      
+      let stagePassed = false;
+      // Check pass criteria if in Adventure Mode
+      if (activeStage) {
+          if (wpm >= activeStage.minWpm) {
+              stagePassed = true;
+              setPassedStage(true);
+          }
+      } else {
+          stagePassed = true; // Custom/Practice/Memory bank always "Passes" just for XP
+      }
+
+      // ** AUTO-SAVE TO MEMORY BANK **
+      // Use explicit isAISource flag for reliability
+      if (content && content.text && isAISource) {
+          handleManualSave(); // Use same logic
+      }
+
+      const { user: updatedUser } = addActivity(
+          user,
+          'typing',
+          user.learningLanguage,
+          totalXP,
+          activeStage ? `Stage ${activeStage.id + 1}: ${activeStage.title}` : `Drill: ${content?.topic}`,
+          {
+              wpm: wpm,
+              accuracy: 100, 
+              wordCount: Math.floor(length / 5),
+              stageId: activeStage?.id,
+              passed: stagePassed
+          }
+      );
+      onComplete(updatedUser);
+  };
+
+  const handleUseLibraryItem = (item: UserContent) => {
+      stopAudio();
+      // Parse notes to get back translation/phonetic guide
+      const parsed = parseNotes(item.notes);
+
+      setContent({
+            text: item.content,
+            topic: item.title,
+            translation: parsed.translation,
+            phoneticGuide: parsed.phoneticGuide, 
+            keyVocabulary: []
+        });
+        setActiveStage(null);
+        setIsAISource(false); // Explicitly NOT AI
+        setInputValue('');
+        setStartTime(null);
+        setWpm(0);
+        setFinished(false);
+        setTimeout(() => inputRef.current?.focus(), 100);
+  };
+
+  const renderText = () => {
+    if (!content || !content.text) return null;
+    return (
+      <div className="text-2xl md:text-3xl font-mono leading-relaxed break-words tracking-wide">
+        {content.text.split('').map((char, index) => {
+          let colorClass = 'text-gray-500';
+          let bgClass = 'bg-transparent';
+          const isCurrent = index === inputValue.length;
+
+          if (index < inputValue.length) {
+            if (inputValue[index] === char) {
+              colorClass = 'text-green-400';
+            } else {
+              colorClass = 'text-red-400';
+              bgClass = 'bg-red-900/30';
+            }
+          }
+          return (
+            <span key={index} className={`relative ${colorClass} ${bgClass} transition-colors duration-75`}>
+              {isCurrent && <span className="absolute -left-[1px] -top-1 h-8 w-[2px] bg-secondary animate-pulse" />}
+              {char}
+            </span>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const fmtTime = (s: number) => {
+      const mins = Math.floor(s / 60);
+      const secs = Math.floor(s % 60);
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Level Map Component
+  const renderStageMap = () => {
+      const unlockedStage = user.progress[user.learningLanguage]?.maxUnlockedStage || 0;
+      
+      return (
+          <div className="flex flex-col items-center pb-12">
+              <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700 mb-8 max-w-lg w-full text-center">
+                  <div className="flex items-center justify-center gap-2 text-yellow-500 mb-2">
+                      <ShieldAlert size={20} />
+                      <span className="font-bold">Hardcore Rules Active</span>
+                  </div>
+                  <p className="text-sm text-gray-400">
+                      In Campaign Mode, all hints (Translation, Audio, Phonetics) are disabled. 
+                      You must rely on pure memory and typing skill.
+                  </p>
+              </div>
+
+              <div className="relative w-full max-w-lg space-y-8 mt-4">
+                  {/* Vertical Line Connector */}
+                  <div className="absolute left-1/2 top-4 bottom-4 w-1 bg-gray-700 -translate-x-1/2 z-0 rounded-full"></div>
+                  
+                  {TYPING_STAGES.map((stage, index) => {
+                      const isUnlocked = index <= unlockedStage;
+                      const isCompleted = index < unlockedStage;
+                      const isCurrent = index === unlockedStage;
+                      const isBoss = stage.isBoss;
+                      
+                      // Zig-zag offset
+                      const offsetClass = index % 2 === 0 ? 'translate-x-0' : (index % 4 === 1 ? 'translate-x-12' : '-translate-x-12');
+
+                      return (
+                          <div key={stage.id} className={`relative z-10 flex justify-center transition-transform ${offsetClass}`}>
+                              <button
+                                  onClick={() => isUnlocked && fetchStageContent(stage)}
+                                  disabled={!isUnlocked}
+                                  className={`
+                                      group relative flex items-center justify-center rounded-full border-b-4 transition-all duration-200
+                                      ${isBoss ? 'w-24 h-24' : 'w-20 h-20'}
+                                      ${isCompleted 
+                                          ? 'bg-green-500 border-green-700 text-white' 
+                                          : isCurrent 
+                                              ? 'bg-secondary border-purple-700 text-white animate-bounce-slight shadow-[0_0_20px_rgba(168,85,247,0.6)]' 
+                                              : 'bg-gray-700 border-gray-800 text-gray-500 cursor-not-allowed grayscale'
+                                      }
+                                  `}
+                              >
+                                  <span className="text-3xl filter drop-shadow-md">{stage.icon}</span>
+                                  
+                                  {isCompleted && (
+                                      <div className="absolute -right-1 -bottom-1 bg-yellow-400 text-yellow-900 p-1 rounded-full shadow-sm">
+                                          <Star size={14} fill="currentColor" />
+                                      </div>
+                                  )}
+                                  
+                                  {/* Tooltip Card */}
+                                  <div className={`
+                                      absolute top-full mt-3 bg-gray-800 border border-gray-700 rounded-xl p-3 w-48 text-center shadow-xl opacity-0 scale-95 pointer-events-none transition-all
+                                      group-hover:opacity-100 group-hover:scale-100 group-hover:z-50
+                                  `}>
+                                      <div className="font-bold text-white text-sm mb-1">{stage.title}</div>
+                                      <div className="text-xs text-gray-400 mb-2">{stage.description}</div>
+                                      <div className="flex justify-center gap-2 text-[10px] font-mono uppercase bg-gray-900/50 p-1 rounded">
+                                          <span className="text-secondary">{stage.cefr}</span>
+                                          <span className="text-blue-400">{stage.minWpm} WPM</span>
+                                      </div>
+                                  </div>
+                              </button>
+                          </div>
+                      );
+                  })}
+              </div>
+          </div>
+      );
+  };
+
+  // --- Strict Mode Logic ---
+  const isStrictMode = activeTab === 'campaign';
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      
+      {/* HEADER CONTROLS (Only visible when drilling) */}
+      {content && (
+        <div className="flex flex-col gap-4 bg-card p-4 rounded-xl border border-gray-700 animate-in slide-in-from-top-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                    <span className="px-3 py-1 rounded-full bg-primary/20 text-primary text-sm font-bold border border-primary/30">
+                        {activeStage ? activeStage.cefr : "Practice"}
+                    </span>
+                    
+                    {/* HINT & AUDIO CONTROLS - HIDDEN IN STRICT CAMPAIGN MODE */}
+                    {!isStrictMode && (
+                        <>
+                            <div className="flex items-center gap-2 pl-2 border-l border-gray-700">
+                                <div className="flex items-center gap-1 bg-gray-800/50 rounded-lg p-1 border border-gray-700">
+                                    <button
+                                        onClick={togglePlayback}
+                                        disabled={isGeneratingAudio}
+                                        className={`p-2 rounded-md transition-colors flex items-center gap-2 ${isSpeaking ? 'bg-green-500/20 text-green-400' : 'hover:bg-gray-700 text-gray-300'}`}
+                                        title="Play Audio"
+                                    >
+                                        {isGeneratingAudio ? <Loader2 size={18} className="animate-spin text-secondary" /> : isSpeaking ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
+                                    </button>
+                                    
+                                    {cachedAudioBuffer && (
+                                        <button 
+                                            onClick={handleDownloadAudio}
+                                            className="p-2 rounded-md hover:bg-gray-700 text-gray-300"
+                                            title="Download Audio (WAV)"
+                                        >
+                                            <Download size={18} />
+                                        </button>
+                                    )}
+
+                                    <button onClick={toggleSpeed} className="p-1 px-2 text-xs font-mono font-bold text-gray-400 hover:text-white hover:bg-gray-700 rounded">
+                                        {playbackSpeed}x
+                                    </button>
+                                </div>
+
+                                <div className="flex items-center gap-1 bg-gray-800/50 rounded-lg p-1 border border-gray-700">
+                                    {!userAudioUrl ? (
+                                        <button onClick={isRecording ? stopRecording : startRecording} className={`p-2 rounded-md ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'hover:bg-gray-700 text-gray-300'}`} title="Record Your Voice">
+                                            {isRecording ? <Square size={18} fill="currentColor" /> : <Mic size={18} />}
+                                        </button>
+                                    ) : (
+                                        <>
+                                            <button onClick={playUserRecording} className={`p-2 rounded-md ${isPlayingUser ? 'text-secondary' : 'text-gray-300'}`}><Ear size={18} /></button>
+                                            <button onClick={deleteUserRecording} className="p-2 rounded-md text-gray-400 hover:text-red-400"><Trash2 size={18} /></button>
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Save To Memory Bank Button */}
+                                <button
+                                    onClick={handleManualSave}
+                                    disabled={savedToLibrary}
+                                    className={`
+                                        flex items-center gap-2 px-3 py-2 rounded-lg transition-colors border font-medium text-sm
+                                        ${savedToLibrary 
+                                            ? 'bg-green-500/20 text-green-400 border-green-500/50 cursor-default' 
+                                            : 'bg-secondary/10 text-secondary border-secondary/30 hover:bg-secondary/20 hover:text-white'
+                                        }
+                                    `}
+                                    title={savedToLibrary ? "Content saved to Memory Bank" : "Save this content to Memory Bank"}
+                                >
+                                    {savedToLibrary ? <Check size={16} /> : <Bookmark size={16} />}
+                                    {savedToLibrary ? "Saved" : "Save"}
+                                </button>
+
+                            </div>
+
+                            {content?.phoneticGuide && (
+                                <button onClick={() => setShowPhonetic(!showPhonetic)} className={`ml-2 p-2 rounded-lg ${showPhonetic ? 'bg-secondary/20 text-secondary' : 'text-gray-400 hover:text-gray-200'}`} title="Toggle Phonetic Guide"><Keyboard size={18} /></button>
+                            )}
+                            <button onClick={() => setShowTranslation(!showTranslation)} className={`p-2 rounded-lg ${showTranslation ? 'bg-blue-500/20 text-blue-400' : 'text-gray-400 hover:text-gray-200'}`} title="Toggle Translation"><Eye size={18} /></button>
+                        </>
+                    )}
+                    
+                    {/* STRICT MODE INDICATOR */}
+                    {isStrictMode && (
+                        <div className="flex items-center gap-2 px-3 py-1 bg-red-900/30 border border-red-800 rounded-lg text-red-400 text-xs font-bold uppercase tracking-wider">
+                            <Lock size={12} /> Strict Mode
+                        </div>
+                    )}
+
+                </div>
+                
+                <div className="flex items-center gap-6">
+                    <div className="flex flex-col items-end">
+                        <span className="text-xs text-gray-500 uppercase tracking-widest">Speed</span>
+                        <span className="text-xl font-mono font-bold text-white">{wpm} <span className="text-sm font-normal text-gray-500">WPM</span></span>
+                    </div>
+                    <button 
+                        onClick={() => setContent(null)} 
+                        disabled={isLoading}
+                        className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors text-sm font-medium"
+                    >
+                        <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
+                        Exit Drill
+                    </button>
+                </div>
+            </div>
+            
+            {!isStrictMode && cachedAudioBuffer && (
+                <div className="border-t border-gray-700 pt-3 flex flex-col gap-2">
+                    <div className="flex items-center gap-3">
+                        <span className="text-xs font-mono text-gray-400 w-10 text-right">{fmtTime(currentTime)}</span>
+                        <div className="relative flex-1 h-6 flex items-center">
+                             {/* Loop UI Elements */}
+                             {loopStart !== null && <div className="absolute top-0 bottom-0 w-0.5 bg-yellow-400 z-10" style={{ left: `${(loopStart / audioDuration) * 100}%` }}></div>}
+                             {loopEnd !== null && <div className="absolute top-0 bottom-0 w-0.5 bg-yellow-400 z-10" style={{ left: `${(loopEnd / audioDuration) * 100}%` }}></div>}
+                             {loopStart !== null && loopEnd !== null && <div className="absolute h-1.5 bg-yellow-400/20 rounded-full" style={{ left: `${(loopStart/audioDuration)*100}%`, width: `${((loopEnd-loopStart)/audioDuration)*100}%` }}></div>}
+
+                             <input 
+                                type="range" 
+                                min="0" 
+                                max={audioDuration || 100} 
+                                step="0.1"
+                                value={currentTime}
+                                onChange={handleSeek}
+                                className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-secondary z-20"
+                             />
+                        </div>
+                        <span className="text-xs font-mono text-gray-400 w-10">{fmtTime(audioDuration)}</span>
+                    </div>
+
+                    <div className="flex justify-center gap-2">
+                        <button 
+                            onClick={setLoopA} 
+                            className={`px-2 py-1 text-xs font-bold rounded border ${loopStart !== null ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500' : 'bg-gray-800 text-gray-400 border-gray-700 hover:text-white'}`}
+                        >
+                            A
+                        </button>
+                        <button 
+                            onClick={setLoopB} 
+                            className={`px-2 py-1 text-xs font-bold rounded border ${loopEnd !== null ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500' : 'bg-gray-800 text-gray-400 border-gray-700 hover:text-white'}`}
+                        >
+                            B
+                        </button>
+                        {(loopStart !== null || loopEnd !== null) && (
+                            <button onClick={clearLoop} className="px-2 py-1 text-xs text-gray-500 hover:text-white">Clear Loop</button>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+      )}
+
+      {/* Main Content / Setup Area */}
+      <div className="relative">
+      
+      {isLoading ? (
+          <div className="bg-dark rounded-2xl p-12 border border-gray-800 shadow-2xl min-h-[300px] flex items-center justify-center flex-col gap-4">
+             <div className="w-12 h-12 border-4 border-secondary border-t-transparent rounded-full animate-spin"></div>
+             <p className="text-gray-400 animate-pulse">Generating tailored practice...</p>
+             {errorMsg && (
+                 <div className="mt-4 p-3 bg-red-900/20 border border-red-800 text-red-300 rounded-lg text-sm max-w-sm text-center">
+                     {errorMsg}
+                     <button onClick={() => fetchPracticeContent('random')} className="block mx-auto mt-2 text-xs underline hover:text-white">Try Again</button>
+                 </div>
+             )}
+          </div>
+        ) : !content ? (
+            // Setup Screen
+            <div className="bg-dark rounded-2xl p-6 md:p-8 border border-gray-800 shadow-2xl min-h-[400px]">
+                 <div className="text-center mb-8">
+                     <h3 className="text-2xl font-bold text-white mb-2">Typing Adventure</h3>
+                     <p className="text-gray-400">Select a mode to begin your training.</p>
+                 </div>
+
+                 {/* Mode Tabs */}
+                 <div className="flex flex-wrap justify-center gap-4 mb-8">
+                     <button 
+                        onClick={() => setActiveTab('campaign')}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold transition-all ${activeTab === 'campaign' ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-105' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
+                     >
+                        <Swords size={18} /> Campaign <span className="text-[10px] bg-black/30 px-1.5 py-0.5 rounded text-white/70">STRICT</span>
+                     </button>
+                     <button 
+                        onClick={() => setActiveTab('practice')}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold transition-all ${activeTab === 'practice' ? 'bg-gray-700 text-white shadow-lg border border-gray-600' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
+                     >
+                        <LayoutGrid size={18} /> AI Practice
+                     </button>
+                     <button 
+                        onClick={() => setActiveTab('memory')}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold transition-all ${activeTab === 'memory' ? 'bg-secondary text-white shadow-lg shadow-secondary/20' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
+                     >
+                        <Book size={18} /> Memory Bank
+                     </button>
+                 </div>
+
+                 {/* Content Selection */}
+                 {activeTab === 'campaign' && renderStageMap()}
+
+                 {activeTab === 'practice' && (
+                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 animate-in fade-in slide-in-from-bottom-2">
+                         {DRILL_TOPICS.map(topic => (
+                             <button
+                                key={topic.id}
+                                onClick={() => fetchPracticeContent(topic.label)}
+                                className="flex flex-col items-center justify-center gap-2 p-4 bg-gray-800/50 hover:bg-gray-700 hover:scale-105 border border-gray-700 hover:border-primary/50 rounded-xl transition-all group"
+                             >
+                                 <span className="text-3xl grayscale group-hover:grayscale-0 transition-all">{topic.icon}</span>
+                                 <span className="text-sm font-medium text-gray-300 group-hover:text-white">{topic.label}</span>
+                             </button>
+                         ))}
+                         {/* Random Button */}
+                         <button
+                            onClick={() => fetchPracticeContent('random daily topic')}
+                            className="flex flex-col items-center justify-center gap-2 p-4 bg-gradient-to-br from-gray-800 to-gray-700 hover:brightness-110 border border-gray-700 hover:border-white/30 rounded-xl transition-all"
+                         >
+                             <Sparkles size={32} className="text-yellow-400" />
+                             <span className="text-sm font-bold text-white">Surprise Me</span>
+                         </button>
+                     </div>
+                 )}
+
+                 {activeTab === 'memory' && (
+                     <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
+                         {libraryItems.length === 0 ? (
+                             <div className="text-center py-12 border-2 border-dashed border-gray-800 rounded-xl">
+                                 <p className="text-gray-500 mb-4">Your Memory Bank is empty.</p>
+                                 <div className="text-sm text-gray-600">Complete AI drills or add your own content to review it here.</div>
+                             </div>
+                         ) : (
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                 {libraryItems.map(item => (
+                                     <button
+                                        key={item.id}
+                                        onClick={() => handleUseLibraryItem(item)}
+                                        className="text-left p-4 bg-gray-800/50 hover:bg-gray-700 border border-gray-700 hover:border-secondary/50 rounded-xl transition-all group"
+                                     >
+                                         <h4 className="font-bold text-gray-200 group-hover:text-white mb-1 truncate">{item.title}</h4>
+                                         <p className="text-xs text-gray-500 truncate">{item.content}</p>
+                                     </button>
+                                 ))}
+                             </div>
+                         )}
+                     </div>
+                 )}
+            </div>
+        ) : (
+          <div 
+            className="bg-dark rounded-2xl p-8 md:p-12 border border-gray-800 shadow-2xl min-h-[300px] flex flex-col justify-center cursor-text"
+            onClick={() => inputRef.current?.focus()}
+          >
+            <div className="space-y-6">
+                {/* Phonetic / Input Hint */}
+                {content.phoneticGuide && showPhonetic && !isStrictMode && (
+                    <div className="text-gray-500 font-mono text-sm md:text-base leading-loose tracking-wide mb-2 opacity-70 select-none">
+                        {content.phoneticGuide}
+                    </div>
+                )}
+                
+                {/* The Actual Text */}
+                {renderText()}
+
+                {/* Translation Overlay (if enabled) */}
+                {showTranslation && !isStrictMode && (
+                    <div className="mt-8 pt-6 border-t border-gray-800 text-blue-300/80 italic text-lg animate-in fade-in">
+                        "{content.translation}"
+                    </div>
+                )}
+                
+                {/* Hidden Input */}
+                <input
+                ref={inputRef}
+                type="text"
+                className="opacity-0 absolute inset-0 cursor-default"
+                value={inputValue}
+                onChange={handleInput}
+                autoFocus
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck="false"
+                />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Success State */}
+      {finished && (
+        <div className="bg-green-900/20 border border-green-800 rounded-xl p-6 flex flex-col md:flex-row items-center justify-between gap-4 animate-in fade-in zoom-in duration-300">
+            <div className="flex items-center gap-4">
+                <div className="p-3 bg-green-500 rounded-full text-dark">
+                    {passedStage ? <Crown size={24} fill="currentColor" /> : <Zap size={24} fill="currentColor" />}
+                </div>
+                <div>
+                    <h3 className="text-xl font-bold text-green-400">
+                        {activeStage ? (passedStage ? "Stage Cleared!" : "Drill Complete") : "Drill Completed!"}
+                    </h3>
+                    <p className="text-green-300/70">
+                        {savedToLibrary && isAISource ? "XP Awarded & Saved to Memory Bank." : "XP Awarded. Memory reinforced."}
+                    </p>
+                </div>
+            </div>
+            
+            <div className="flex items-center gap-4">
+                 <div className="flex flex-col items-center px-4 border-r border-green-800">
+                     <span className="text-xs text-green-500/80 uppercase">XP Earned</span>
+                     <span className="text-2xl font-bold text-white flex items-center gap-1">
+                         <Star size={16} className="text-yellow-400" fill="currentColor" /> 
+                         {20 + Math.floor(content!.text.length/5) + (wpm > 40 ? 10 : 0)}
+                     </span>
+                 </div>
+                 <button 
+                    onClick={() => {setContent(null); setFinished(false);}}
+                    className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg transition-colors flex items-center gap-2"
+                >
+                    Next Drill <Play size={16} />
+                </button>
+            </div>
+        </div>
+      )}
+
+      {/* Vocabulary Cards */}
+      {!isLoading && content && content.keyVocabulary?.length > 0 && !isStrictMode && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
+              {(content.keyVocabulary || []).map((item, idx) => (
+                  <div key={idx} className="bg-card/50 p-4 rounded-xl border border-gray-800 hover:border-gray-600 transition-colors group relative">
+                      <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <BookOpen size={14} className="text-secondary" />
+                            <span className="text-xs text-gray-500 uppercase font-semibold">{item.partOfSpeech}</span>
+                          </div>
+                          <button 
+                             onClick={() => handleAddVocabulary(item)}
+                             disabled={addedVocabWords.has(item.word)}
+                             className={`text-gray-500 hover:text-white transition-colors ${addedVocabWords.has(item.word) ? 'text-green-500 opacity-50 cursor-default' : ''}`}
+                             title="Add to Vocabulary Bank"
+                          >
+                             {addedVocabWords.has(item.word) ? <Check size={16} /> : <Plus size={16} />}
+                          </button>
+                      </div>
+                      <h4 className="text-lg font-bold text-white mb-1 group-hover:text-secondary transition-colors">{item.word}</h4>
+                      <p className="text-sm text-gray-400">{item.meaning}</p>
+                  </div>
+              ))}
+          </div>
+      )}
+    </div>
+  );
+};
+
+export default TypingView;
