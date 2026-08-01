@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, RPGScenario, RPGMessage, RPGTurnResult } from '../types';
-import { startRPGScenario, continueRPGTurn, generateSpeech } from '../services/geminiService';
+import { startRPGScenario, continueRPGTurn, generateSpeech, cancelSpeech } from '../services/aiService';
 import { addActivity, saveVocabularyItem } from '../services/storageService';
 import { 
     Send, Mic, Volume2, User, Bot, CheckCircle2, 
@@ -78,6 +78,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
     
     // --- Audio Player State ---
     const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
     const [isLoadingAudio, setIsLoadingAudio] = useState(false);
     const [playerState, setPlayerState] = useState({
         isPlaying: false,
@@ -103,15 +104,37 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
         }
     }, [messages]);
 
-    // Cleanup Audio Context on unmount
+    // Cleanup audio on unmount
     useEffect(() => {
         return () => {
-            stopAudio();
-            if (audioContextRef.current) {
-                audioContextRef.current.close();
-            }
+            cancelSpeech();
         };
     }, []);
+
+    // --- Simplified Audio Logic (Qwen TTS / Web Speech) ---
+    const onAudioButton = (msgId: string, text: string) => {
+        if (activeMessageId === msgId && isPlaying) {
+            cancelSpeech();
+            setIsPlaying(false);
+            return;
+        }
+        cancelSpeech();
+        setActiveMessageId(msgId);
+        setIsPlaying(true);
+        generateSpeech(text, {
+            lang: user.learningLanguage,
+            onEnd: () => {
+                setIsPlaying(false);
+                if (activeMessageId === msgId) setActiveMessageId(null);
+            },
+        });
+    };
+
+    const onStopAudio = () => {
+        cancelSpeech();
+        setIsPlaying(false);
+        setActiveMessageId(null);
+    };
 
     // --- Audio Logic ---
 
@@ -123,15 +146,8 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
     };
 
     const stopAudio = () => {
-        if (activeSourceRef.current) {
-            try { activeSourceRef.current.stop(); } catch(e) {}
-            activeSourceRef.current = null;
-        }
-        if (rafRef.current) {
-            cancelAnimationFrame(rafRef.current);
-            rafRef.current = null;
-        }
-        setPlayerState(prev => ({ ...prev, isPlaying: false }));
+        cancelSpeech();
+        setIsPlaying(false);
     };
 
     const playBuffer = (buffer: AudioBuffer, offset: number) => {
@@ -648,7 +664,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                                             
                                             {!isAudioActive && (
                                                 <button 
-                                                    onClick={() => initializePlayer(msg.id, msg.text)}
+                                                    onClick={() => onAudioButton(msg.id, msg.text)}
                                                     className="p-1 rounded-full text-gray-500 hover:text-white transition-colors"
                                                     title="Listen"
                                                 >
@@ -677,76 +693,23 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                                         </p>
                                     )}
 
-                                    {/* Advanced Audio Player */}
+                                    {/* Audio Player */}
                                     {isAi && isAudioActive && (
-                                        <div className="mt-3 bg-gray-900/80 rounded-lg p-3 border border-gray-700 animate-in fade-in slide-in-from-top-1">
-                                            {isLoadingAudio ? (
-                                                <div className="flex items-center justify-center gap-2 py-2 text-sm text-gray-400">
-                                                    <Loader2 size={16} className="animate-spin text-secondary" /> Generating Audio...
-                                                </div>
-                                            ) : (
-                                                <>
-                                                    <div className="flex items-center gap-3 mb-3">
-                                                        <button 
-                                                            onClick={togglePlay} 
-                                                            className="w-8 h-8 flex items-center justify-center bg-secondary hover:bg-secondary/90 text-white rounded-full transition-colors"
-                                                        >
-                                                            {playerState.isPlaying ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
-                                                        </button>
-                                                        <div className="flex-1 relative h-6 flex items-center group">
-                                                            {/* Markers */}
-                                                            {playerState.loopA !== null && <div className="absolute top-1 bottom-1 w-0.5 bg-yellow-400 z-10 pointer-events-none" style={{ left: `${(playerState.loopA / playerState.duration) * 100}%` }} />}
-                                                            {playerState.loopB !== null && <div className="absolute top-1 bottom-1 w-0.5 bg-yellow-400 z-10 pointer-events-none" style={{ left: `${(playerState.loopB / playerState.duration) * 100}%` }} />}
-                                                            {playerState.loopA !== null && playerState.loopB !== null && (
-                                                                <div className="absolute h-1 bg-yellow-400/20 pointer-events-none" style={{ left: `${(playerState.loopA/playerState.duration)*100}%`, width: `${((playerState.loopB-playerState.loopA)/playerState.duration)*100}%` }} />
-                                                            )}
-                                                            
-                                                            <input
-                                                                type="range"
-                                                                min={0}
-                                                                max={playerState.duration || 100}
-                                                                step={0.01}
-                                                                value={playerState.currentTime}
-                                                                onChange={handleSeek}
-                                                                className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-secondary z-20"
-                                                            />
-                                                        </div>
-                                                        <button onClick={() => setActiveMessageId(null)} className="text-gray-500 hover:text-white">
-                                                            <X size={14} />
-                                                        </button>
-                                                    </div>
-                                                    
-                                                    <div className="flex justify-between items-center text-xs">
-                                                        <button 
-                                                            onClick={toggleSpeed}
-                                                            className="font-mono text-gray-400 hover:text-white bg-gray-800 px-2 py-1 rounded"
-                                                        >
-                                                            {playerState.playbackRate}x
-                                                        </button>
-                                                        
-                                                        <div className="flex items-center gap-1">
-                                                            <span className="text-gray-500 mr-2 font-mono">Loop:</span>
-                                                            <button 
-                                                                onClick={toggleLoopA}
-                                                                className={`px-2 py-1 rounded font-bold border ${playerState.loopA !== null ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500' : 'bg-gray-800 text-gray-400 border-gray-700 hover:text-white'}`}
-                                                            >
-                                                                A
-                                                            </button>
-                                                            <button 
-                                                                onClick={toggleLoopB}
-                                                                className={`px-2 py-1 rounded font-bold border ${playerState.loopB !== null ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500' : 'bg-gray-800 text-gray-400 border-gray-700 hover:text-white'}`}
-                                                            >
-                                                                B
-                                                            </button>
-                                                            {(playerState.loopA !== null || playerState.loopB !== null) && (
-                                                                <button onClick={clearLoops} className="ml-1 p-1 text-gray-500 hover:text-red-400">
-                                                                    <RotateCcw size={12} />
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </>
-                                            )}
+                                        <div className="mt-3 bg-gray-900/80 rounded-lg p-3 border border-gray-700">
+                                            <div className="flex items-center gap-3">
+                                                <button
+                                                    onClick={() => onAudioButton(msg.id, msg.text)}
+                                                    className="w-8 h-8 flex items-center justify-center bg-secondary hover:bg-secondary/90 text-white rounded-full transition-colors"
+                                                >
+                                                    {isPlaying ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
+                                                </button>
+                                                <span className="text-sm text-gray-400 flex-1">
+                                                    {isPlaying ? "播放中…" : "已暂停"}
+                                                </span>
+                                                <button onClick={onStopAudio} className="text-gray-500 hover:text-white">
+                                                    <X size={14} />
+                                                </button>
+                                            </div>
                                         </div>
                                     )}
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Language, AssessmentResult, CEFRLevel } from '../types';
-import { assessUserLevel } from '../services/geminiService';
+import { assessUserLevel } from '../services/aiService';
 import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface AssessmentViewProps {

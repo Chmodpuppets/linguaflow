@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { UserProfile, WritingFeedback } from '../types';
-import { analyzeWriting } from '../services/geminiService';
+import { analyzeWriting } from '../services/aiService';
 import { addActivity } from '../services/storageService';
 import { Sparkles, ArrowRight, BookCheck, Wand2, Star } from 'lucide-react';
 

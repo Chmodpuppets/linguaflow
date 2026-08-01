@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, VocabularyItem } from '../types';
 import { getVocabulary, saveVocabularyItem, deleteVocabularyItem, addActivity } from '../services/storageService';
-import { generateWordDetails } from '../services/geminiService';
+import { generateWordDetails } from '../services/aiService';
 import { BookA, Plus, Search, Trash2, Sparkles, Volume2, Tag, Loader2, Save, X } from 'lucide-react';
 
 interface VocabularyViewProps {

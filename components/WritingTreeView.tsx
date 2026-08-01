@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, WritingNode, NodeType } from '../types';
 import { getWritingTree, saveWritingTree, addActivity } from '../services/storageService';
-import { generateTreeStructure, classifyInspiration, getWritingCoachFeedback, polishText } from '../services/geminiService';
+import { generateTreeStructure, classifyInspiration, getWritingCoachFeedback, polishText } from '../services/aiService';
 import { 
   FolderTree, FileText, Plus, ChevronRight, ChevronDown, 
   Lightbulb, Sparkles, Save, Bot, 

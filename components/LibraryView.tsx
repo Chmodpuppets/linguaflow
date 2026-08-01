@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, UserContent, ReadingReflection } from '../types';
 import { getLibrary, saveLibraryItem, deleteLibraryItem } from '../services/storageService';
-import { analyzeReadingContent } from '../services/geminiService';
+import { analyzeReadingContent } from '../services/aiService';
 import { Plus, Trash2, Save, BookOpen, PenLine, Type, ArrowLeft, Sparkles, BrainCircuit, ChevronDown, ChevronUp, FileText } from 'lucide-react';
 
 interface LibraryViewProps {

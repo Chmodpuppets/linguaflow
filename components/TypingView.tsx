@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { TypingContent, UserProfile, UserContent, CEFRLevel, VocabularyItem } from '../types';
-import { generateTypingContent, generateSpeech } from '../services/geminiService';
+import { generateTypingContent, generateSpeech, cancelSpeech, transcribeAudio } from '../services/aiService';
 import { addActivity, getLibrary, saveLibraryItem, saveVocabularyItem } from '../services/storageService';
 import { TYPING_STAGES, DRILL_TOPICS } from '../constants';
-import { RefreshCw, Play, Keyboard, Eye, EyeOff, BookOpen, Zap, Star, Sparkles, LayoutGrid, Book, Volume2, StopCircle, Loader2, Mic, Square, Trash2, Ear, Pause, X, Lock, CheckCircle2, Swords, Crown, ShieldAlert, Download, Plus, Check, Bookmark } from 'lucide-react';
+import { RefreshCw, Play, Keyboard, Eye, EyeOff, BookOpen, Zap, Star, Sparkles, LayoutGrid, Book, Volume2, StopCircle, Loader2, Mic, Square, Trash2, Ear, Pause, X, Lock, CheckCircle2, Swords, Crown, ShieldAlert, Plus, Check, Bookmark } from 'lucide-react';
 
 interface TypingViewProps {
   user: UserProfile;
@@ -27,89 +27,7 @@ const parseNotes = (notes: string) => {
     };
 };
 
-// --- Audio Helpers for Gemini TTS ---
-function decodeBase64(base64: string) {
-    const binaryString = atob(base64);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-    }
-    return bytes;
-}
-
-async function decodeAudioData(
-    data: Uint8Array,
-    ctx: AudioContext,
-    sampleRate: number = 24000,
-    numChannels: number = 1,
-): Promise<AudioBuffer> {
-    const dataInt16 = new Int16Array(data.buffer);
-    const frameCount = dataInt16.length / numChannels;
-    const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
-
-    for (let channel = 0; channel < numChannels; channel++) {
-        const channelData = buffer.getChannelData(channel);
-        for (let i = 0; i < frameCount; i++) {
-            channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
-        }
-    }
-    return buffer;
-}
-
-// Helper to download AudioBuffer as WAV
-function bufferToWav(abuffer: AudioBuffer, len: number) {
-  let numOfChan = abuffer.numberOfChannels,
-      length = len * numOfChan * 2 + 44,
-      buffer = new ArrayBuffer(length),
-      view = new DataView(buffer),
-      channels = [], i, sample,
-      offset = 0,
-      pos = 0;
-
-  // write WAVE header
-  setUint32(0x46464952);                         // "RIFF"
-  setUint32(length - 8);                         // file length - 8
-  setUint32(0x45564157);                         // "WAVE"
-
-  setUint32(0x20746d66);                         // "fmt " chunk
-  setUint32(16);                                 // length = 16
-  setUint16(1);                                  // PCM (uncompressed)
-  setUint16(numOfChan);
-  setUint32(abuffer.sampleRate);
-  setUint32(abuffer.sampleRate * 2 * numOfChan); // avg. bytes/sec
-  setUint16(numOfChan * 2);                      // block-align
-  setUint16(16);                                 // 16-bit (hardcoded in this app)
-
-  setUint32(0x61746164);                         // "data" - chunk
-  setUint32(length - pos - 4);                   // chunk length
-
-  // write interleaved data
-  for(i = 0; i < abuffer.numberOfChannels; i++)
-    channels.push(abuffer.getChannelData(i));
-
-  while(pos < len) {
-    for(i = 0; i < numOfChan; i++) {             // interleave channels
-      sample = Math.max(-1, Math.min(1, channels[i][pos])); // clamp
-      sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767)|0; // scale to 16-bit signed int
-      view.setInt16(44 + offset, sample, true);          // write 16-bit sample
-      offset += 2;
-    }
-    pos++;
-  }
-
-  return new Blob([buffer], { type: "audio/wav" });
-
-  function setUint16(data: number) {
-    view.setUint16(pos, data, true);
-    pos += 2;
-  }
-
-  function setUint32(data: number) {
-    view.setUint32(pos, data, true);
-    pos += 4;
-  }
-}
+// --- Audio: AI TTS now uses the browser's Web Speech API (see generateSpeech) ---
 
 const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }) => {
   const [content, setContent] = useState<TypingContent | null>(null);
@@ -134,23 +52,9 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
   // Vocabulary state
   const [addedVocabWords, setAddedVocabWords] = useState<Set<string>>(new Set());
 
-  // Audio State (AI TTS)
+  // Audio State (AI TTS via Web Speech API)
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
-  const [cachedAudioBuffer, setCachedAudioBuffer] = useState<AudioBuffer | null>(null);
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
-  const [audioDuration, setAudioDuration] = useState(0);
-  const [currentTime, setCurrentTime] = useState(0);
-  
-  // A-B Loop State
-  const [loopStart, setLoopStart] = useState<number | null>(null);
-  const [loopEnd, setLoopEnd] = useState<number | null>(null);
-
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const audioSourceRef = useRef<AudioBufferSourceNode | null>(null);
-  const startTimeRef = useRef<number>(0);
-  const startOffsetRef = useRef<number>(0);
-  const rafRef = useRef<number | null>(null);
   
   // Recording State (User Voice)
   const [isRecording, setIsRecording] = useState(false);
@@ -159,6 +63,8 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const userAudioPlayerRef = useRef<HTMLAudioElement | null>(null);
+  const [userTranscript, setUserTranscript] = useState<string | null>(null);
+  const [isTranscribing, setIsTranscribing] = useState(false);
 
   // Selection Mode State
   const [activeTab, setActiveTab] = useState<'campaign' | 'practice' | 'memory'>('campaign');
@@ -173,226 +79,48 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
   // Cleanup audio on unmount
   useEffect(() => {
       return () => {
-          stopAudio();
-          if (audioContextRef.current) {
-              audioContextRef.current.close();
-              audioContextRef.current = null;
-          }
+          cancelSpeech();
           if (userAudioUrl) {
               URL.revokeObjectURL(userAudioUrl);
           }
-          if (rafRef.current) cancelAnimationFrame(rafRef.current);
       };
   }, []);
 
-  // Reset cache and stop audio when content changes
+  // Reset and stop audio when content changes
   useEffect(() => {
-      stopAudio();
-      setCachedAudioBuffer(null);
-      setAudioDuration(0);
-      setCurrentTime(0);
-      setLoopStart(null);
-      setLoopEnd(null);
+      cancelSpeech();
+      setIsSpeaking(false);
       deleteUserRecording();
       setSavedToLibrary(false);
       setAddedVocabWords(new Set());
       setErrorMsg(null);
   }, [content]);
 
-  // --- Audio Engine Logic ---
+  // --- Audio Engine Logic (Web Speech API) ---
 
-  const initAudioContext = () => {
-      if (!audioContextRef.current) {
-          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-      }
-      return audioContextRef.current;
-  };
-
-  const stopAudio = (resetTime = true) => {
-      if (audioSourceRef.current) {
-          try {
-              audioSourceRef.current.stop();
-          } catch (e) { /* ignore */ }
-          audioSourceRef.current = null;
-      }
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+  const stopAudio = () => {
+      cancelSpeech();
       setIsSpeaking(false);
-      setIsGeneratingAudio(false);
-      if (resetTime) {
-        setCurrentTime(0);
-      }
   };
 
-  const startPlayback = (buffer: AudioBuffer, offset: number) => {
-      const ctx = initAudioContext();
-      if (ctx.state === 'suspended') {
-          ctx.resume();
-      }
-
-      if (audioSourceRef.current) {
-          try { audioSourceRef.current.stop(); } catch(e){}
-      }
-
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      source.playbackRate.value = playbackSpeed;
-
-      if (loopStart !== null && loopEnd !== null) {
-          source.loop = true;
-          source.loopStart = loopStart;
-          source.loopEnd = loopEnd;
-      }
-
-      source.connect(ctx.destination);
-      source.onended = () => {
-      };
-
-      source.start(0, offset);
-      
-      audioSourceRef.current = source;
-      startTimeRef.current = ctx.currentTime;
-      startOffsetRef.current = offset;
-      setIsSpeaking(true);
-
-      const updateProgress = () => {
-          if (!audioSourceRef.current || !ctx) return;
-          
-          const rawElapsed = ctx.currentTime - startTimeRef.current;
-          const adjustedElapsed = rawElapsed * playbackSpeed;
-          let newTime = startOffsetRef.current + adjustedElapsed;
-
-          if (loopStart !== null && loopEnd !== null) {
-             if (newTime >= loopEnd) {
-                 const loopDuration = loopEnd - loopStart;
-                 const timeInLoop = (newTime - loopStart) % loopDuration;
-                 newTime = loopStart + timeInLoop;
-             }
-          } else {
-             if (newTime >= buffer.duration) {
-                 newTime = buffer.duration;
-                 setIsSpeaking(false);
-                 cancelAnimationFrame(rafRef.current!);
-                 return; 
-             }
-          }
-
-          setCurrentTime(newTime);
-          rafRef.current = requestAnimationFrame(updateProgress);
-      };
-      
-      rafRef.current = requestAnimationFrame(updateProgress);
-  };
-
-  const togglePlayback = async () => {
+  const togglePlayback = () => {
       if (isSpeaking) {
-          stopAudio(false); 
+          stopAudio();
           return;
       }
-
-      if (cachedAudioBuffer) {
-          let startAt = currentTime;
-          if (startAt >= cachedAudioBuffer.duration) startAt = 0;
-          
-          if (loopStart !== null && loopEnd !== null) {
-              if (startAt < loopStart || startAt >= loopEnd) {
-                  startAt = loopStart;
-              }
-          }
-
-          startPlayback(cachedAudioBuffer, startAt);
-      } else {
-          await fetchAndPlay();
-      }
-  };
-
-  const fetchAndPlay = async () => {
       if (!content) return;
-      setIsGeneratingAudio(true);
-      try {
-          const base64Audio = await generateSpeech(content.text);
-          if (!base64Audio) throw new Error("No audio returned");
-
-          const ctx = initAudioContext();
-          const bytes = decodeBase64(base64Audio);
-          const buffer = await decodeAudioData(bytes, ctx);
-          
-          setCachedAudioBuffer(buffer);
-          setAudioDuration(buffer.duration);
-          setIsGeneratingAudio(false);
-          
-          startPlayback(buffer, 0);
-      } catch (error) {
-          console.error("Audio playback failed:", error);
-          setIsGeneratingAudio(false);
-      }
+      setIsSpeaking(true);
+      generateSpeech(content.text, {
+          lang: user.learningLanguage,
+          rate: playbackSpeed,
+          onEnd: () => setIsSpeaking(false),
+      });
   };
-
-  const handleDownloadAudio = () => {
-      if (!cachedAudioBuffer) return;
-      const wavBlob = bufferToWav(cachedAudioBuffer, cachedAudioBuffer.length);
-      const url = URL.createObjectURL(wavBlob);
-      const a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = url;
-      a.download = `linguaflow-${content?.topic || 'drill'}.wav`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-  };
-
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const newTime = parseFloat(e.target.value);
-      setCurrentTime(newTime);
-      
-      if (isSpeaking && cachedAudioBuffer) {
-          startPlayback(cachedAudioBuffer, newTime);
-      }
-  };
-
-  useEffect(() => {
-      if (audioSourceRef.current) {
-          if (loopStart !== null && loopEnd !== null) {
-              audioSourceRef.current.loop = true;
-              audioSourceRef.current.loopStart = loopStart;
-              audioSourceRef.current.loopEnd = loopEnd;
-          } else {
-              audioSourceRef.current.loop = false;
-          }
-      }
-  }, [loopStart, loopEnd]);
-
-  useEffect(() => {
-      if (audioSourceRef.current && audioContextRef.current) {
-          if (isSpeaking && cachedAudioBuffer) {
-              startPlayback(cachedAudioBuffer, currentTime);
-          }
-      }
-  }, [playbackSpeed]);
-
 
   const toggleSpeed = () => {
       const speeds = [0.75, 1.0, 1.25];
       const nextIdx = (speeds.indexOf(playbackSpeed) + 1) % speeds.length;
       setPlaybackSpeed(speeds[nextIdx]);
-  };
-
-  const setLoopA = () => {
-      if (loopEnd !== null && currentTime >= loopEnd) {
-          setLoopEnd(null);
-      }
-      setLoopStart(currentTime);
-  };
-
-  const setLoopB = () => {
-      if (loopStart === null) setLoopStart(0);
-      if (currentTime > (loopStart || 0)) {
-        setLoopEnd(currentTime);
-      }
-  };
-
-  const clearLoop = () => {
-      setLoopStart(null);
-      setLoopEnd(null);
   };
 
   // --- User Recording Logic ---
@@ -449,9 +177,26 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
           userAudioPlayerRef.current = null;
       }
       setIsPlayingUser(false);
+      setUserTranscript(null);
       if (userAudioUrl) {
           URL.revokeObjectURL(userAudioUrl);
           setUserAudioUrl(null);
+      }
+  };
+
+  const handleTranscribe = async () => {
+      if (!userAudioUrl) return;
+      setIsTranscribing(true);
+      setUserTranscript(null);
+      try {
+          const blob = await fetch(userAudioUrl).then(r => r.blob());
+          const text = await transcribeAudio(blob, user.learningLanguage);
+          setUserTranscript(text);
+      } catch (e: any) {
+          console.error(e);
+          setUserTranscript("识别失败：" + (e?.message || e));
+      } finally {
+          setIsTranscribing(false);
       }
   };
 
@@ -699,12 +444,6 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
     );
   };
 
-  const fmtTime = (s: number) => {
-      const mins = Math.floor(s / 60);
-      const secs = Math.floor(s % 60);
-      return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
   // Level Map Component
   const renderStageMap = () => {
       const unlockedStage = user.progress[user.learningLanguage]?.maxUnlockedStage || 0;
@@ -802,22 +541,12 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                                 <div className="flex items-center gap-1 bg-gray-800/50 rounded-lg p-1 border border-gray-700">
                                     <button
                                         onClick={togglePlayback}
-                                        disabled={isGeneratingAudio}
+                                        disabled={!content}
                                         className={`p-2 rounded-md transition-colors flex items-center gap-2 ${isSpeaking ? 'bg-green-500/20 text-green-400' : 'hover:bg-gray-700 text-gray-300'}`}
                                         title="Play Audio"
                                     >
-                                        {isGeneratingAudio ? <Loader2 size={18} className="animate-spin text-secondary" /> : isSpeaking ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
+                                        {isSpeaking ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
                                     </button>
-                                    
-                                    {cachedAudioBuffer && (
-                                        <button 
-                                            onClick={handleDownloadAudio}
-                                            className="p-2 rounded-md hover:bg-gray-700 text-gray-300"
-                                            title="Download Audio (WAV)"
-                                        >
-                                            <Download size={18} />
-                                        </button>
-                                    )}
 
                                     <button onClick={toggleSpeed} className="p-1 px-2 text-xs font-mono font-bold text-gray-400 hover:text-white hover:bg-gray-700 rounded">
                                         {playbackSpeed}x
@@ -832,10 +561,25 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                                     ) : (
                                         <>
                                             <button onClick={playUserRecording} className={`p-2 rounded-md ${isPlayingUser ? 'text-secondary' : 'text-gray-300'}`}><Ear size={18} /></button>
+                                            <button
+                                                onClick={handleTranscribe}
+                                                disabled={isTranscribing}
+                                                className={`p-2 rounded-md ${isTranscribing ? 'text-secondary animate-pulse' : 'text-gray-300 hover:text-white'}`}
+                                                title="用 AI 识别你的发音"
+                                            >
+                                                {isTranscribing ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
+                                            </button>
                                             <button onClick={deleteUserRecording} className="p-2 rounded-md text-gray-400 hover:text-red-400"><Trash2 size={18} /></button>
                                         </>
                                     )}
                                 </div>
+
+                                {userAudioUrl && userTranscript !== null && (
+                                    <div className="text-sm text-gray-300 bg-gray-800/40 rounded-lg p-2 border border-gray-700">
+                                        <span className="text-gray-500 mr-2">识别结果:</span>
+                                        {userTranscript || "（无语音内容）"}
+                                    </div>
+                                )}
 
                                 {/* Save To Memory Bank Button */}
                                 <button
@@ -888,48 +632,6 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                 </div>
             </div>
             
-            {!isStrictMode && cachedAudioBuffer && (
-                <div className="border-t border-gray-700 pt-3 flex flex-col gap-2">
-                    <div className="flex items-center gap-3">
-                        <span className="text-xs font-mono text-gray-400 w-10 text-right">{fmtTime(currentTime)}</span>
-                        <div className="relative flex-1 h-6 flex items-center">
-                             {/* Loop UI Elements */}
-                             {loopStart !== null && <div className="absolute top-0 bottom-0 w-0.5 bg-yellow-400 z-10" style={{ left: `${(loopStart / audioDuration) * 100}%` }}></div>}
-                             {loopEnd !== null && <div className="absolute top-0 bottom-0 w-0.5 bg-yellow-400 z-10" style={{ left: `${(loopEnd / audioDuration) * 100}%` }}></div>}
-                             {loopStart !== null && loopEnd !== null && <div className="absolute h-1.5 bg-yellow-400/20 rounded-full" style={{ left: `${(loopStart/audioDuration)*100}%`, width: `${((loopEnd-loopStart)/audioDuration)*100}%` }}></div>}
-
-                             <input 
-                                type="range" 
-                                min="0" 
-                                max={audioDuration || 100} 
-                                step="0.1"
-                                value={currentTime}
-                                onChange={handleSeek}
-                                className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-secondary z-20"
-                             />
-                        </div>
-                        <span className="text-xs font-mono text-gray-400 w-10">{fmtTime(audioDuration)}</span>
-                    </div>
-
-                    <div className="flex justify-center gap-2">
-                        <button 
-                            onClick={setLoopA} 
-                            className={`px-2 py-1 text-xs font-bold rounded border ${loopStart !== null ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500' : 'bg-gray-800 text-gray-400 border-gray-700 hover:text-white'}`}
-                        >
-                            A
-                        </button>
-                        <button 
-                            onClick={setLoopB} 
-                            className={`px-2 py-1 text-xs font-bold rounded border ${loopEnd !== null ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500' : 'bg-gray-800 text-gray-400 border-gray-700 hover:text-white'}`}
-                        >
-                            B
-                        </button>
-                        {(loopStart !== null || loopEnd !== null) && (
-                            <button onClick={clearLoop} className="px-2 py-1 text-xs text-gray-500 hover:text-white">Clear Loop</button>
-                        )}
-                    </div>
-                </div>
-            )}
         </div>
       )}
 
