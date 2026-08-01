@@ -196,8 +196,13 @@ linguaflow/
 | --- | --- | --- |
 | `QWEN_API_KEY` | ✅ 是 | 阿里云百炼 API Key，大模型主用 |
 | `QWEN_BASE_URL` | 否 | 默认 `https://dashscope.aliyuncs.com/compatible-mode/v1` |
+| `QWEN_MODEL` | 否 | 主用大模型名，默认 `qwen3.7-flash-2026-07-15`（如 `qwen-max`、`qwen-turbo`） |
+| `QWEN_TTS_MODEL` | 否 | TTS 语音模型，默认 `sambert-zhide-v1`（如 `sambert-eva-v1`、`cosyvoice-v1`、`qwen-audio-3.0-tts-flash`） |
+| `QWEN_STT_MODEL` | 否 | STT 语音识别模型，默认 `paraformer-v2`（如 `paraformer-realtime-v2`） |
 | `OPENROUTER_API_KEY` | 否 | OpenRouter Key，Qwen 限流时自动兜底；留空则不启用 |
+| `OPENROUTER_MODEL` | 否 | 兜底大模型名，默认 `google/gemini-2.5-flash` |
 
+> 所有变量留空都会回退到上表中的默认值。改完 `.env` 需重启 `npm run dev` 才生效。
 > `.env.example` 是模板，请勿把真实 Key 提交到 Git。
 
 ---

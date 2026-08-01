@@ -25,6 +25,15 @@ const OPENROUTER_API_KEY = process.env.API_KEY || "";
 // (e.g. google/gemini-2.5-flash, openai/gpt-4o-mini, anthropic/claude-3.5-haiku, ...)
 const OPENROUTER_LLM_MODEL = process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash";
 
+// Speech models (DashScope). Override via .env.
+// TTS: any Qwen voice you have enabled, e.g. sambert-zhide-v1 (Chinese),
+//   sambert-eva-v1 (English), cosyvoice-v1, qwen-audio-3.0-tts-flash.
+// STT: any Paraformer ASR model id, e.g. paraformer-v2, paraformer-realtime-v2.
+// NOTE: swapping to a non-DashScope provider (e.g. Azure) requires changing the
+// endpoint/format logic below, not just the model name.
+const QWEN_TTS_MODEL = process.env.QWEN_TTS_MODEL || "sambert-zhide-v1";
+const QWEN_STT_MODEL = process.env.QWEN_STT_MODEL || "paraformer-v2";
+
 interface LLMProvider {
   name: string;
   baseUrl: string;
@@ -43,6 +52,7 @@ console.info(
     .map((p) => `${p.name} → ${p.model}`)
     .join("  |  ")}`
 );
+console.info(`[LinguaFlow] Speech models — TTS: ${QWEN_TTS_MODEL}  |  STT: ${QWEN_STT_MODEL}`);
 
 // Helper to safely parse JSON from AI text response
 const parseAIJSON = <T>(text: string | undefined, fallback: T): T => {
@@ -302,7 +312,7 @@ async function fetchQwenTtsUrl(text: string): Promise<string> {
     method: "POST",
     headers: { Authorization: `Bearer ${QWEN_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "sambert-zhide-v1",
+      model: QWEN_TTS_MODEL,
       input: { text },
       parameters: { format: "wav", sample_rate: 48000 },
     }),
@@ -353,7 +363,9 @@ export const generateSpeech = (
     }
     cancelSpeech();
 
-    // sambert-zhide-v1 is a Chinese voice; use Qwen TTS only for Chinese content.
+    // sambert-zhide-v1 is a Chinese voice by default; use Qwen TTS for Chinese content.
+    // (For multilingual Qwen voices like qwen-audio-3.0-tts-flash, set QWEN_TTS_MODEL
+    // and adjust routing here later.)
     if (opts?.lang === Language.Chinese) {
       fetchQwenTtsUrl(text)
         .then((url) => playQwenAudio(url, opts))
@@ -425,7 +437,7 @@ async function getUploadSign(): Promise<{ uploadUrl: string; ossObjectKey: strin
       "Content-Type": "application/json",
       "X-DashScope-OssResourceResolve": "enable",
     },
-    body: JSON.stringify({ model: "paraformer-v2" }),
+    body: JSON.stringify({ model: QWEN_STT_MODEL }),
   });
   if (!res.ok) throw new Error(`upload sign failed (${res.status})`);
   const data = await res.json();
@@ -451,7 +463,7 @@ async function submitTranscription(ossObjectKey: string, lang: Language): Promis
       "X-DashScope-Async": "enable",
     },
     body: JSON.stringify({
-      model: "paraformer-v2",
+      model: QWEN_STT_MODEL,
       input: { file_urls: [ossObjectKey] },
       parameters: { channel_id: [0], language_hints: hints },
     }),
