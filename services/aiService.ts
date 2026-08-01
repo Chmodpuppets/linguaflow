@@ -11,7 +11,9 @@ const QWEN_API_KEY = process.env.QWEN_API_KEY || "";
 if (!QWEN_API_KEY) {
   console.warn("[LinguaFlow] QWEN_API_KEY is not set. Copy .env.example to .env and add your DashScope API key.");
 }
-const QWEN_LLM_MODEL = "qwen3.7-flash-2026-07-15";
+// Model used for the Qwen provider. Override via QWEN_MODEL in .env.
+// (e.g. qwen-turbo, qwen-plus, qwen-max, qwen3.7-flash-2026-07-15, ...)
+const QWEN_LLM_MODEL = process.env.QWEN_MODEL || "qwen3.7-flash-2026-07-15";
 
 // Derive the DashScope host for TTS/STT endpoints (which live outside /compatible-mode).
 const QWEN_HOST = QWEN_BASE_URL.replace(/\/compatible-mode\/v1\/?$/, "");
@@ -19,7 +21,9 @@ const QWEN_HOST = QWEN_BASE_URL.replace(/\/compatible-mode\/v1\/?$/, "");
 // Fallback provider (used when Qwen quota/rate-limit is hit).
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const OPENROUTER_API_KEY = process.env.API_KEY || "";
-const OPENROUTER_LLM_MODEL = "google/gemini-2.5-flash";
+// Model used for the OpenRouter fallback. Override via OPENROUTER_MODEL in .env.
+// (e.g. google/gemini-2.5-flash, openai/gpt-4o-mini, anthropic/claude-3.5-haiku, ...)
+const OPENROUTER_LLM_MODEL = process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash";
 
 interface LLMProvider {
   name: string;
@@ -32,6 +36,13 @@ const LLM_PROVIDERS: LLMProvider[] = [
   { name: "qwen", baseUrl: QWEN_BASE_URL, apiKey: QWEN_API_KEY, model: QWEN_LLM_MODEL },
   { name: "openrouter", baseUrl: OPENROUTER_BASE_URL, apiKey: OPENROUTER_API_KEY, model: OPENROUTER_LLM_MODEL },
 ];
+
+// Surface the active configuration so users always know which model is in use.
+console.info(
+  `[LinguaFlow] LLM providers active: ${LLM_PROVIDERS
+    .map((p) => `${p.name} → ${p.model}`)
+    .join("  |  ")}`
+);
 
 // Helper to safely parse JSON from AI text response
 const parseAIJSON = <T>(text: string | undefined, fallback: T): T => {

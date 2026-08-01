@@ -13,7 +13,9 @@ export default defineConfig(({ mode }) => {
       define: {
         'process.env.QWEN_API_KEY': JSON.stringify(env.QWEN_API_KEY),
         'process.env.QWEN_BASE_URL': JSON.stringify(env.QWEN_BASE_URL),
-        'process.env.API_KEY': JSON.stringify(env.OPENROUTER_API_KEY)
+        'process.env.QWEN_MODEL': JSON.stringify(env.QWEN_MODEL),
+        'process.env.API_KEY': JSON.stringify(env.OPENROUTER_API_KEY),
+        'process.env.OPENROUTER_MODEL': JSON.stringify(env.OPENROUTER_MODEL)
       },
       resolve: {
         alias: {
