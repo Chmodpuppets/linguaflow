@@ -30,7 +30,8 @@ export enum AppMode {
   RPG = 'rpg',
   Daily = 'daily',
   Import = 'import',
-  Social = 'social'
+  Social = 'social',
+  ScriptTrainer = 'script_trainer'
 }
 
 // --- Personalization (Phase 2/3) ---
@@ -106,6 +107,37 @@ export interface VocabularyItem {
   lapses?: number;     // 遗忘次数
 }
 
+// --- Script / Alphabet Production Trainer (跨语言通用，数据驱动) ---
+// 设计铁律：生成式练习——给声音/意思/罗马字提示，绝不直接显示答案字形；
+// 用户必须主动从记忆里产出字形（打字或虚拟键盘），答错才揭示答案并降级。
+export type ScriptTarget = 'hiragana' | 'katakana' | 'other';
+
+export interface ScriptItem {
+  id: string;
+  group: string;            // 分组标签，如 '平假名' / '片假名' / '拗音（平假名）'
+  prompt: string;           // 给用户的提示（romaji 或 意思），不显示答案字形
+  answer: string;           // 正确字形，如 'きゃ' / 'ア'
+  romaji?: string;          // 罗马字（日语 romaji 输入对照用）
+  targetScript?: ScriptTarget; // 转换目标文字（决定 romaji 输入转成哪种）
+  audioText?: string;       // 送 TTS 的读音文本（通常 === answer）
+}
+
+export interface ScriptPack {
+  id: string;               // 如 'ja-kana'
+  language: Language;
+  name: string;
+  description: string;
+  groups: string[];         // 可选分组（用户选择练习范围）
+  items: ScriptItem[];
+}
+
+export interface ScriptCardProgress {
+  box: number;              // Leitner 1..5
+  dueDate: number;          // 下次复习时间戳
+  reviews: number;
+  lapses: number;
+}
+
 // --- Writing Tree System Types ---
 
 export type NodeType = 'root' | 'chapter' | 'section' | 'snippet' | 'idea';
@@ -171,7 +203,7 @@ export interface ActivityLog {
   id: string;
   timestamp: number;
   date: string; // YYYY-MM-DD
-  type: 'writing' | 'typing' | 'tree_writing' | 'vocabulary' | 'rpg';
+  type: 'writing' | 'typing' | 'tree_writing' | 'vocabulary' | 'rpg' | 'script';
   language: Language;
   summary: string;
   details: {
@@ -227,7 +259,7 @@ export interface UserProfile {
   joinedDate: number;
 }
 
-export type QuestKind = 'typing_words' | 'vocab_review' | 'rpg_sessions' | 'writing_words';
+export type QuestKind = 'typing_words' | 'vocab_review' | 'rpg_sessions' | 'writing_words' | 'script_practice';
 
 export interface DailyQuest {
   id: string;

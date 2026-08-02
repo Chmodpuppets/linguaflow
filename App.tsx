@@ -14,6 +14,7 @@ import RPGView from './components/RPGView';
 import DailyView from './components/DailyView';
 import ImportView from './components/ImportView';
 import SocialView from './components/SocialView';
+import ScriptTrainerView from './components/ScriptTrainerView';
 import { GraduationCap, ChevronDown, Menu, Flame, Star } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -102,6 +103,13 @@ const App: React.FC = () => {
       case AppMode.Vocabulary:
         return (
             <VocabularyView 
+                user={user}
+                onUpdateUser={handleUserUpdate}
+            />
+        );
+      case AppMode.ScriptTrainer:
+        return (
+            <ScriptTrainerView
                 user={user}
                 onUpdateUser={handleUserUpdate}
             />

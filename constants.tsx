@@ -14,7 +14,8 @@ import {
   Upload,
   Users,
   Sparkles,
-  Target
+  Target,
+  PenLine
 } from 'lucide-react';
 
 export const SUPPORTED_LANGUAGES = [
@@ -49,6 +50,7 @@ export const NAV_ITEMS = [
   { id: 'writing', label: '写作工坊', icon: <PenTool size={20} /> },
   { id: 'library', label: '记忆库', icon: <Book size={20} /> },
   { id: 'vocabulary', label: '词汇', icon: <BookA size={20} /> },
+  { id: 'script_trainer', label: '文字特训', icon: <PenLine size={20} /> },
   { id: 'import', label: '导入', icon: <Upload size={20} /> },
   { id: 'social', label: '学习搭子', icon: <Users size={20} /> },
   { id: 'profile', label: '我的资料', icon: <User size={20} /> },

@@ -1,5 +1,5 @@
 
-import { UserProfile, ActivityLog, Language, CEFRLevel, UserContent, LanguageProgress, WritingNode, VocabularyItem, DailyQuest, QuestKind, MentorPersona, AIMemory } from '../types';
+import { UserProfile, ActivityLog, Language, CEFRLevel, UserContent, LanguageProgress, WritingNode, VocabularyItem, DailyQuest, QuestKind, MentorPersona, AIMemory, ScriptItem, ScriptCardProgress } from '../types';
 
 const STORAGE_KEY_USER = 'linguaflow_user';
 const STORAGE_KEY_LOGS = 'linguaflow_logs';
@@ -7,6 +7,7 @@ const STORAGE_KEY_LIBRARY = 'linguaflow_library';
 const STORAGE_KEY_TREE = 'linguaflow_writing_tree';
 const STORAGE_KEY_VOCAB = 'linguaflow_vocabulary';
 const STORAGE_KEY_AI = 'linguaflow_ai_config';
+const STORAGE_KEY_SCRIPT = 'linguaflow_script_progress';
 
 // --- Runtime AI model configuration (switcher in Settings -> 模型设置) ---
 // Keys are stored ONLY in localStorage (browser), never committed to source.
@@ -151,12 +152,13 @@ const QUEST_TEMPLATES: Array<{ kind: QuestKind; label: string; target: number; r
     { kind: 'vocab_review', label: '词汇复习：复习 10 个单词', target: 10, rewardXP: 15 },
     { kind: 'rpg_sessions', label: '口语对话：完成 5 轮 RPG 情景对话', target: 5, rewardXP: 20 },
     { kind: 'writing_words', label: '写作练习：写满 50 个词', target: 50, rewardXP: 20 },
+    { kind: 'script_practice', label: '字形特训：练熟 10 个字形', target: 10, rewardXP: 15 },
 ];
 
 export const generateDailyQuests = (lang: Language): DailyQuest[] => {
-    // 固定两项：打字 + 词汇复习；第三项在「口语 / 写作」间按日期轮换，保证每日多样性
-    const writingDay = parseInt(getTodayString().slice(-1), 10) % 2 === 0;
-    const third = writingDay ? QUEST_TEMPLATES[3] : QUEST_TEMPLATES[2];
+    // 固定两项：打字 + 词汇复习；第三项在「口语 / 写作 / 字形特训」间按日期轮换，保证每日多样性
+    const dayMod = parseInt(getTodayString().slice(-1), 10) % 3;
+    const third = [QUEST_TEMPLATES[2], QUEST_TEMPLATES[3], QUEST_TEMPLATES[4]][dayMod];
     const picks = [QUEST_TEMPLATES[0], QUEST_TEMPLATES[1], third];
     return picks.map((t) => ({
         id: crypto.randomUUID(),
@@ -339,6 +341,7 @@ export const addActivity = (
   else if (type === 'writing' || type === 'tree_writing') { questKind = 'writing_words'; questAmount = details.wordCount ?? 0; }
   else if (type === 'rpg') { questKind = 'rpg_sessions'; questAmount = 1; }
   else if (type === 'vocabulary') { questKind = 'vocab_review'; questAmount = 1; }
+  else if (type === 'script') { questKind = 'script_practice'; questAmount = details.count ?? 1; }
   if (questKind) progressQuests(updatedUser, questKind, questAmount);
 
   saveUser(updatedUser);
@@ -426,4 +429,44 @@ export const saveVocabularyItem = (item: VocabularyItem) => {
 export const deleteVocabularyItem = (id: string) => {
     const items = getVocabulary().filter(i => i.id !== id);
     localStorage.setItem(STORAGE_KEY_VOCAB, JSON.stringify(items));
+};
+
+// --- Script / Alphabet Production Trainer SRS ---
+// 复用 Leitner 间隔重复逻辑（与词汇一致）：答错回 box 1、答对冲高 box，间隔变长。
+// 存储结构：Record<packId, Record<itemId, ScriptCardProgress>>
+const getScriptStore = (): Record<string, Record<string, ScriptCardProgress>> => {
+    const data = localStorage.getItem(STORAGE_KEY_SCRIPT);
+    return data ? JSON.parse(data) : {};
+};
+
+const saveScriptStore = (store: Record<string, Record<string, ScriptCardProgress>>) => {
+    localStorage.setItem(STORAGE_KEY_SCRIPT, JSON.stringify(store));
+};
+
+export const getScriptProgress = (packId: string): Record<string, ScriptCardProgress> => {
+    const store = getScriptStore();
+    return store[packId] ?? {};
+};
+
+export const reviewScriptCard = (packId: string, itemId: string, known: boolean): ScriptCardProgress => {
+    const store = getScriptStore();
+    const pack = store[packId] ?? {};
+    const prev = pack[itemId] ?? { box: 1, dueDate: Date.now(), reviews: 0, lapses: 0 };
+    const nextBox = known ? Math.min(5, prev.box + 1) : 1;
+    const days = SRS_INTERVALS_DAYS[nextBox] ?? 35;
+    const updated: ScriptCardProgress = {
+        box: nextBox,
+        dueDate: Date.now() + days * 24 * 3600 * 1000,
+        reviews: prev.reviews + 1,
+        lapses: known ? prev.lapses : prev.lapses + 1,
+    };
+    store[packId] = { ...pack, [itemId]: updated };
+    saveScriptStore(store);
+    return updated;
+};
+
+export const getDueScriptItems = (packId: string, items: ScriptItem[]): ScriptItem[] => {
+    const progress = getScriptProgress(packId);
+    const now = Date.now();
+    return items.filter(it => (progress[it.id]?.dueDate ?? 0) <= now);
 };

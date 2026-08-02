@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, AppMode, QuestKind, ActivityLog } from '../types';
 import { getDueVocabulary, getLogs } from '../services/storageService';
-import { Flame, Shield, CheckCircle2, ArrowRight, Sparkles, Target, BookOpen, MessageSquare, PenTool, Type, Trophy } from 'lucide-react';
+import { Flame, Shield, CheckCircle2, ArrowRight, Sparkles, Target, BookOpen, MessageSquare, PenTool, Type, Trophy, PenLine } from 'lucide-react';
 
 interface DailyViewProps {
   user: UserProfile;
@@ -15,6 +15,7 @@ const QUEST_TO_MODE: Record<QuestKind, AppMode> = {
   vocab_review: AppMode.Vocabulary,
   rpg_sessions: AppMode.RPG,
   writing_words: AppMode.Writing,
+  script_practice: AppMode.ScriptTrainer,
 };
 
 const QUEST_ICON: Record<QuestKind, React.ReactNode> = {
@@ -22,6 +23,7 @@ const QUEST_ICON: Record<QuestKind, React.ReactNode> = {
   vocab_review: <BookOpen size={18} />,
   rpg_sessions: <MessageSquare size={18} />,
   writing_words: <PenTool size={18} />,
+  script_practice: <PenLine size={18} />,
 };
 
 const todayStr = () => new Date().toISOString().split('T')[0];
