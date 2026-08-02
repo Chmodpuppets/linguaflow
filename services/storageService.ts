@@ -402,10 +402,12 @@ export const saveWritingTree = (nodes: WritingNode[]) => {
     localStorage.setItem(STORAGE_KEY_TREE, JSON.stringify(nodes));
 };
 
-// 成长树：树空时初始化默认成长树（3 主题×3 任务，首任务解锁）并保存
+// 成长树：树空或旧格式（无task节点）时初始化默认成长树（3 主题×3 任务，首任务解锁）并保存
 export const ensureGrowthTree = (lang: Language, level: CEFRLevel): WritingNode[] => {
     const existing = getWritingTree();
-    if (existing.length > 0) return existing;
+    const isGrowthFormat = existing.some((n) => n.type === 'task');
+    if (existing.length > 0 && isGrowthFormat) return existing;
+    // 旧格式写书树（root/chapter/section）或空树 → 生成新成长树
     const tree = createDefaultGrowthTree(lang, level);
     saveWritingTree(tree);
     return tree;
