@@ -277,14 +277,20 @@ export const generateTypingContent = async (targetLang: Language, nativeLang: La
   }
 };
 
-export const analyzeWriting = async (text: string, targetLanguage: Language, nativeLanguage: Language): Promise<WritingFeedback> => {
+export const analyzeWriting = async (text: string, targetLanguage: Language, nativeLanguage: Language, cefrLevel: CEFRLevel = CEFRLevel.A1): Promise<WritingFeedback> => {
   const prompt = `
-    Act as a strict but helpful language tutor. Review the following ${targetLanguage} writing sample.
-    Identify errors, suggest improvements, and estimate the CEFR level.
-    
+    Act as a strict but encouraging language tutor. The student is learning ${targetLanguage} at CEFR level ${cefrLevel} (native language: ${nativeLanguage}).
+    Review their writing sample. Identify errors and suggest improvements.
+
+    IMPORTANT grading rules:
+    - Evaluate at the student's declared level (${cefrLevel}). Do NOT penalize the absence of grammar/vocabulary above that level — a ${cefrLevel} learner is not expected to use advanced structures.
+    - Focus feedback on errors typical of ${cefrLevel}: particles, polite form, basic word order, script orthography (kana/kanji spelling), agreement.
+    - Be encouraging: in "generalComment", first state what they did well, then the single most important thing to improve.
+    - Estimate the CEFR level of THIS sample honestly (it may differ from their declared level).
+
     Text: "${text}"
 
-    IMPORTANT: Explain all feedback, reasons for corrections, and the general comment in ${nativeLanguage}, so the student understands clearly.
+    Explain all feedback, reasons for corrections, and the general comment in ${nativeLanguage}.
 
     Return ONLY valid JSON. No Markdown.
     Structure:

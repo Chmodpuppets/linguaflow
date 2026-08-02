@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, WritingNode, NodeType } from '../types';
 import { getWritingTree, saveWritingTree, addActivity } from '../services/storageService';
 import { generateTreeStructure, classifyInspiration, getWritingCoachFeedback, polishText } from '../services/aiService';
+import { countWords } from '../services/textUtils';
 import { 
   FolderTree, FileText, Plus, ChevronRight, ChevronDown, 
   Lightbulb, Sparkles, Save, Bot, 
@@ -100,7 +101,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
       title: defaultTitle,
       content: initialContent,
       progress: 0,
-      wordCount: initialContent ? initialContent.split(/\s+/).length : 0,
+      wordCount: initialContent ? countWords(initialContent, user.learningLanguage) : 0,
       tags: [],
       isExpanded: true,
       createdAt: Date.now(),
@@ -166,7 +167,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
     if (!activeNodeId) return;
     setIsSaving(true);
     
-    const wordCount = content.trim().split(/\s+/).length;
+    const wordCount = countWords(content, user.learningLanguage);
     const previousNode = nodes.find(n => n.id === activeNodeId);
     const wordDiff = wordCount - (previousNode?.wordCount || 0);
 
@@ -500,7 +501,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                     />
                     
                     <div className="p-2 bg-gray-900/50 border-t border-gray-700 text-xs text-gray-500 flex justify-between px-4">
-                         <span>{content.trim().split(/\s+/).filter(w=>w).length} 字</span>
+                         <span>{countWords(content, user.learningLanguage)} 字</span>
                          {activeNodeId && nodes.find(n => n.id === activeNodeId)?.updatedAt && (
                              <span>最后保存：{new Date(nodes.find(n => n.id === activeNodeId)!.updatedAt).toLocaleTimeString()}</span>
                          )}

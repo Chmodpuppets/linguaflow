@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
-import { UserProfile, WritingFeedback } from '../types';
+import { UserProfile, WritingFeedback, CEFRLevel } from '../types';
 import { analyzeWriting } from '../services/aiService';
 import { addActivity } from '../services/storageService';
+import { countWords } from '../services/textUtils';
 import { Sparkles, ArrowRight, BookCheck, Wand2, Star, AlertCircle } from 'lucide-react';
 
 interface WritingViewProps {
@@ -10,15 +11,54 @@ interface WritingViewProps {
   onComplete: (user: UserProfile) => void;
 }
 
-const TOPICS = [
-  "描述你最喜欢的童年回忆。",
-  "你对社交媒体有什么看法？",
-  "描述你现在所在的房间。",
-  "写一封信邀请朋友来吃饭。",
-  "介绍一道你家乡的传统菜。"
-];
+// 按 CEFR 等级分级的写作题目（母语提示，让学习者用目标语言产出）
+const TOPICS_BY_LEVEL: Record<CEFRLevel, string[]> = {
+  [CEFRLevel.A1]: [
+    '用目标语言做个自我介绍：你叫什么、是哪国人、做什么工作或学生。',
+    '描述你身边的一件物品：这是什么、什么颜色、是大还是小。',
+    '写写你今天做了什么（用过去时），至少两句。',
+    '说说你喜欢什么、不喜欢什么（用"喜欢/讨厌"句型）。',
+    '描述你房间里某样东西在哪里（用方位词）。',
+  ],
+  [CEFRLevel.A2]: [
+    '描述你一天的日常（从早到晚，至少四句）。',
+    '写写你上个周末做了什么（用过去时）。',
+    '比较两种食物或两个城市，说说你更喜欢哪个、为什么。',
+    '写一段话邀请朋友周末一起做某事，说明时间地点。',
+    '你在餐厅，用目标语言点一餐并和服务员简单对话。',
+  ],
+  [CEFRLevel.B1]: [
+    '描述一次让你印象深刻的旅行：去了哪、做了什么、感受如何。',
+    '谈谈你对某件事的看法（用"我认为"句型），并给出理由。',
+    '比较住在城市和乡下的优缺点。',
+    '写一封信给朋友，讲讲你最近的计划和打算。',
+    '介绍一部你喜欢的电影或书，并说明推荐理由。',
+  ],
+  [CEFRLevel.B2]: [
+    '描述一段童年回忆，以及它对你的影响。',
+    '谈谈你对社交媒体的看法：利与弊。',
+    '介绍一道你家乡的传统菜，并写明做法。',
+    '就一个社会话题阐述你的观点，正反两面都要涉及。',
+    '写一封正式邮件，申请一个职位或项目。',
+  ],
+  [CEFRLevel.C1]: [
+    '就一个争议性话题写一篇议论文，立场鲜明、论证充分。',
+    '描述一个复杂的技术或文化概念，让外行也能懂。',
+    '写一篇评论文章，评析最近的一部作品或事件。',
+    '用目标语言写一篇短文，反思你学习这门语言的过程与心得。',
+  ],
+  [CEFRLevel.C2]: [
+    '用目标语言创作一篇短篇散文或故事，注重文采与风格。',
+    '就一个抽象主题（如时间、自由）写一篇哲学思辨短文。',
+    '翻译并评析一段你母语的文学片段。',
+  ],
+};
 
 const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
+  // 按用户当前目标语言的 CEFR 等级选题（无等级记录默认 A1）
+  const userLevel = user.progress[user.learningLanguage]?.cefrLevel ?? CEFRLevel.A1;
+  const currentTopics = TOPICS_BY_LEVEL[userLevel] ?? TOPICS_BY_LEVEL[CEFRLevel.A1];
+
   const [text, setText] = useState('');
   const [feedback, setFeedback] = useState<WritingFeedback | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -31,11 +71,11 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
     setFeedback(null);
     setError(null);
     try {
-      const result = await analyzeWriting(text, user.learningLanguage, user.nativeLanguage);
+      const result = await analyzeWriting(text, user.learningLanguage, user.nativeLanguage, userLevel);
       setFeedback(result);
       
-      // Calculate XP: Base 50 + Length Bonus
-      const wordCount = text.trim().split(/\s+/).length;
+      // Calculate XP: Base 50 + Length Bonus（CJK 按字符数，拉丁按词数）
+      const wordCount = countWords(text, user.learningLanguage);
       const xp = 50 + Math.min(100, Math.floor(wordCount / 2));
       
       const { user: updatedUser } = addActivity(
@@ -71,9 +111,9 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
       <div className="flex flex-col space-y-4 h-full">
         {/* Topic Suggestion Carousel */}
         <div className="bg-card p-4 rounded-xl border border-gray-700">
-            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">写作题目</h3>
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">写作题目（{userLevel} 级）</h3>
             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
-                {TOPICS.map((t, i) => (
+                {currentTopics.map((t, i) => (
                     <button 
                         key={i} 
                         onClick={() => useTopic(t)}
