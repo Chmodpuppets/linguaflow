@@ -6,6 +6,43 @@ const STORAGE_KEY_LOGS = 'linguaflow_logs';
 const STORAGE_KEY_LIBRARY = 'linguaflow_library';
 const STORAGE_KEY_TREE = 'linguaflow_writing_tree';
 const STORAGE_KEY_VOCAB = 'linguaflow_vocabulary';
+const STORAGE_KEY_AI = 'linguaflow_ai_config';
+
+// --- Runtime AI model configuration (switcher in Settings -> 模型设置) ---
+// Keys are stored ONLY in localStorage (browser), never committed to source.
+export type AIProviderId = 'qwen' | 'openrouter' | 'glm' | 'custom';
+
+export interface AIConfig {
+  active: AIProviderId;
+  glm: { baseUrl: string; model: string; apiKey: string };
+  custom: { baseUrl: string; model: string; apiKey: string };
+}
+
+export const defaultAIConfig = (): AIConfig => ({
+  active: 'qwen',
+  glm: { baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'GLM-4.7-Flash', apiKey: '' },
+  custom: { baseUrl: '', model: '', apiKey: '' },
+});
+
+export const getAIConfig = (): AIConfig => {
+  const data = localStorage.getItem(STORAGE_KEY_AI);
+  if (!data) return defaultAIConfig();
+  try {
+    const p = JSON.parse(data);
+    const d = defaultAIConfig();
+    return {
+      active: (p.active as AIProviderId) || d.active,
+      glm: { ...d.glm, ...(p.glm || {}) },
+      custom: { ...d.custom, ...(p.custom || {}) },
+    };
+  } catch {
+    return defaultAIConfig();
+  }
+};
+
+export const saveAIConfig = (c: AIConfig) => {
+  localStorage.setItem(STORAGE_KEY_AI, JSON.stringify(c));
+};
 
 // --- Helper: Date String ---
 const getTodayString = () => new Date().toISOString().split('T')[0];

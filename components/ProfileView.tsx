@@ -1,7 +1,8 @@
 
 import React, { useMemo, useState, useRef } from 'react';
 import { UserProfile, ActivityLog, Language, LanguageProgress, CEFRLevel, MentorPersona } from '../types';
-import { getLogs, ensureLanguageProgress, saveUser } from '../services/storageService';
+import { getLogs, ensureLanguageProgress, saveUser, getAIConfig, saveAIConfig, AIConfig } from '../services/storageService';
+import { testModelConnection, GLM_ENV_API_KEY } from '../services/aiService';
 import { Trophy, Flame, Calendar, Clock, PenTool, Type, Zap, TrendingUp, TrendingDown, Activity, Check, Globe, Settings, GraduationCap, ChevronDown, User, LogOut, Download, Upload, Database, Crown } from 'lucide-react';
 import { SUPPORTED_LANGUAGES, MENTOR_PERSONAS, TOPIC_PACKAGES } from '../constants';
 import AssessmentView from './AssessmentView';
@@ -15,6 +16,29 @@ interface ProfileViewProps {
 const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'settings'>('overview');
   const [showAssessment, setShowAssessment] = useState(false);
+
+  // --- Runtime model switcher (Settings -> 模型设置) ---
+  const [modelCfg, setModelCfg] = useState<AIConfig>(() => getAIConfig());
+  const [modelTest, setModelTest] = useState<{ status: 'idle' | 'testing' | 'ok' | 'error'; msg: string }>({ status: 'idle', msg: '' });
+
+  const updateActiveProvider = (patch: Partial<{ baseUrl: string; model: string; apiKey: string }>) => {
+    const key = modelCfg.active;
+    if (key !== 'glm' && key !== 'custom') return;
+    setModelCfg({ ...modelCfg, [key]: { ...modelCfg[key], ...patch } });
+  };
+  const handleSaveModel = () => {
+    saveAIConfig(modelCfg);
+    setModelTest({ status: 'idle', msg: '已保存。下一次 AI 调用将使用所选模型。' });
+  };
+  const handleTestModel = async () => {
+    setModelTest({ status: 'testing', msg: '正在测试连接…' });
+    try {
+      const res = await testModelConnection(modelCfg);
+      setModelTest({ status: 'ok', msg: `连接成功：${res.trim().slice(0, 60)}` });
+    } catch (e: any) {
+      setModelTest({ status: 'error', msg: `连接失败：${e?.message || e}` });
+    }
+  };
 
   const logs = getLogs();
   const currentProgress = user.progress[user.learningLanguage];
@@ -582,6 +606,93 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Model Settings Card */}
+              <div className="bg-card border border-gray-700 rounded-2xl p-6 h-fit">
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <Settings size={20} className="text-purple-400" /> 模型设置
+                </h3>
+                <p className="text-xs text-gray-400 mb-4 leading-relaxed">
+                  切换驱动 AI 的底层模型。保存后，打字、写作批改、RPG 对话等所有 AI 功能都会使用所选模型。
+                </p>
+
+                <label className="text-sm font-bold text-gray-400 mb-2 block">当前模型</label>
+                <div className="grid grid-cols-2 gap-2 mb-4">
+                  {([
+                    { id: 'glm', label: '智谱 GLM', desc: 'GLM-4.7-Flash' },
+                    { id: 'qwen', label: 'Qwen', desc: 'DashScope' },
+                    { id: 'openrouter', label: 'OpenRouter', desc: '多模型网关' },
+                    { id: 'custom', label: '自定义', desc: 'OpenAI 兼容端点' },
+                  ] as const).map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => setModelCfg({ ...modelCfg, active: p.id })}
+                      className={`p-2.5 rounded-xl border text-left transition-all ${modelCfg.active === p.id ? 'bg-primary/20 border-primary' : 'bg-dark border-gray-600 hover:border-gray-400'}`}
+                    >
+                      <div className="text-sm font-bold text-white">{p.label}</div>
+                      <div className="text-[10px] text-gray-400 mt-0.5 leading-snug">{p.desc}</div>
+                    </button>
+                  ))}
+                </div>
+
+                {(modelCfg.active === 'glm' || modelCfg.active === 'custom') && (
+                  <div className="space-y-3 mb-4">
+                    <div>
+                      <label className="text-xs font-bold text-gray-400 mb-1 block">API Base URL</label>
+                      <input
+                        value={modelCfg[modelCfg.active as 'glm' | 'custom'].baseUrl}
+                        onChange={(e) => updateActiveProvider({ baseUrl: e.target.value })}
+                        placeholder="https://open.bigmodel.cn/api/paas/v4"
+                        className="w-full bg-dark border border-gray-600 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-secondary"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-gray-400 mb-1 block">模型名称</label>
+                      <input
+                        value={modelCfg[modelCfg.active as 'glm' | 'custom'].model}
+                        onChange={(e) => updateActiveProvider({ model: e.target.value })}
+                        placeholder="GLM-4.7-Flash"
+                        className="w-full bg-dark border border-gray-600 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-secondary"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-gray-400 mb-1 block">API Key</label>
+                      <input
+                        type="password"
+                        value={modelCfg[modelCfg.active as 'glm' | 'custom'].apiKey}
+                        onChange={(e) => updateActiveProvider({ apiKey: e.target.value })}
+                        placeholder={modelCfg.active === 'glm' && GLM_ENV_API_KEY ? '已配置 .env 中的 GLM_API_KEY（可留空）' : '留空则使用 .env 密钥'}
+                        className="w-full bg-dark border border-gray-600 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-secondary"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {(modelCfg.active === 'qwen' || modelCfg.active === 'openrouter') && (
+                  <p className="text-xs text-gray-500 mb-4">该模型的密钥来自 <code className="text-gray-300">.env</code>，在此不可编辑。</p>
+                )}
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSaveModel}
+                    className="flex-1 py-2.5 rounded-xl bg-primary hover:bg-primary/80 text-white text-sm font-bold transition-colors"
+                  >
+                    保存
+                  </button>
+                  <button
+                    onClick={handleTestModel}
+                    disabled={modelTest.status === 'testing'}
+                    className="flex-1 py-2.5 rounded-xl bg-dark hover:bg-gray-800 text-gray-200 border border-gray-600 text-sm font-bold transition-colors disabled:opacity-50"
+                  >
+                    {modelTest.status === 'testing' ? '测试中…' : '测试连接'}
+                  </button>
+                </div>
+                {modelTest.msg && (
+                  <p className={`text-xs mt-3 ${modelTest.status === 'error' ? 'text-red-400' : modelTest.status === 'ok' ? 'text-green-400' : 'text-gray-400'}`}>
+                    {modelTest.msg}
+                  </p>
+                )}
               </div>
 
               {/* Data & Backup Card */}

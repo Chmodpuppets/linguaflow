@@ -1,6 +1,7 @@
 
 import { Language, CEFRLevel, AssessmentResult, TypingContent, WritingFeedback, WritingNode, NodeType, ReadingReflection, RPGScenario, RPGTurnResult, UserProfile } from '../types';
 import { MENTOR_PERSONAS } from '../constants';
+import { getAIConfig, AIConfig } from './storageService';
 
 // --- Qwen (DashScope) + OpenRouter configuration ---
 // Primary LLM provider: Alibaba Cloud DashScope "Qwen" via its OpenAI-compatible
@@ -26,6 +27,14 @@ const OPENROUTER_API_KEY = process.env.API_KEY || "";
 // (e.g. google/gemini-2.5-flash, openai/gpt-4o-mini, anthropic/claude-3.5-haiku, ...)
 const OPENROUTER_LLM_MODEL = process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash";
 
+// Zhipu GLM provider (switchable in Settings -> 模型设置). Base/model/key can be
+// overridden at runtime via the UI; the key falls back to .env when left blank.
+// Uses import.meta.env (VITE_ prefixed) so the value is injected in BOTH dev and build.
+const GLM_API_KEY = import.meta.env.VITE_GLM_API_KEY || "";
+export const GLM_ENV_API_KEY = GLM_API_KEY;
+const GLM_BASE_URL = import.meta.env.VITE_GLM_BASE_URL || "https://open.bigmodel.cn/api/paas/v4";
+const GLM_MODEL = import.meta.env.VITE_GLM_MODEL || "GLM-4.7-Flash";
+
 // Speech models (DashScope). Override via .env.
 // TTS: any Qwen voice you have enabled, e.g. sambert-zhide-v1 (Chinese),
 //   sambert-eva-v1 (English), cosyvoice-v1, qwen-audio-3.0-tts-flash.
@@ -42,16 +51,37 @@ interface LLMProvider {
   model: string;
 }
 
-const LLM_PROVIDERS: LLMProvider[] = [
-  { name: "qwen", baseUrl: QWEN_BASE_URL, apiKey: QWEN_API_KEY, model: QWEN_LLM_MODEL },
-  { name: "openrouter", baseUrl: OPENROUTER_BASE_URL, apiKey: OPENROUTER_API_KEY, model: OPENROUTER_LLM_MODEL },
-];
+// Build the active provider list at call time from the runtime AI config
+// (Settings -> 模型设置) plus the env-based Qwen/OpenRouter providers.
+// The user's selected provider is tried first; env providers act as fallback.
+const buildProviders = (override?: AIConfig): LLMProvider[] => {
+  const cfg = override || getAIConfig();
+  const envProviders: LLMProvider[] = [];
+  if (QWEN_API_KEY) envProviders.push({ name: "qwen", baseUrl: QWEN_BASE_URL, apiKey: QWEN_API_KEY, model: QWEN_LLM_MODEL });
+  if (OPENROUTER_API_KEY) envProviders.push({ name: "openrouter", baseUrl: OPENROUTER_BASE_URL, apiKey: OPENROUTER_API_KEY, model: OPENROUTER_LLM_MODEL });
+
+  const active: LLMProvider[] = [];
+  const glmKey = cfg.glm.apiKey || GLM_API_KEY;
+  if (cfg.active === "glm" && glmKey) {
+    active.push({ name: "glm", baseUrl: cfg.glm.baseUrl || GLM_BASE_URL, apiKey: glmKey, model: cfg.glm.model || GLM_MODEL });
+  } else if (cfg.active === "custom" && cfg.custom.apiKey) {
+    active.push({ name: "custom", baseUrl: cfg.custom.baseUrl, apiKey: cfg.custom.apiKey, model: cfg.custom.model });
+  } else if (cfg.active === "qwen" && QWEN_API_KEY) {
+    active.push(envProviders[0]);
+  } else if (cfg.active === "openrouter" && OPENROUTER_API_KEY) {
+    active.push(envProviders[1]);
+  }
+
+  // Active provider first, then the remaining env providers as fallback.
+  const fallbacks = envProviders.filter((p) => p.name !== active[0]?.name);
+  return [...active, ...fallbacks];
+};
 
 // Surface the active configuration so users always know which model is in use.
 console.info(
-  `[LinguaFlow] LLM providers active: ${LLM_PROVIDERS
-    .map((p) => `${p.name} → ${p.model}`)
-    .join("  |  ")}`
+  `[LinguaFlow] LLM providers (env): qwen → ${QWEN_LLM_MODEL}` +
+  `${OPENROUTER_API_KEY ? `  |  openrouter → ${OPENROUTER_LLM_MODEL}` : ""}` +
+  `; 运行时模型可在 Settings -> 模型设置 切换（GLM / 自定义）`
 );
 console.info(`[LinguaFlow] Speech models — TTS: ${QWEN_TTS_MODEL}  |  STT: ${QWEN_STT_MODEL}`);
 
@@ -129,7 +159,7 @@ const callProvider = async (p: LLMProvider, messages: { role: string; content: s
 
 const chatCompletion = async (prompt: string): Promise<string> => {
     let lastErr: unknown;
-    for (const p of LLM_PROVIDERS) {
+    for (const p of buildProviders()) {
         try {
             return await callProvider(p, [{ role: "user", content: prompt }]);
         } catch (e: any) {
@@ -145,7 +175,7 @@ const chatCompletion = async (prompt: string): Promise<string> => {
 // 带 system 指令的对话（用于注入 AI 导师人设与"记住你"的上下文）
 export const chatCompletionWithSystem = async (system: string, prompt: string): Promise<string> => {
     let lastErr: unknown;
-    for (const p of LLM_PROVIDERS) {
+    for (const p of buildProviders()) {
         try {
             return await callProvider(p, [
                 { role: "system", content: system },
@@ -158,6 +188,17 @@ export const chatCompletionWithSystem = async (system: string, prompt: string): 
         }
     }
     throw lastErr;
+};
+
+// One-off connectivity test using the given (or currently stored) config's
+// primary provider. Returns the raw model reply (e.g. "OK") on success.
+export const testModelConnection = async (config?: AIConfig): Promise<string> => {
+  const providers = buildProviders(config);
+  if (!providers.length) throw new Error("没有可用的模型配置");
+  return await callProvider(providers[0], [
+    { role: "system", content: "You are a helpful test assistant." },
+    { role: "user", content: "Reply with exactly the word: OK" },
+  ]);
 };
 
 export const assessUserLevel = async (text: string, language: Language): Promise<AssessmentResult> => {
