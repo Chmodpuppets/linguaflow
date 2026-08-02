@@ -4,6 +4,7 @@ import { UserProfile, GuidedWritingFeedback, GuidedMode, CEFRLevel, Language } f
 import { analyzeGuidedWriting, GuidedContext, generateSentenceWords, generateSpeech } from '../services/aiService';
 import { addActivity } from '../services/storageService';
 import { romajiToKana } from '../services/romajiKana';
+import { countWords } from '../services/textUtils';
 import { getGuidedTemplate, getGuidedPrompt, hasGuidedTemplates, GuidedTemplate } from '../data/guidedWriting';
 import { Sparkles, Check, ArrowRight, RefreshCw, Lightbulb, Wand2, Volume2, AlertCircle } from 'lucide-react';
 
@@ -91,7 +92,7 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
       setStats({ correct: correctRef.current, total: totalRef.current });
       const xp = fb.isCorrect ? 15 : 5;
       const { user: updated } = addActivity(user, 'writing', user.learningLanguage, xp,
-        `引导式写作·${MODE_INFO[mode].name}${fb.isCorrect ? ' ✓' : ' ✗'}`, { mode });
+        `引导式写作·${MODE_INFO[mode].name}${fb.isCorrect ? ' ✓' : ' ✗'}`, { mode, wordCount: countWords(normalizedInput, user.learningLanguage) });
       onComplete(updated);
     } catch (e) {
       setError('AI 批改失败，请检查网络/API Key 后重试。');

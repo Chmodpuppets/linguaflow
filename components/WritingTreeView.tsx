@@ -4,6 +4,7 @@ import { UserProfile, WritingNode, CEFRLevel, Language, GuidedWritingFeedback } 
 import { ensureGrowthTree, saveWritingTree, addActivity } from '../services/storageService';
 import { analyzeGuidedWriting, generateSpeech } from '../services/aiService';
 import { romajiToKana } from '../services/romajiKana';
+import { countWords } from '../services/textUtils';
 import {
   FolderTree, FileText, ChevronRight, ChevronDown, Lock, CheckCircle2,
   Sparkles, Wand2, Volume2, ArrowRight, AlertCircle, PenLine
@@ -99,7 +100,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
       user.learningLanguage,
       xp,
       `成长树·${task.title}${feedback?.isCorrect ? ' ✓' : ' ✗'}`,
-      {}
+      { wordCount: countWords(normalizedInput, user.learningLanguage) }
     );
     onUpdateUser(updated);
   };
