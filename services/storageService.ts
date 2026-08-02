@@ -1,5 +1,6 @@
 
 import { UserProfile, ActivityLog, Language, CEFRLevel, UserContent, LanguageProgress, WritingNode, VocabularyItem, DailyQuest, QuestKind, MentorPersona, AIMemory, ScriptItem, ScriptCardProgress } from '../types';
+import { createDefaultGrowthTree } from '../data/growthTree';
 
 const STORAGE_KEY_USER = 'linguaflow_user';
 const STORAGE_KEY_LOGS = 'linguaflow_logs';
@@ -399,6 +400,15 @@ export const getWritingTree = (): WritingNode[] => {
 
 export const saveWritingTree = (nodes: WritingNode[]) => {
     localStorage.setItem(STORAGE_KEY_TREE, JSON.stringify(nodes));
+};
+
+// 成长树：树空时初始化默认成长树（3 主题×3 任务，首任务解锁）并保存
+export const ensureGrowthTree = (lang: Language, level: CEFRLevel): WritingNode[] => {
+    const existing = getWritingTree();
+    if (existing.length > 0) return existing;
+    const tree = createDefaultGrowthTree(lang, level);
+    saveWritingTree(tree);
+    return tree;
 };
 
 // --- Vocabulary ---

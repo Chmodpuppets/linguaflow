@@ -157,7 +157,7 @@ export interface ScriptCardProgress {
 
 // --- Writing Tree System Types ---
 
-export type NodeType = 'root' | 'chapter' | 'section' | 'snippet' | 'idea';
+export type NodeType = 'root' | 'chapter' | 'section' | 'snippet' | 'idea' | 'theme' | 'task';
 
 export interface WritingNode {
   id: string;
@@ -172,6 +172,13 @@ export interface WritingNode {
   isExpanded?: boolean; // UI state for tree
   createdAt: number;
   updatedAt: number;
+  // 成长树字段（theme/task 节点用）
+  cefrLevel?: CEFRLevel;   // 任务难度
+  unlocked?: boolean;      // 是否解锁（可开始）
+  completed?: boolean;     // 是否已完成
+  scaffold?: string;       // 脚手架模板（含 ___，空串表示自由写）
+  scaffoldHint?: string;   // 填空提示
+  order?: number;          // 同主题内顺序（解锁链用）
 }
 
 // --- RPG System Types ---
