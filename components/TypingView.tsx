@@ -587,7 +587,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
 
                                 <div className="flex items-center gap-1 bg-gray-800/50 rounded-lg p-1 border border-gray-700">
                                     {!userAudioUrl ? (
-                                        <button onClick={isRecording ? stopRecording : startRecording} className={`p-2 rounded-md ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'hover:bg-gray-700 text-gray-300'}`} title="Record Your Voice">
+                                        <button onClick={isRecording ? stopRecording : startRecording} className={`p-2 rounded-md ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'hover:bg-gray-700 text-gray-300'}`} title="录制你的声音">
                                             {isRecording ? <Square size={18} fill="currentColor" /> : <Mic size={18} />}
                                         </button>
                                     ) : (

@@ -43,7 +43,7 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
           'writing',
           user.learningLanguage,
           xp,
-          `Writing Practice (${wordCount} words)`,
+          `写作练习（${wordCount} 词）`,
           {
               wordCount: wordCount,
               feedback: result.generalComment

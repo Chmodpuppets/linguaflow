@@ -29,29 +29,29 @@ export const SUPPORTED_LANGUAGES = [
 ];
 
 export const DRILL_TOPICS = [
-  { id: 'daily', label: 'Daily Life', icon: '☕' },
-  { id: 'business', label: 'Business', icon: '💼' },
-  { id: 'tech', label: 'Technology', icon: '💻' },
-  { id: 'travel', label: 'Travel', icon: '✈️' },
-  { id: 'culture', label: 'Culture', icon: '🎨' },
-  { id: 'food', label: 'Food & Dining', icon: '🍜' },
-  { id: 'news', label: 'Current Events', icon: '📰' },
-  { id: 'science', label: 'Science', icon: '🔬' },
-  { id: 'literature', label: 'Literature', icon: '📚' },
-  { id: 'philosophy', label: 'Philosophy', icon: '🤔' },
+  { id: 'daily', label: '日常生活', icon: '☕' },
+  { id: 'business', label: '商务', icon: '💼' },
+  { id: 'tech', label: '科技', icon: '💻' },
+  { id: 'travel', label: '旅行', icon: '✈️' },
+  { id: 'culture', label: '文化', icon: '🎨' },
+  { id: 'food', label: '美食', icon: '🍜' },
+  { id: 'news', label: '时事', icon: '📰' },
+  { id: 'science', label: '科学', icon: '🔬' },
+  { id: 'literature', label: '文学', icon: '📚' },
+  { id: 'philosophy', label: '哲学', icon: '🤔' },
 ];
 
 export const NAV_ITEMS = [
-  { id: 'daily', label: 'Today', icon: <Home size={20} /> },
-  { id: 'rpg', label: 'LinguaQuest', icon: <Gamepad2 size={20} /> },
-  { id: 'typing', label: 'Typing Adventure', icon: <Type size={20} /> },
-  { id: 'writing_tree', label: 'Writing Tree', icon: <Network size={20} /> },
-  { id: 'writing', label: 'Writing Lab', icon: <PenTool size={20} /> },
-  { id: 'library', label: 'Memory Bank', icon: <Book size={20} /> },
-  { id: 'vocabulary', label: 'Vocabulary', icon: <BookA size={20} /> },
-  { id: 'import', label: 'Import', icon: <Upload size={20} /> },
-  { id: 'social', label: 'Study Buddies', icon: <Users size={20} /> },
-  { id: 'profile', label: 'My Profile', icon: <User size={20} /> },
+  { id: 'daily', label: '今日', icon: <Home size={20} /> },
+  { id: 'rpg', label: '剧情对话', icon: <Gamepad2 size={20} /> },
+  { id: 'typing', label: '打字闯关', icon: <Type size={20} /> },
+  { id: 'writing_tree', label: '写作树', icon: <Network size={20} /> },
+  { id: 'writing', label: '写作工坊', icon: <PenTool size={20} /> },
+  { id: 'library', label: '记忆库', icon: <Book size={20} /> },
+  { id: 'vocabulary', label: '词汇', icon: <BookA size={20} /> },
+  { id: 'import', label: '导入', icon: <Upload size={20} /> },
+  { id: 'social', label: '学习搭子', icon: <Users size={20} /> },
+  { id: 'profile', label: '我的资料', icon: <User size={20} /> },
 ];
 
 // --- AI Tutor Personas (Phase 2/3) ---
@@ -92,24 +92,24 @@ export const TOPIC_PACKAGES = DRILL_TOPICS;
 // --- Gamified Progression Map ---
 export const TYPING_STAGES = [
   // World 1: The Basics (A1)
-  { id: 0, title: "First Steps", cefr: CEFRLevel.A1, minWpm: 0, description: "Simple words and greetings.", isBoss: false, icon: "🌱" },
-  { id: 1, title: "Daily Items", cefr: CEFRLevel.A1, minWpm: 15, description: "Common objects around you.", isBoss: false, icon: "🍎" },
-  { id: 2, title: "Introductions", cefr: CEFRLevel.A1, minWpm: 20, description: "Introducing yourself.", isBoss: false, icon: "👋" },
-  { id: 3, title: "A1 Boss: Speed Run", cefr: CEFRLevel.A1, minWpm: 30, description: "Prove your mastery of the basics.", isBoss: true, icon: "⚔️" },
-  
+  { id: 0, title: "初学起步", cefr: CEFRLevel.A1, minWpm: 0, description: "简单的单词与问候。", isBoss: false, icon: "🌱" },
+  { id: 1, title: "日常物品", cefr: CEFRLevel.A1, minWpm: 15, description: "你身边的常见物品。", isBoss: false, icon: "🍎" },
+  { id: 2, title: "自我介绍", cefr: CEFRLevel.A1, minWpm: 20, description: "介绍你自己。", isBoss: false, icon: "👋" },
+  { id: 3, title: "A1 Boss：速度冲刺", cefr: CEFRLevel.A1, minWpm: 30, description: "证明你已经掌握基础。", isBoss: true, icon: "⚔️" },
+
   // World 2: Building Blocks (A2)
-  { id: 4, title: "The City", cefr: CEFRLevel.A2, minWpm: 25, description: "Navigating urban life.", isBoss: false, icon: "🏙️" },
-  { id: 5, title: "Routine", cefr: CEFRLevel.A2, minWpm: 30, description: "Describing your day.", isBoss: false, icon: "⏰" },
-  { id: 6, title: "Feelings", cefr: CEFRLevel.A2, minWpm: 35, description: "Expressing emotions.", isBoss: false, icon: "🎭" },
-  { id: 7, title: "A2 Boss: Precision", cefr: CEFRLevel.A2, minWpm: 40, description: "Accuracy is key.", isBoss: true, icon: "🐉" },
+  { id: 4, title: "城市", cefr: CEFRLevel.A2, minWpm: 25, description: "在城市中穿行。", isBoss: false, icon: "🏙️" },
+  { id: 5, title: "日常作息", cefr: CEFRLevel.A2, minWpm: 30, description: "描述你的一天。", isBoss: false, icon: "⏰" },
+  { id: 6, title: "感受", cefr: CEFRLevel.A2, minWpm: 35, description: "表达情绪。", isBoss: false, icon: "🎭" },
+  { id: 7, title: "A2 Boss：精准", cefr: CEFRLevel.A2, minWpm: 40, description: "精准是关键。", isBoss: true, icon: "🐉" },
 
   // World 3: Fluency (B1)
-  { id: 8, title: "Travel Log", cefr: CEFRLevel.B1, minWpm: 35, description: "Writing about trips.", isBoss: false, icon: "✈️" },
-  { id: 9, title: "Opinions", cefr: CEFRLevel.B1, minWpm: 40, description: "Agreeing and disagreeing.", isBoss: false, icon: "🗣️" },
-  { id: 10, title: "B1 Boss: Endurance", cefr: CEFRLevel.B1, minWpm: 50, description: "Longer paragraphs await.", isBoss: true, icon: "🏰" },
+  { id: 8, title: "旅行日志", cefr: CEFRLevel.B1, minWpm: 35, description: "写写旅途见闻。", isBoss: false, icon: "✈️" },
+  { id: 9, title: "观点", cefr: CEFRLevel.B1, minWpm: 40, description: "同意与反对。", isBoss: false, icon: "🗣️" },
+  { id: 10, title: "B1 Boss：耐力", cefr: CEFRLevel.B1, minWpm: 50, description: "更长的段落等着你。", isBoss: true, icon: "🏰" },
 
   // World 4: Mastery (B2+)
-  { id: 11, title: "Abstract Concepts", cefr: CEFRLevel.B2, minWpm: 45, description: "Discussing ideas.", isBoss: false, icon: "🧠" },
-  { id: 12, title: "Professional", cefr: CEFRLevel.C1, minWpm: 50, description: "Business and formal language.", isBoss: false, icon: "💼" },
-  { id: 13, title: "Final Boss: The Poet", cefr: CEFRLevel.C2, minWpm: 60, description: "Complex literary structures.", isBoss: true, icon: "👑" },
+  { id: 11, title: "抽象概念", cefr: CEFRLevel.B2, minWpm: 45, description: "讨论想法。", isBoss: false, icon: "🧠" },
+  { id: 12, title: "职场", cefr: CEFRLevel.C1, minWpm: 50, description: "商务与正式表达。", isBoss: false, icon: "💼" },
+  { id: 13, title: "终极 Boss：诗人", cefr: CEFRLevel.C2, minWpm: 60, description: "复杂的文学结构。", isBoss: true, icon: "👑" },
 ];

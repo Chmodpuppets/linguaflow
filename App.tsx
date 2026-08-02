@@ -63,6 +63,10 @@ const App: React.FC = () => {
   // Derived state for current language stats
   const currentFlag = SUPPORTED_LANGUAGES.find(l => l.id === user.learningLanguage)?.flag || '🌐';
   const currentProgress = user.progress[user.learningLanguage] || { xp: 0, level: 1, cefrLevel: CEFRLevel.A1 };
+  // 等级 = 1 + floor(xp / 500)，进度条反映"到本级满"的真实进度
+  const XP_PER_LEVEL = 500;
+  const xpInLevel = currentProgress.xp % XP_PER_LEVEL;
+  const xpToNext = XP_PER_LEVEL - xpInLevel;
 
   const renderContent = () => {
     switch (mode) {
@@ -149,7 +153,7 @@ const App: React.FC = () => {
             </div>
             <div>
                 <h1 className="font-bold text-white tracking-tight">LinguaFlow</h1>
-                <p className="text-xs text-gray-500">Mastery via Output</p>
+                <p className="text-xs text-gray-500">以输出练就流利</p>
             </div>
         </div>
 
@@ -161,7 +165,7 @@ const App: React.FC = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                     <div className="font-bold text-sm truncate text-white">{user.username}</div>
-                    <div className="text-xs text-gray-500">Lvl {currentProgress.level} • {currentProgress.cefrLevel}</div>
+                    <div className="text-xs text-gray-500">等级 {currentProgress.level} • {currentProgress.cefrLevel}</div>
                 </div>
                 <div className="flex flex-col items-center">
                     <Flame size={14} className="text-orange-500" />
@@ -170,16 +174,16 @@ const App: React.FC = () => {
             </div>
             {/* XP Bar */}
             <div className="w-full h-1.5 bg-gray-700 rounded-full overflow-hidden">
-                <div className="h-full bg-secondary" style={{ width: `${currentProgress.xp % 100}%` }}></div>
+                <div className="h-full bg-secondary" style={{ width: `${(xpInLevel / XP_PER_LEVEL) * 100}%` }}></div>
             </div>
             <div className="flex justify-between text-[10px] text-gray-500 mt-1">
-                 <span>{currentProgress.xp} XP</span>
-                 <span>Next Lvl</span>
+                 <span>{currentProgress.xp} 经验</span>
+                 <span>距下一级还需 {xpToNext}</span>
             </div>
         </div>
 
         <nav className="flex-1 p-4 space-y-2">
-            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">Menu</div>
+            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">菜单</div>
             {NAV_ITEMS.map((item) => (
                 <button
                     key={item.id}
@@ -227,7 +231,7 @@ const App: React.FC = () => {
                         {NAV_ITEMS.find(n => n.id === mode)?.label}
                     </h2>
                     <p className="text-gray-500 text-sm">
-                        {currentProgress.cefrLevel} Level • {currentProgress.xp} XP total
+                        {currentProgress.cefrLevel} 级 • 共 {currentProgress.xp} 经验
                     </p>
                 </div>
                 

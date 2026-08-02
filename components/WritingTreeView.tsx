@@ -92,7 +92,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
       return updatedNodes;
   };
 
-  const handleCreateNode = (type: NodeType, parentId: string | null = null, defaultTitle = 'Untitled', initialContent = '') => {
+  const handleCreateNode = (type: NodeType, parentId: string | null = null, defaultTitle = '未命名', initialContent = '') => {
     const newNode: WritingNode = {
       id: crypto.randomUUID(),
       parentId,
@@ -191,7 +191,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
             'tree_writing', 
             user.learningLanguage, 
             xp, 
-            `Worked on "${title}"`,
+            `在「${title}」上写作`,
             { wordCount: wordDiff, nodeTitle: title }
         );
         onUpdateUser(updatedUser);
@@ -370,12 +370,12 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                      <FileText size={16} className="flex-shrink-0" />
                     }
                     
-                    <span className="truncate flex-1 font-medium">{node.title || 'Untitled'}</span>
+                    <span className="truncate flex-1 font-medium">{node.title || '未命名'}</span>
 
                     {/* Actions - Always Visible */}
                     <div className="flex items-center gap-1">
                         <button 
-                            onClick={(e) => { e.stopPropagation(); handleCreateNode('section', node.id, 'New Section'); }}
+                            onClick={(e) => { e.stopPropagation(); handleCreateNode('section', node.id, '新章节'); }}
                             className="p-1.5 text-gray-500 hover:text-green-400 hover:bg-gray-700 rounded-md transition-colors"
                             title="添加子节点"
                         >
@@ -440,7 +440,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                     <GitBranch size={18} /> 结构
                 </span>
                 <button 
-                    onClick={() => handleCreateNode('root', null, 'New Book Project')}
+                    onClick={() => handleCreateNode('root', null, '新建书籍项目')}
                     className="flex items-center gap-1 px-2 py-1 bg-primary/20 text-primary hover:bg-primary/30 rounded-md text-xs font-bold transition-all"
                     title="添加根项目"
                 >

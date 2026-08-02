@@ -99,7 +99,7 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser }) =
         'vocabulary',
         user.learningLanguage,
         5, // 5 XP per word
-        `Added word: ${newWord}`,
+        `已添加单词：${newWord}`,
         { word: newWord }
     );
     onUpdateUser(updatedUser);
@@ -326,7 +326,7 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser }) =
                                   onClick={handleAIAutoFill}
                                   disabled={!newWord || isGenerating}
                                   className="bg-secondary/20 hover:bg-secondary/30 text-secondary border border-secondary/50 px-3 py-2 rounded-lg transition-colors"
-                                  title="Auto-fill definition with AI"
+                                  title="用 AI 自动填充释义"
                               >
                                   {isGenerating ? <Loader2 size={20} className="animate-spin" /> : <Sparkles size={20} />}
                               </button>

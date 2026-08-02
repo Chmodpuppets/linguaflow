@@ -203,7 +203,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                 phonetic: newScenario.initialPhonetic,
                 translation: '开始对话……', // Initial placeholder
             }]);
-            setCurrentSuggestion(newScenario.initialSuggestedReply || "Hello!");
+            setCurrentSuggestion(newScenario.initialSuggestedReply || "你好！");
             setCurrentSuggestionPhonetic(newScenario.initialSuggestedReplyPhonetic || null);
             setCompletedObjectives(new Set());
             setIsFinished(false);
@@ -214,11 +214,11 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                 sender: 'ai',
                 text: newScenario.initialMessage,
                 phonetic: newScenario.initialPhonetic,
-                translation: 'Start the conversation...',
+                translation: '开始对话……',
             };
             setMessages([initMsg]);
             saveSession(newScenario, [initMsg], []);
-            setCurrentSuggestion(newScenario.initialSuggestedReply || "Hello!");
+            setCurrentSuggestion(newScenario.initialSuggestedReply || "你好！");
             setCurrentSuggestionPhonetic(newScenario.initialSuggestedReplyPhonetic || null);
         } catch (e) {
             console.error(e);
@@ -315,7 +315,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
             'rpg',
             user.learningLanguage,
             amount,
-            scenario ? `RPG: ${scenario.theme}` : 'RPG Session',
+            scenario ? `剧情对话：${scenario.theme}` : '剧情对话',
             { scenarioTitle: scenario?.title }
         );
         onUpdateUser(u);
@@ -670,7 +670,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                             onClick={() => setShowHint(!showHint)}
                             disabled={!currentSuggestion}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${showHint ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'bg-gray-800 text-gray-400 hover:bg-gray-700 disabled:opacity-30'}`}
-                            title="Show a suggested reply"
+                            title="显示建议回复"
                         >
                             <Lightbulb size={14} className={showHint ? "text-yellow-300 fill-yellow-300" : ""} /> Hint
                         </button>
@@ -678,7 +678,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                         <button 
                             onClick={() => setShowPhonetics(!showPhonetics)}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${showPhonetics ? 'bg-secondary text-white shadow-lg shadow-secondary/20' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
-                            title="Toggle Phonetic Guide (Romaji/Pinyin)"
+                            title="切换发音指南（罗马音/拼音）"
                         >
                             <Languages size={14} /> 发音指南
                         </button>
