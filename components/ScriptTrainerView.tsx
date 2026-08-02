@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { UserProfile, ScriptPack, ScriptItem } from '../types';
 import { getScriptPacks, getScriptPackForLanguage } from '../data/scriptPacks';
 import { getDueScriptItems, reviewScriptCard, addActivity } from '../services/storageService';
@@ -28,6 +28,8 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
   const [lastCorrect, setLastCorrect] = useState<boolean | null>(null);
   const [sessionDone, setSessionDone] = useState(false);
   const [stats, setStats] = useState({ reviewed: 0, correct: 0 });
+  // 听音模式：隐藏罗马字/转写线索，仅靠 TTS 发音写出字形（生成式练习完全体）
+  const [listenMode, setListenMode] = useState(false);
 
   const reviewedRef = useRef(0);
   const correctRef = useRef(0);
@@ -127,6 +129,13 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
     if (text) generateSpeech(text, { lang: selectedPack.language });
   };
 
+  // 听音模式：切换卡片时自动播一次（浏览器策略可能拦截首次自动播放，用户仍可点按钮补救）
+  useEffect(() => {
+    if (listenMode && current && !revealed) {
+      generateSpeech(current.audioText || current.answer, { lang: selectedPack.language });
+    }
+  }, [listenMode, idx, revealed, current, selectedPack.language]);
+
   const hasTransliterate = !!selectedPack.transliterate;
 
   // 分组选择
@@ -200,23 +209,48 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
         <button onClick={() => { setGroup(''); setSessionDone(false); }} className="text-gray-400 hover:text-white">
           ← {selectedPack.name} · {group}
         </button>
-        <span className="text-gray-500">{Math.min(idx + 1, queue.length)} / {queue.length}</span>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setListenMode((m) => !m)}
+            title="开启后隐藏文字线索，仅靠听音写出字形"
+            className={`px-3 py-1 rounded-lg border transition-colors ${listenMode ? 'border-secondary text-secondary bg-secondary/10' : 'border-gray-600 text-gray-400 hover:text-white'}`}
+          >
+            {listenMode ? '🔊 听音模式' : '🔈 看字模式'}
+          </button>
+          <span className="text-gray-500">{Math.min(idx + 1, queue.length)} / {queue.length}</span>
+        </div>
       </div>
 
       <div className="bg-card border border-gray-700 rounded-2xl p-8 text-center">
         <div className="text-xs text-gray-500 mb-2">
-          请写出对应字形{hasTransliterate ? '（输入罗马字 / 拉丁字母）' : '（点按下方键盘）'}
-        </div>
-        <div className="text-4xl font-bold text-white mb-4 tracking-widest font-mono">
-          {current.prompt}
+          {listenMode
+            ? '听音写出对应字形（已隐藏文字线索）'
+            : `请写出对应字形${hasTransliterate ? '（输入罗马字 / 拉丁字母）' : '（点按下方键盘）'}`}
         </div>
 
-        <button
-          onClick={() => speak(current.audioText || current.answer)}
-          className="flex items-center justify-center gap-2 mx-auto mb-6 text-gray-400 hover:text-secondary transition-colors"
-        >
-          <Volume2 size={18} /> 听发音
-        </button>
+        {listenMode ? (
+          <button
+            onClick={() => speak(current.audioText || current.answer)}
+            title="点击听发音"
+            className="mx-auto mb-4 flex flex-col items-center justify-center w-24 h-24 rounded-full bg-secondary/20 border-2 border-secondary text-secondary hover:bg-secondary/30 transition-colors"
+          >
+            <Volume2 size={36} />
+            <span className="text-xs mt-1">点击听音</span>
+          </button>
+        ) : (
+          <div className="text-4xl font-bold text-white mb-4 tracking-widest font-mono">
+            {current.prompt}
+          </div>
+        )}
+
+        {!listenMode && (
+          <button
+            onClick={() => speak(current.audioText || current.answer)}
+            className="flex items-center justify-center gap-2 mx-auto mb-6 text-gray-400 hover:text-secondary transition-colors"
+          >
+            <Volume2 size={18} /> 听发音
+          </button>
+        )}
 
         {!revealed ? (
           <div className="space-y-4">
