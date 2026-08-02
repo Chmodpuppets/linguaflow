@@ -1,8 +1,9 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { UserProfile, GuidedWritingFeedback, GuidedMode, CEFRLevel } from '../types';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { UserProfile, GuidedWritingFeedback, GuidedMode, CEFRLevel, Language } from '../types';
 import { analyzeGuidedWriting, GuidedContext, generateSentenceWords, generateSpeech } from '../services/aiService';
 import { addActivity } from '../services/storageService';
+import { romajiToKana } from '../services/romajiKana';
 import { getGuidedTemplate, getGuidedPrompt, hasGuidedTemplates, GuidedTemplate } from '../data/guidedWriting';
 import { Sparkles, Check, ArrowRight, RefreshCw, Lightbulb, Wand2, Volume2, AlertCircle } from 'lucide-react';
 
@@ -36,6 +37,14 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
   const correctRef = useRef(0);
   const totalRef = useRef(0);
   const [stats, setStats] = useState({ correct: 0, total: 0 });
+
+  // 日语：罗马字输入自动转假名（与字形特训一致，用户无需日语输入法即可写作）
+  const normalizedInput = useMemo(() => {
+    if (user.learningLanguage === Language.Japanese && input && /^[\x00-\x7F\s]+$/.test(input)) {
+      return romajiToKana(input, false);
+    }
+    return input;
+  }, [input, user.learningLanguage]);
 
   const resetRound = () => { setInput(''); setFeedback(null); setError(null); };
 
@@ -75,7 +84,7 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
     if (!input.trim() || analyzing) return;
     setAnalyzing(true); setError(null);
     try {
-      const fb = await analyzeGuidedWriting(input, user.learningLanguage, user.nativeLanguage, userLevel, mode, buildContext());
+      const fb = await analyzeGuidedWriting(normalizedInput, user.learningLanguage, user.nativeLanguage, userLevel, mode, buildContext());
       setFeedback(fb);
       totalRef.current += 1;
       if (fb.isCorrect) correctRef.current += 1;
@@ -186,11 +195,16 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={`用 ${user.learningLanguage} 写……`}
+            placeholder={user.learningLanguage === Language.Japanese ? '用日语写……（可输入罗马字，自动转假名）' : `用 ${user.learningLanguage} 写……`}
             className="w-full bg-dark/50 border border-gray-700 rounded-xl p-4 text-lg text-gray-200 outline-none focus:ring-2 focus:ring-secondary resize-none"
             rows={3}
             autoFocus
           />
+          {user.learningLanguage === Language.Japanese && input.trim() && /^[\x00-\x7F\s]+$/.test(input) && normalizedInput && (
+            <div className="text-xs text-gray-400 bg-dark/30 border border-gray-700 rounded-lg p-2">
+              → 转为假名：<span className="text-secondary font-mono">{normalizedInput}</span>
+            </div>
+          )}
           {error && (
             <div className="flex items-center gap-2 text-red-300 text-sm">
               <AlertCircle size={16} /> {error}
