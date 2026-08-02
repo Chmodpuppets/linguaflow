@@ -269,7 +269,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                     <div className="h-3 bg-gray-700 rounded-full overflow-hidden w-full">
                         <div 
                             className="h-full bg-gradient-to-r from-primary to-secondary" 
-                            style={{ width: `${Math.min(100, (currentProgress.xp % 100))}%` }} 
+                            style={{ width: `${Math.min(100, ((currentProgress.xp % 500) / 500) * 100)}%` }} 
                         />
                     </div>
                 </div>
@@ -322,7 +322,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                                         <span className="text-xs font-bold text-secondary">等级 {prog.level}</span>
                                     </div>
                                     <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                                        <div className="h-full bg-secondary" style={{ width: `${Math.min(100, (prog.xp % 100))}%` }}></div>
+                                        <div className="h-full bg-secondary" style={{ width: `${Math.min(100, ((prog.xp % 500) / 500) * 100)}%` }}></div>
                                     </div>
                                     <div className="text-[10px] text-gray-500 mt-1 flex justify-between">
                                         <span>{prog.totalWordsTyped} 字已输入</span>

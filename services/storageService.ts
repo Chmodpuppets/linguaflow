@@ -154,8 +154,10 @@ const QUEST_TEMPLATES: Array<{ kind: QuestKind; label: string; target: number; r
 ];
 
 export const generateDailyQuests = (lang: Language): DailyQuest[] => {
-    // 固定三项：打字 + 词汇复习 + （口语/写作 轮换），保证每日多样性
-    const picks = [QUEST_TEMPLATES[0], QUEST_TEMPLATES[1], QUEST_TEMPLATES[2]];
+    // 固定两项：打字 + 词汇复习；第三项在「口语 / 写作」间按日期轮换，保证每日多样性
+    const writingDay = parseInt(getTodayString().slice(-1), 10) % 2 === 0;
+    const third = writingDay ? QUEST_TEMPLATES[3] : QUEST_TEMPLATES[2];
+    const picks = [QUEST_TEMPLATES[0], QUEST_TEMPLATES[1], third];
     return picks.map((t) => ({
         id: crypto.randomUUID(),
         label: t.label,
