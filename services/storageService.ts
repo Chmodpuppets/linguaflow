@@ -21,7 +21,7 @@ export interface AIConfig {
 }
 
 export const defaultAIConfig = (): AIConfig => ({
-  active: 'qwen',
+  active: 'glm', // 默认推荐智谱 GLM 免费模型（见 README「模型切换」）
   glm: { baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'GLM-4.7-Flash', apiKey: '' },
   custom: { baseUrl: '', model: '', apiKey: '' },
 });
