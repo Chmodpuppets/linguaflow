@@ -9,6 +9,7 @@ import {
   FolderTree, FileText, ChevronRight, ChevronDown, Lock, CheckCircle2,
   Sparkles, Wand2, Volume2, ArrowRight, AlertCircle, PenLine
 } from 'lucide-react';
+import WritingLanguageGate from './WritingLanguageGate';
 
 interface WritingTreeViewProps {
   user: UserProfile;
@@ -165,6 +166,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
   const totalCount = nodes.filter((n) => n.type === 'task').length;
 
   return (
+    <WritingLanguageGate user={user} onUpdateUser={onUpdateUser} featureName="写作树">
     <div className="flex flex-col lg:flex-row h-[calc(100vh-140px)] gap-4">
       {/* 左：成长树 */}
       <div className="w-full lg:w-1/3 bg-card border border-gray-700 rounded-xl flex flex-col overflow-hidden">
@@ -320,6 +322,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
         )}
       </div>
     </div>
+    </WritingLanguageGate>
   );
 };
 

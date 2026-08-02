@@ -6,6 +6,7 @@ import { addActivity } from '../services/storageService';
 import { countWords } from '../services/textUtils';
 import GuidedWritingView from './GuidedWritingView';
 import { Sparkles, ArrowRight, BookCheck, Wand2, Star, AlertCircle } from 'lucide-react';
+import WritingLanguageGate from './WritingLanguageGate';
 
 interface WritingViewProps {
   user: UserProfile;
@@ -125,7 +126,9 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
       </div>
 
       {mode === 'guided' ? (
-        <GuidedWritingView user={user} onComplete={onComplete} />
+        <WritingLanguageGate user={user} onUpdateUser={onComplete} featureName="写作工坊·引导练习">
+          <GuidedWritingView user={user} onComplete={onComplete} />
+        </WritingLanguageGate>
       ) : (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-[calc(100vh-200px)]">
       
