@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Language, CEFRLevel, AppMode, UserProfile } from './types';
 import { SUPPORTED_LANGUAGES, NAV_ITEMS } from './constants';
-import { getUser, saveUser, ensureLanguageProgress, logoutUser } from './services/storageService';
+import { getUser, saveUser, ensureLanguageProgress, logoutUser, checkStreakOnLoad, rolloverDailyQuests } from './services/storageService';
 import TypingView from './components/TypingView';
 import WritingView from './components/WritingView';
 import LibraryView from './components/LibraryView';
@@ -11,11 +11,14 @@ import LoginView from './components/LoginView';
 import WritingTreeView from './components/WritingTreeView';
 import VocabularyView from './components/VocabularyView';
 import RPGView from './components/RPGView';
+import DailyView from './components/DailyView';
+import ImportView from './components/ImportView';
+import SocialView from './components/SocialView';
 import { GraduationCap, ChevronDown, Menu, Flame, Star } from 'lucide-react';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [mode, setMode] = useState<AppMode>(AppMode.Typing);
+  const [mode, setMode] = useState<AppMode>(AppMode.Daily);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [typingInitialData, setTypingInitialData] = useState<{text: string; title: string; notes?: string} | null>(null);
 
@@ -23,7 +26,8 @@ const App: React.FC = () => {
   useEffect(() => {
     const loadedUser = getUser();
     if (loadedUser) {
-      setUser(loadedUser);
+      const refreshed = rolloverDailyQuests(checkStreakOnLoad(loadedUser));
+      setUser(refreshed);
     }
   }, []);
 
@@ -36,7 +40,7 @@ const App: React.FC = () => {
   const handleLogout = () => {
     logoutUser();
     setUser(null);
-    setMode(AppMode.Typing);
+    setMode(AppMode.Daily);
   };
 
   const handlePracticeFromLibrary = (content: {text: string; title: string; notes?: string}) => {
@@ -105,6 +109,28 @@ const App: React.FC = () => {
                 onUpdateUser={handleUserUpdate}
             />
         );
+      case AppMode.Daily:
+        return (
+            <DailyView
+                user={user}
+                onUpdateUser={handleUserUpdate}
+                onNavigate={handleModeChange}
+            />
+        );
+      case AppMode.Import:
+        return (
+            <ImportView
+                user={user}
+                onUpdateUser={handleUserUpdate}
+            />
+        );
+      case AppMode.Social:
+        return (
+            <SocialView
+                user={user}
+                onUpdateUser={handleUserUpdate}
+            />
+        );
       case AppMode.Profile:
         return <ProfileView user={user} onUpdateUser={handleUserUpdate} onLogout={handleLogout} />;
       default:
@@ -153,7 +179,7 @@ const App: React.FC = () => {
         </div>
 
         <nav className="flex-1 p-4 space-y-2">
-            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">Practice Modes</div>
+            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">Menu</div>
             {NAV_ITEMS.map((item) => (
                 <button
                     key={item.id}

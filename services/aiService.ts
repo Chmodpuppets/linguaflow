@@ -1,5 +1,6 @@
 
-import { Language, CEFRLevel, AssessmentResult, TypingContent, WritingFeedback, WritingNode, NodeType, ReadingReflection, RPGScenario, RPGTurnResult } from '../types';
+import { Language, CEFRLevel, AssessmentResult, TypingContent, WritingFeedback, WritingNode, NodeType, ReadingReflection, RPGScenario, RPGTurnResult, UserProfile } from '../types';
+import { MENTOR_PERSONAS } from '../constants';
 
 // --- Qwen (DashScope) + OpenRouter configuration ---
 // Primary LLM provider: Alibaba Cloud DashScope "Qwen" via its OpenAI-compatible
@@ -54,6 +55,19 @@ console.info(
 );
 console.info(`[LinguaFlow] Speech models — TTS: ${QWEN_TTS_MODEL}  |  STT: ${QWEN_STT_MODEL}`);
 
+// Build a tutor system prompt that makes the AI "remember" the user (Phase 3)
+export const buildTutorSystemPrompt = (user: UserProfile): string => {
+    const persona = MENTOR_PERSONAS.find((m) => m.id === user.mentorPersona) || MENTOR_PERSONAS[0];
+    const parts: string[] = [persona.system];
+    const lp = user.progress[user.learningLanguage];
+    parts.push(`学生母语是 ${user.nativeLanguage}，正在学习 ${user.learningLanguage}（当前 CEFR ${lp?.cefrLevel || 'A1'}）。`);
+    if (user.preferredTopics.length) parts.push(`学生的兴趣主题：${user.preferredTopics.join('、')}。尽量结合这些主题展开。`);
+    if (user.aiMemory.goals.length) parts.push(`学生的学习目标：${user.aiMemory.goals.join('；')}。`);
+    if (user.aiMemory.weakPoints.length) parts.push(`学生常犯的薄弱点（请重点留意、温和纠正）：${user.aiMemory.weakPoints.join('；')}。`);
+    parts.push('请始终用学生的目标语言进行对话，必要时用母语解释。');
+    return parts.join('\n');
+};
+
 // Helper to safely parse JSON from AI text response
 const parseAIJSON = <T>(text: string | undefined, fallback: T): T => {
     if (!text) return fallback;
@@ -75,7 +89,7 @@ const isQuotaOrLimit = (status: number, text: string): boolean =>
   status === 429 || status === 402 ||
   /quota|exceeded|insufficient|额度|余额|rate.?limit|limit reached/i.test(text);
 
-const callProvider = async (p: LLMProvider, prompt: string): Promise<string> => {
+const callProvider = async (p: LLMProvider, messages: { role: string; content: string }[]): Promise<string> => {
     let res: Response;
     try {
         res = await fetch(`${p.baseUrl}/chat/completions`, {
@@ -89,7 +103,7 @@ const callProvider = async (p: LLMProvider, prompt: string): Promise<string> => 
             },
             body: JSON.stringify({
                 model: p.model,
-                messages: [{ role: "user", content: prompt }],
+                messages,
                 temperature: 0.7,
             }),
         });
@@ -117,12 +131,30 @@ const chatCompletion = async (prompt: string): Promise<string> => {
     let lastErr: unknown;
     for (const p of LLM_PROVIDERS) {
         try {
-            return await callProvider(p, prompt);
+            return await callProvider(p, [{ role: "user", content: prompt }]);
         } catch (e: any) {
             lastErr = e;
             // Only fall through to the next provider on quota/limit or network failure.
             if (e?.quota || e?.network) continue;
             throw e; // hard error (e.g. bad request) — don't retry
+        }
+    }
+    throw lastErr;
+};
+
+// 带 system 指令的对话（用于注入 AI 导师人设与"记住你"的上下文）
+export const chatCompletionWithSystem = async (system: string, prompt: string): Promise<string> => {
+    let lastErr: unknown;
+    for (const p of LLM_PROVIDERS) {
+        try {
+            return await callProvider(p, [
+                { role: "system", content: system },
+                { role: "user", content: prompt },
+            ]);
+        } catch (e: any) {
+            lastErr = e;
+            if (e?.quota || e?.network) continue;
+            throw e;
         }
     }
     throw lastErr;
@@ -237,19 +269,6 @@ export const analyzeWriting = async (text: string, targetLanguage: Language, nat
     throw new Error("Failed to analyze writing.");
   }
 };
-
-export const getWordDefinition = async (word: string, context: string, targetLang: Language): Promise<string> => {
-     const prompt = `Provide a concise definition and one example sentence for the word "${word}" in ${targetLang}. 
-     Context: "${context}". 
-     Output format: Definition (Native Language). Example: [Target Lang Sentence]`;
-     
-     try {
-        const responseText = await chatCompletion(prompt);
-        return responseText || "Definition not found.";
-     } catch (e) {
-        return "Definition unavailable.";
-     }
-}
 
 export const generateWordDetails = async (word: string, targetLang: Language, nativeLang: Language): Promise<{ definition: string; example: string; partOfSpeech: string }> => {
   const prompt = `
@@ -682,7 +701,7 @@ export const getWritingCoachFeedback = async (node: WritingNode, language: Langu
 
 // --- RPG System AI ---
 
-export const startRPGScenario = async (theme: string, level: CEFRLevel, language: Language, nativeLanguage: Language): Promise<RPGScenario> => {
+export const startRPGScenario = async (theme: string, level: CEFRLevel, language: Language, nativeLanguage: Language, systemContext?: string): Promise<RPGScenario> => {
     const prompt = `
         Create a Role-Playing Game Scenario in ${language} for a student at ${level} level.
         Theme: ${theme}.
@@ -704,23 +723,25 @@ export const startRPGScenario = async (theme: string, level: CEFRLevel, language
         }
     `;
     
-    try {
-        const responseText = await chatCompletion(prompt);
-        return parseAIJSON(responseText, {
-            id: 'error',
-            theme: theme,
-            title: 'Generation Failed',
-            context: 'Please try again.',
-            userRole: 'Student',
-            aiRole: 'Teacher',
-            initialMessage: 'System Error.',
-            objectives: [],
-            difficulty: level
-        });
-    } catch (error) {
-        console.error("RPG Start error:", error);
-        throw new Error("Failed to start RPG.");
-    }
+  try {
+    const responseText = systemContext
+        ? await chatCompletionWithSystem(systemContext, prompt)
+        : await chatCompletion(prompt);
+    return parseAIJSON(responseText, {
+        id: 'error',
+        theme: theme,
+        title: 'Generation Failed',
+        context: 'Please try again.',
+        userRole: 'Student',
+        aiRole: 'Teacher',
+        initialMessage: 'System Error.',
+        objectives: [],
+        difficulty: level
+    });
+  } catch (error) {
+    console.error("RPG Start error:", error);
+    throw new Error("Failed to start RPG.");
+  }
 };
 
 export const continueRPGTurn = async (
@@ -728,7 +749,8 @@ export const continueRPGTurn = async (
     chatHistory: { sender: 'user' | 'ai'; text: string }[],
     userInput: string,
     language: Language,
-    nativeLanguage: Language
+    nativeLanguage: Language,
+    systemContext?: string
 ): Promise<RPGTurnResult> => {
     // Keep context manageable (last 10 turns)
     const recentHistory = chatHistory.slice(-10);
@@ -769,18 +791,20 @@ export const continueRPGTurn = async (
         }
     `;
 
-    try {
-        const responseText = await chatCompletion(prompt);
-        return parseAIJSON(responseText, {
-            aiReply: "...",
-            translation: "...",
-            completedObjectives: [],
-            vocabulary: [],
-            isScenarioComplete: false,
-            feedback: null
-        });
-    } catch (error) {
-        console.error("RPG Turn error:", error);
+  try {
+    const responseText = systemContext
+        ? await chatCompletionWithSystem(systemContext, prompt)
+        : await chatCompletion(prompt);
+    return parseAIJSON(responseText, {
+        aiReply: "...",
+        translation: "...",
+        completedObjectives: [],
+        vocabulary: [],
+        isScenarioComplete: false,
+        feedback: null
+    });
+  } catch (error) {
+    console.error("RPG Turn error:", error);
          return {
             aiReply: "I didn't catch that. Could you repeat?",
             translation: "Error",

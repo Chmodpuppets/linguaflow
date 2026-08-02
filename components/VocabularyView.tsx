@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { UserProfile, VocabularyItem } from '../types';
-import { getVocabulary, saveVocabularyItem, deleteVocabularyItem, addActivity } from '../services/storageService';
-import { generateWordDetails } from '../services/aiService';
-import { BookA, Plus, Search, Trash2, Sparkles, Volume2, Tag, Loader2, Save, X } from 'lucide-react';
+import { getVocabulary, saveVocabularyItem, deleteVocabularyItem, addActivity, getDueVocabulary, updateVocabularyItem, reviewVocabulary, progressQuests } from '../services/storageService';
+import { generateWordDetails, generateSpeech } from '../services/aiService';
+import { BookA, Plus, Search, Trash2, Sparkles, Volume2, Tag, Loader2, Save, X, Repeat, Check, XCircle, Layers } from 'lucide-react';
 
 interface VocabularyViewProps {
   user: UserProfile;
@@ -13,7 +13,15 @@ interface VocabularyViewProps {
 const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser }) => {
   const [items, setItems] = useState<VocabularyItem[]>([]);
   const [filter, setFilter] = useState('');
-  
+  const [viewMode, setViewMode] = useState<'browse' | 'review'>('browse');
+  const [dueCount, setDueCount] = useState(0);
+
+  // Review state
+  const [queue, setQueue] = useState<VocabularyItem[]>([]);
+  const [reviewIdx, setReviewIdx] = useState(0);
+  const [revealed, setRevealed] = useState(false);
+  const [reviewDone, setReviewDone] = useState(0);
+
   // Modal State
   const [isAdding, setIsAdding] = useState(false);
   const [newWord, setNewWord] = useState('');
@@ -24,8 +32,35 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser }) =
 
   useEffect(() => {
     // Filter items by current learning language
-    setItems(getVocabulary().filter(v => v.language === user.learningLanguage));
-  }, [user.learningLanguage]);
+    const list = getVocabulary().filter(v => v.language === user.learningLanguage);
+    setItems(list);
+    setDueCount(getDueVocabulary().filter(v => v.language === user.learningLanguage).length);
+  }, [user.learningLanguage, user]);
+
+  const startReview = () => {
+    const due = getDueVocabulary().filter(v => v.language === user.learningLanguage);
+    setQueue(due);
+    setReviewIdx(0);
+    setReviewDone(0);
+    setRevealed(false);
+    setViewMode('review');
+  };
+
+  const handleReview = (known: boolean) => {
+    const current = queue[reviewIdx];
+    if (!current) return;
+    const updated = reviewVocabulary(current, known);
+    updateVocabularyItem(updated);
+    const updatedUser = progressQuests(user, 'vocab_review', 1);
+    onUpdateUser(updatedUser);
+    setReviewDone((d) => d + 1);
+    setRevealed(false);
+    if (reviewIdx + 1 < queue.length) {
+      setReviewIdx((i) => i + 1);
+    } else {
+      setQueue([]);
+    }
+  };
 
   const handleAIAutoFill = async () => {
     if (!newWord.trim()) return;
@@ -100,15 +135,104 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser }) =
            </h2>
            <p className="text-gray-400 text-sm">Build your personal dictionary for {user.learningLanguage}.</p>
         </div>
-        <button 
-           onClick={() => setIsAdding(true)}
-           className="px-6 py-3 bg-primary hover:bg-primary/80 text-white rounded-xl font-bold shadow-lg shadow-primary/20 flex items-center gap-2 transition-all"
-        >
-            <Plus size={20} /> Add Word
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="flex bg-gray-900/60 rounded-xl p-1 border border-gray-800">
+            <button
+              onClick={() => setViewMode('browse')}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${viewMode === 'browse' ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'}`}
+            >
+              <Layers size={16} className="inline mr-1 -mt-0.5" /> 词库
+            </button>
+            <button
+              onClick={startReview}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${viewMode === 'review' ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'}`}
+            >
+              <Repeat size={16} className="inline mr-1 -mt-0.5" /> 复习{dueCount > 0 ? ` (${dueCount})` : ''}
+            </button>
+          </div>
+          <button
+             onClick={() => setIsAdding(true)}
+             className="px-6 py-3 bg-primary hover:bg-primary/80 text-white rounded-xl font-bold shadow-lg shadow-primary/20 flex items-center gap-2 transition-all"
+          >
+              <Plus size={20} /> Add Word
+          </button>
+        </div>
       </div>
 
-      {/* Search & List */}
+      {/* Review Mode (SRS) */}
+      {viewMode === 'review' && (
+        <div className="max-w-2xl mx-auto w-full">
+          {queue.length > 0 ? (
+            <div className="bg-card border border-gray-700 rounded-2xl p-8 text-center">
+              <div className="flex justify-between items-center mb-4 text-xs text-gray-500">
+                <span>复习进度 {reviewDone}/{queue.length}</span>
+                <span className="px-2 py-0.5 rounded-full bg-gray-800 border border-gray-700">
+                  Box {queue[reviewIdx]?.box ?? 1}
+                </span>
+              </div>
+              <div className="text-3xl font-bold text-white mb-2">{queue[reviewIdx]?.word}</div>
+              <span className="text-xs font-mono text-secondary px-2 py-0.5 bg-secondary/10 rounded-full border border-secondary/20 inline-block mb-6">
+                {queue[reviewIdx]?.partOfSpeech || 'word'}
+              </span>
+
+              {!revealed ? (
+                <div className="space-y-4">
+                  <button
+                    onClick={() => setRevealed(true)}
+                    className="w-full py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary/80"
+                  >
+                    显示答案
+                  </button>
+                  <button
+                    onClick={() => generateSpeech(queue[reviewIdx]?.word || '', { lang: user.learningLanguage })}
+                    className="flex items-center justify-center gap-2 w-full py-2 text-gray-400 hover:text-secondary"
+                  >
+                    <Volume2 size={16} /> 听发音
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  <div className="p-4 bg-gray-800/40 rounded-xl text-left">
+                    <p className="text-gray-200 text-sm mb-2">{queue[reviewIdx]?.definition}</p>
+                    {queue[reviewIdx]?.exampleSentence && (
+                      <p className="text-gray-400 text-xs italic">"{queue[reviewIdx]?.exampleSentence}"</p>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => handleReview(false)}
+                      className="py-3 rounded-xl bg-red-600/20 text-red-300 border border-red-700/40 font-bold hover:bg-red-600/30 flex items-center justify-center gap-2"
+                    >
+                      <XCircle size={18} /> 还没记住
+                    </button>
+                    <button
+                      onClick={() => handleReview(true)}
+                      className="py-3 rounded-xl bg-green-600/20 text-green-300 border border-green-700/40 font-bold hover:bg-green-600/30 flex items-center justify-center gap-2"
+                    >
+                      <Check size={18} /> 记住了
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bg-card border border-gray-700 rounded-2xl p-10 text-center">
+              <Repeat size={40} className="text-green-400 mx-auto mb-4" />
+              <div className="text-xl font-bold text-white mb-1">本轮复习完成 🎉</div>
+              <p className="text-gray-400 text-sm mb-6">你刚刚复习了 {reviewDone} 个单词。间隔复习让记忆更牢。</p>
+              <button
+                onClick={() => setViewMode('browse')}
+                className="px-6 py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary/80"
+              >
+                返回词库
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Search & List (browse) */}
+      {viewMode === 'browse' && (
       <div className="flex-1 bg-card border border-gray-700 rounded-xl overflow-hidden flex flex-col">
           <div className="p-4 border-b border-gray-700 bg-gray-900/30">
               <div className="relative">
@@ -137,7 +261,16 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser }) =
                       <div key={item.id} className="bg-dark/50 border border-gray-700 rounded-xl p-4 hover:border-gray-500 transition-colors group relative">
                           <div className="flex justify-between items-start mb-2">
                               <div>
-                                  <h3 className="text-xl font-bold text-white">{item.word}</h3>
+                                  <div className="flex items-center gap-2">
+                                      <h3 className="text-xl font-bold text-white">{item.word}</h3>
+                                      <button
+                                        onClick={() => generateSpeech(item.word, { lang: user.learningLanguage })}
+                                        className="text-gray-500 hover:text-secondary transition-colors"
+                                        title="朗读单词"
+                                      >
+                                        <Volume2 size={16} />
+                                      </button>
+                                  </div>
                                   <span className="text-xs font-mono text-secondary px-2 py-0.5 bg-secondary/10 rounded-full border border-secondary/20 inline-block mt-1">
                                       {item.partOfSpeech || 'word'}
                                   </span>
@@ -166,6 +299,7 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser }) =
               )}
           </div>
       </div>
+      )}
 
       {/* Add Word Modal */}
       {isAdding && (

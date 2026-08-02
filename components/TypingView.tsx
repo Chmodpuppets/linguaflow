@@ -72,6 +72,12 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
   
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // --- Accuracy tracking refs (keystroke-level) ---
+  const totalTypedRef = useRef(0);   // total characters typed (incl. corrections)
+  const errorCountRef = useRef(0);   // characters typed wrong at the moment of typing
+  const prevInputLenRef = useRef(0); // previous input length, to detect additions
+  const [accuracy, setAccuracy] = useState(100);
+
   useEffect(() => {
       setLibraryItems(getLibrary().filter(i => i.language === user.learningLanguage));
   }, [user.learningLanguage]);
@@ -94,6 +100,11 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
       setSavedToLibrary(false);
       setAddedVocabWords(new Set());
       setErrorMsg(null);
+      // Reset accuracy tracking for the new drill
+      totalTypedRef.current = 0;
+      errorCountRef.current = 0;
+      prevInputLenRef.current = 0;
+      setAccuracy(100);
   }, [content]);
 
   // --- Audio Engine Logic (Web Speech API) ---
@@ -340,6 +351,19 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
     if (finished) return;
     const val = e.target.value;
     if (!startTime) setStartTime(Date.now());
+
+    // Accuracy tracking: count each newly-added character against the target
+    const prevLen = prevInputLenRef.current;
+    if (val.length > prevLen && content?.text) {
+      for (let i = prevLen; i < val.length; i++) {
+        totalTypedRef.current += 1;
+        if (val[i] !== content.text[i]) {
+          errorCountRef.current += 1;
+        }
+      }
+    }
+    prevInputLenRef.current = val.length;
+
     setInputValue(val);
 
     if (startTime) {
@@ -360,6 +384,14 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
       const lengthXP = Math.floor(length / 5);
       const speedBonus = wpm > 40 ? 10 : 0;
       const totalXP = baseXP + lengthXP + speedBonus;
+
+      // Real accuracy: correct keystrokes / total keystrokes typed
+      const totalTyped = totalTypedRef.current;
+      const errors = errorCountRef.current;
+      const finalAccuracy = totalTyped > 0
+        ? Math.max(0, Math.min(100, Math.round(((totalTyped - errors) / totalTyped) * 100)))
+        : 100;
+      setAccuracy(finalAccuracy);
       
       let stagePassed = false;
       // Check pass criteria if in Adventure Mode
@@ -386,7 +418,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
           activeStage ? `Stage ${activeStage.id + 1}: ${activeStage.title}` : `Drill: ${content?.topic}`,
           {
               wpm: wpm,
-              accuracy: 100, 
+              accuracy: finalAccuracy, 
               wordCount: Math.floor(length / 5),
               stageId: activeStage?.id,
               passed: stagePassed
@@ -788,6 +820,12 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
             </div>
             
             <div className="flex items-center gap-4">
+                 <div className="flex flex-col items-center px-4 border-r border-green-800">
+                     <span className="text-xs text-green-500/80 uppercase">Accuracy</span>
+                     <span className="text-2xl font-bold text-white">
+                         {accuracy}%
+                     </span>
+                 </div>
                  <div className="flex flex-col items-center px-4 border-r border-green-800">
                      <span className="text-xs text-green-500/80 uppercase">XP Earned</span>
                      <span className="text-2xl font-bold text-white flex items-center gap-1">

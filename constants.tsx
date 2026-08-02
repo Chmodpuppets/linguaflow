@@ -1,15 +1,20 @@
 
-import { Language, CEFRLevel } from './types';
-import { 
-  Globe, 
-  Type, 
-  PenTool, 
+import { Language, CEFRLevel, MentorPersona } from './types';
+import {
+  Globe,
+  Type,
+  PenTool,
   User,
   Book,
   Network,
   BookA,
   BrainCircuit,
-  Gamepad2
+  Gamepad2,
+  Home,
+  Upload,
+  Users,
+  Sparkles,
+  Target
 } from 'lucide-react';
 
 export const SUPPORTED_LANGUAGES = [
@@ -37,14 +42,52 @@ export const DRILL_TOPICS = [
 ];
 
 export const NAV_ITEMS = [
+  { id: 'daily', label: 'Today', icon: <Home size={20} /> },
   { id: 'rpg', label: 'LinguaQuest', icon: <Gamepad2 size={20} /> },
   { id: 'typing', label: 'Typing Adventure', icon: <Type size={20} /> },
   { id: 'writing_tree', label: 'Writing Tree', icon: <Network size={20} /> },
   { id: 'writing', label: 'Writing Lab', icon: <PenTool size={20} /> },
   { id: 'library', label: 'Memory Bank', icon: <Book size={20} /> },
   { id: 'vocabulary', label: 'Vocabulary', icon: <BookA size={20} /> },
+  { id: 'import', label: 'Import', icon: <Upload size={20} /> },
+  { id: 'social', label: 'Study Buddies', icon: <Users size={20} /> },
   { id: 'profile', label: 'My Profile', icon: <User size={20} /> },
 ];
+
+// --- AI Tutor Personas (Phase 2/3) ---
+export const MENTOR_PERSONAS: Array<{ id: MentorPersona; label: string; emoji: string; description: string; system: string }> = [
+  {
+    id: 'encourager',
+    label: '鼓励伙伴',
+    emoji: '🌟',
+    description: '温柔鼓励，多夸少批，适合刚开始或容易受挫',
+    system: '你是温暖鼓励的语言伙伴。多肯定用户的尝试，用简单的鼓励推动ta继续输出，纠错要温和。'
+  },
+  {
+    id: 'strict',
+    label: '严厉教练',
+    emoji: '🥋',
+    description: '高标准、直接指出错误，适合冲刺突破',
+    system: '你是严格专业的语言教练。直接指出错误与不当之处，要求准确，不降低标准。'
+  },
+  {
+    id: 'friend',
+    label: '母语朋友',
+    emoji: '🤝',
+    description: '像朋友闲聊，自然地道，重流畅不重完美',
+    system: '你是用户的母语朋友。像日常聊天一样自然，优先流畅和地道表达，偶尔顺带纠正。'
+  },
+  {
+    id: 'professor',
+    label: '学者导师',
+    emoji: '🎓',
+    description: '讲解语法与文化背景，适合系统性学习',
+    system: '你是严谨的语言学者。在对话中适当讲解语法规则与文化背景，帮助系统性理解。'
+  },
+];
+
+// 兴趣主题包（与 DRILL_TOPICS 对应，供个性化练习与内容导入使用）
+export const TOPIC_PACKAGES = DRILL_TOPICS;
 
 // --- Gamified Progression Map ---
 export const TYPING_STAGES = [

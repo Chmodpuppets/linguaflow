@@ -88,7 +88,7 @@ LinguaFlow 围绕一个理念设计：**你学得最好的语言，是你用得�
 
 ## AI 能力说明
 
-所有 AI 能力由 `src/services/aiService.ts` 统一封装，调用方无需关心细节。
+所有 AI 能力由 `services/aiService.ts` 统一封装，调用方无需关心细节。
 
 | 能力 | 实现 | 说明 |
 | --- | --- | --- |
@@ -133,7 +133,7 @@ cp .env.example .env
 
 # 4. 启动开发服务器
 npm run dev
-# 打开 http://localhost:3000
+# 打开 http://localhost:3011
 
 # 5.（可选）构建生产版本
 npm run build
@@ -165,24 +165,25 @@ npm run preview
 ```
 linguaflow/
 ├── index.html              # 入口 HTML
+├── index.tsx               # React 挂载入口
+├── App.tsx                 # 主框架：侧边栏导航 + 模式路由
 ├── vite.config.ts          # Vite 配置（注入 .env 变量）
+├── types.ts                # 全局类型（语言、等级、各模式数据结构）
+├── constants.tsx           # 语言清单、导航项、关卡地图
 ├── .env.example            # 环境变量模板（复制为 .env 后填写）
-├── src/
-│   ├── App.tsx             # 主框架：侧边栏导航 + 模式路由
-│   ├── types.ts            # 全局类型（语言、等级、各模式数据结构）
-│   ├── constants.tsx       # 语言清单、导航项、关卡地图
-│   ├── components/         # 七大模式视图 + 登录/档案
-│   │   ├── LoginView.tsx
-│   │   ├── TypingView.tsx
-│   │   ├── RPGView.tsx          # LinguaQuest
-│   │   ├── WritingTreeView.tsx
-│   │   ├── WritingView.tsx      # Writing Lab
-│   │   ├── LibraryView.tsx      # Memory Bank
-│   │   ├── VocabularyView.tsx
-│   │   └── ProfileView.tsx
-│   └── services/
-│       ├── aiService.ts        # AI 能力封装（LLM / TTS / STT）
-│       └── storageService.ts   # localStorage 读写
+├── components/             # 七大模式视图 + 登录/档案
+│   ├── LoginView.tsx
+│   ├── TypingView.tsx
+│   ├── RPGView.tsx          # LinguaQuest
+│   ├── WritingTreeView.tsx
+│   ├── WritingView.tsx      # Writing Lab
+│   ├── LibraryView.tsx      # Memory Bank
+│   ├── VocabularyView.tsx
+│   ├── AssessmentView.tsx   # AI 等级测评（嵌入 Profile）
+│   └── ProfileView.tsx
+├── services/
+│   ├── aiService.ts        # AI 能力封装（LLM / TTS / STT）
+│   └── storageService.ts   # localStorage 读写
 └── ...
 ```
 
@@ -221,7 +222,7 @@ paraformer-v2 是异步文件转写服务，前端需要把录音上传到 DashS
 学习进度、词汇、收藏**只存在你本地浏览器的 localStorage**，不经由任何服务器。唯一的对外请求是调用大模型（携带你的 API Key 从前端发出）。注意：**前端直连意味着 Key 在浏览器端可见**，本地自用无妨，若部署到公网请务必把 Key 移到后端代理。
 
 **Q4：能换模型吗？**
-可以。改 `src/services/aiService.ts` 顶部的 `QWEN_LLM_MODEL` / `OPENROUTER_LLM_MODEL` 即可切换模型；如需换 TTS / STT 模型，改对应函数即可。
+可以。改 `services/aiService.ts` 顶部的 `QWEN_LLM_MODEL` / `OPENROUTER_LLM_MODEL` 即可切换模型；如需换 TTS / STT 模型，改对应函数即可。
 
 ---
 
@@ -231,7 +232,7 @@ paraformer-v2 是异步文件转写服务，前端需要把录音上传到 DashS
 
 使用约定：
 - 提交前请确认 `.env` 不会被纳入版本库（已默认忽略）。
-- 新增 AI 能力请统一收敛到 `src/services/aiService.ts`，保持对外函数签名稳定。
+- 新增 AI 能力请统一收敛到 `services/aiService.ts`，保持对外函数签名稳定。
 - 模式视图保持纯前端、无后端依赖的设计原则。
 
 如果你觉得 LinguaFlow 有用，点个 Star ⭐ 就是最大的支持。

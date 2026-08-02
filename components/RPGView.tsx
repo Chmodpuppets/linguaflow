@@ -1,48 +1,18 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { UserProfile, RPGScenario, RPGMessage, RPGTurnResult } from '../types';
-import { startRPGScenario, continueRPGTurn, generateSpeech, cancelSpeech } from '../services/aiService';
+import { UserProfile, RPGScenario, RPGMessage } from '../types';
+import { startRPGScenario, continueRPGTurn, generateSpeech, cancelSpeech, transcribeAudio, buildTutorSystemPrompt } from '../services/aiService';
 import { addActivity, saveVocabularyItem } from '../services/storageService';
 import { 
     Send, Mic, Volume2, User, Bot, CheckCircle2, 
-    Shield, Gamepad2, Sparkles, BookA, ArrowRight,
-    Loader2, Trophy, RotateCcw, XCircle, Play, Pause, Repeat, X, 
-    Languages, Lightbulb, Keyboard, AlertTriangle, XSquare
+    Gamepad2, Sparkles, BookA, ArrowRight,
+    Loader2, Trophy, RotateCcw, XCircle, Play, Pause, X,
+    Languages, Lightbulb, AlertTriangle, Square
 } from 'lucide-react';
 
 interface RPGViewProps {
   user: UserProfile;
   onUpdateUser: (user: UserProfile) => void;
-}
-
-// --- Audio Helper Functions ---
-function decodeBase64(base64: string) {
-    const binaryString = atob(base64);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-    }
-    return bytes;
-}
-
-async function decodeAudioData(
-    data: Uint8Array,
-    ctx: AudioContext,
-    sampleRate: number = 24000,
-    numChannels: number = 1,
-): Promise<AudioBuffer> {
-    const dataInt16 = new Int16Array(data.buffer);
-    const frameCount = dataInt16.length / numChannels;
-    const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
-
-    for (let channel = 0; channel < numChannels; channel++) {
-        const channelData = buffer.getChannelData(channel);
-        for (let i = 0; i < frameCount; i++) {
-            channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
-        }
-    }
-    return buffer;
 }
 
 const THEMES = [
@@ -64,7 +34,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
     const [input, setInput] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
     const [isFinished, setIsFinished] = useState(false);
-    
+
     // UI State
     const [feedbackToast, setFeedbackToast] = useState<string | null>(null);
     const [showPhonetics, setShowPhonetics] = useState(false);
@@ -73,29 +43,60 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
     const [currentSuggestionPhonetic, setCurrentSuggestionPhonetic] = useState<string | null>(null);
     const [showVictoryModal, setShowVictoryModal] = useState(false);
     const [showExitConfirm, setShowExitConfirm] = useState(false);
+    const [hasSavedSession, setHasSavedSession] = useState(false);
+
+    // AI 导师"记住你"的系统提示（人设 + 目标 + 薄弱点）
+    const tutorSystem = buildTutorSystemPrompt(user);
+
+    // --- RPG 进度本地保存（可续玩） ---
+    const RPG_SESSION_KEY = 'linguaflow_rpg_session';
+    const saveSession = (scn: RPGScenario | null, msgs: RPGMessage[], completed: string[]) => {
+        try {
+            localStorage.setItem(RPG_SESSION_KEY, JSON.stringify({
+                scenario: scn,
+                messages: msgs,
+                completed,
+            }));
+        } catch { /* ignore quota */ }
+    };
+    const loadSession = (): { scenario: RPGScenario; messages: RPGMessage[]; completed: string[] } | null => {
+        try {
+            const raw = localStorage.getItem(RPG_SESSION_KEY);
+            return raw ? JSON.parse(raw) : null;
+        } catch { return null; }
+    };
+    const clearSession = () => {
+        localStorage.removeItem(RPG_SESSION_KEY);
+        setHasSavedSession(false);
+    };
+
+    useEffect(() => {
+        setHasSavedSession(!!loadSession());
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const resumeSession = () => {
+        const s = loadSession();
+        if (!s) return;
+        setScenario(s.scenario);
+        setMessages(s.messages);
+        setCompletedObjectives(new Set(s.completed || []));
+        setIsFinished(false);
+        setShowVictoryModal(false);
+        setShowHint(false);
+    };
 
     const chatContainerRef = useRef<HTMLDivElement>(null);
-    
-    // --- Audio Player State ---
+
+    // --- Audio State (simplified: Web Speech / Qwen TTS via generateSpeech) ---
     const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
-    const [isLoadingAudio, setIsLoadingAudio] = useState(false);
-    const [playerState, setPlayerState] = useState({
-        isPlaying: false,
-        currentTime: 0,
-        duration: 0,
-        playbackRate: 1.0,
-        loopA: null as number | null,
-        loopB: null as number | null
-    });
 
-    // Refs for Audio Logic
-    const audioCache = useRef<Map<string, AudioBuffer>>(new Map());
-    const audioContextRef = useRef<AudioContext | null>(null);
-    const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
-    const startTimeRef = useRef<number>(0);
-    const pausedAtRef = useRef<number>(0);
-    const rafRef = useRef<number | null>(null);
+    // --- Voice Input State (user speech → STT → input) ---
+    const [isRecording, setIsRecording] = useState(false);
+    const [isTranscribing, setIsTranscribing] = useState(false);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const chunksRef = useRef<BlobPart[]>([]);
 
     // Scroll to bottom on new message
     useEffect(() => {
@@ -104,18 +105,22 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
         }
     }, [messages]);
 
-    // Cleanup audio on unmount
+    // Cleanup audio + recording on unmount
     useEffect(() => {
         return () => {
             cancelSpeech();
+            if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+                mediaRecorderRef.current.stop();
+            }
         };
     }, []);
 
-    // --- Simplified Audio Logic (Qwen TTS / Web Speech) ---
+    // --- Audio Playback ---
     const onAudioButton = (msgId: string, text: string) => {
         if (activeMessageId === msgId && isPlaying) {
             cancelSpeech();
             setIsPlaying(false);
+            setActiveMessageId(null);
             return;
         }
         cancelSpeech();
@@ -136,217 +141,60 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
         setActiveMessageId(null);
     };
 
-    // --- Audio Logic ---
-
-    const initAudioContext = () => {
-        if (!audioContextRef.current) {
-            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-        }
-        return audioContextRef.current;
-    };
-
-    const stopAudio = () => {
-        cancelSpeech();
-        setIsPlaying(false);
-    };
-
-    const playBuffer = (buffer: AudioBuffer, offset: number) => {
-        const ctx = initAudioContext();
-        if (ctx.state === 'suspended') ctx.resume();
-
-        // Stop previous if exists
-        if (activeSourceRef.current) {
-            try { activeSourceRef.current.stop(); } catch(e) {}
-        }
-
-        const source = ctx.createBufferSource();
-        source.buffer = buffer;
-        source.playbackRate.value = playerState.playbackRate;
-
-        // Loop Logic
-        if (playerState.loopA !== null && playerState.loopB !== null) {
-            source.loop = true;
-            source.loopStart = playerState.loopA;
-            source.loopEnd = playerState.loopB;
-            // Ensure offset is within loop if looping
-            if (offset < playerState.loopA || offset >= playerState.loopB) {
-                offset = playerState.loopA;
-            }
-        }
-
-        source.connect(ctx.destination);
-        
-        source.onended = () => {
-             // Only handle natural end if not looping
-             if (!source.loop) {
-                 setPlayerState(prev => ({ ...prev, isPlaying: false, currentTime: 0 }));
-                 pausedAtRef.current = 0;
-                 cancelAnimationFrame(rafRef.current!);
-             }
-        };
-
-        source.start(0, offset);
-        activeSourceRef.current = source;
-        startTimeRef.current = ctx.currentTime;
-        pausedAtRef.current = offset; // Track where we started
-
-        setPlayerState(prev => ({ ...prev, isPlaying: true }));
-        
-        // Animation Loop for Progress
-        const updateProgress = () => {
-            if (!activeSourceRef.current || !ctx) return;
-            
-            const elapsed = (ctx.currentTime - startTimeRef.current) * playerState.playbackRate;
-            let current = pausedAtRef.current + elapsed;
-
-            // Visual Loop adjustment
-            if (playerState.loopA !== null && playerState.loopB !== null) {
-                if (current >= playerState.loopB) {
-                    const loopDur = playerState.loopB - playerState.loopA;
-                    current = playerState.loopA + ((current - playerState.loopB) % loopDur);
-                }
-            } else if (current >= buffer.duration) {
-                current = buffer.duration;
-            }
-
-            setPlayerState(prev => ({ ...prev, currentTime: current }));
-            rafRef.current = requestAnimationFrame(updateProgress);
-        };
-        rafRef.current = requestAnimationFrame(updateProgress);
-    };
-
-    const togglePlay = () => {
-        if (!activeMessageId) return;
-        const buffer = audioCache.current.get(activeMessageId);
-        if (!buffer) return;
-
-        if (playerState.isPlaying) {
-            // Pause
-            stopAudio();
-            // Record where we paused. Note: currentTime state is constantly updated by RAF
-            pausedAtRef.current = playerState.currentTime; 
-        } else {
-            // Play
-            let startAt = pausedAtRef.current;
-            if (startAt >= buffer.duration) startAt = 0;
-            playBuffer(buffer, startAt);
-        }
-    };
-
-    const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const time = parseFloat(e.target.value);
-        setPlayerState(prev => ({ ...prev, currentTime: time }));
-        pausedAtRef.current = time;
-        
-        if (playerState.isPlaying && activeMessageId) {
-            const buffer = audioCache.current.get(activeMessageId);
-            if (buffer) {
-                playBuffer(buffer, time);
-            }
-        }
-    };
-
-    const initializePlayer = async (msgId: string, text: string) => {
-        // If clicking same message, just toggle collapse? For now, we keep it open.
-        if (activeMessageId === msgId) return;
-
-        // Stop current
-        stopAudio();
-        setActiveMessageId(msgId);
-        pausedAtRef.current = 0;
-        
-        // Reset Player State
-        setPlayerState({
-            isPlaying: false,
-            currentTime: 0,
-            duration: 0,
-            playbackRate: 1.0,
-            loopA: null,
-            loopB: null
-        });
-
-        // Check Cache
-        if (audioCache.current.has(msgId)) {
-            const buffer = audioCache.current.get(msgId)!;
-            setPlayerState(prev => ({ ...prev, duration: buffer.duration, isPlaying: true }));
-            playBuffer(buffer, 0);
-            return;
-        }
-
-        // Fetch
-        setIsLoadingAudio(true);
+    // --- Voice Input (record → transcribe → fill input) ---
+    const startRecording = async () => {
         try {
-            const base64 = await generateSpeech(text);
-            if (base64) {
-                const ctx = initAudioContext();
-                const bytes = decodeBase64(base64);
-                const buffer = await decodeAudioData(bytes, ctx);
-                
-                audioCache.current.set(msgId, buffer);
-                setPlayerState(prev => ({ ...prev, duration: buffer.duration, isPlaying: true }));
-                playBuffer(buffer, 0);
-            }
-        } catch (e) {
-            console.error(e);
-            setActiveMessageId(null);
-        } finally {
-            setIsLoadingAudio(false);
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mediaRecorder = new MediaRecorder(stream);
+            mediaRecorderRef.current = mediaRecorder;
+            chunksRef.current = [];
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) chunksRef.current.push(e.data);
+            };
+
+            mediaRecorder.onstop = async () => {
+                stream.getTracks().forEach(track => track.stop());
+                const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+                if (blob.size === 0) return;
+                setIsTranscribing(true);
+                try {
+                    const text = await transcribeAudio(blob, user.learningLanguage);
+                    setInput(prev => (prev ? prev + ' ' : '') + (text || ''));
+                } catch (e: any) {
+                    console.error(e);
+                    setFeedbackToast('语音识别失败：' + (e?.message || e) + '（注：浏览器直连可能受 CORS 限制）');
+                } finally {
+                    setIsTranscribing(false);
+                }
+            };
+
+            mediaRecorder.start();
+            setIsRecording(true);
+        } catch (err) {
+            setFeedbackToast('无法访问麦克风，请检查浏览器权限。');
         }
     };
 
-    const toggleSpeed = () => {
-        const speeds = [0.8, 1.0, 1.25, 1.5];
-        const nextIdx = (speeds.indexOf(playerState.playbackRate) + 1) % speeds.length;
-        const newRate = speeds[nextIdx];
-        
-        setPlayerState(prev => ({ ...prev, playbackRate: newRate }));
-        
-        // Apply immediately if playing
-        if (playerState.isPlaying && activeSourceRef.current) {
-            activeSourceRef.current.playbackRate.value = newRate;
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
         }
     };
-
-    const toggleLoopA = () => {
-        setPlayerState(prev => {
-            const newA = prev.loopA === null ? prev.currentTime : null;
-            // If setting A clears A, also clear B
-            return { ...prev, loopA: newA, loopB: newA === null ? null : prev.loopB };
-        });
-    };
-
-    const toggleLoopB = () => {
-         setPlayerState(prev => {
-             // B must be after A
-             if (prev.loopA === null || prev.currentTime <= prev.loopA) return prev;
-             const newB = prev.loopB === null ? prev.currentTime : null;
-             return { ...prev, loopB: newB };
-         });
-    };
-
-    const clearLoops = () => {
-        setPlayerState(prev => ({ ...prev, loopA: null, loopB: null }));
-    };
-
-    // Apply loop changes while playing
-    useEffect(() => {
-        if (playerState.isPlaying && activeSourceRef.current) {
-            if (playerState.loopA !== null && playerState.loopB !== null) {
-                activeSourceRef.current.loop = true;
-                activeSourceRef.current.loopStart = playerState.loopA;
-                activeSourceRef.current.loopEnd = playerState.loopB;
-            } else {
-                activeSourceRef.current.loop = false;
-            }
-        }
-    }, [playerState.loopA, playerState.loopB]);
-
 
     const handleStart = async (themeId: string) => {
         setIsProcessing(true);
         try {
             const themeLabel = THEMES.find(t => t.id === themeId)?.label || themeId;
-            const newScenario = await startRPGScenario(themeLabel, user.progress[user.learningLanguage]?.cefrLevel || 'A1', user.learningLanguage, user.nativeLanguage);
+            const newScenario = await startRPGScenario(
+                themeLabel,
+                user.progress[user.learningLanguage]?.cefrLevel || 'A1',
+                user.learningLanguage,
+                user.nativeLanguage,
+                tutorSystem
+            );
+            clearSession();
             setScenario(newScenario);
             setMessages([{
                 id: 'init',
@@ -361,8 +209,20 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
             setIsFinished(false);
             setShowVictoryModal(false);
             setShowHint(false); // Reset hints on start
+            const initMsg: RPGMessage = {
+                id: 'init',
+                sender: 'ai',
+                text: newScenario.initialMessage,
+                phonetic: newScenario.initialPhonetic,
+                translation: 'Start the conversation...',
+            };
+            setMessages([initMsg]);
+            saveSession(newScenario, [initMsg], []);
+            setCurrentSuggestion(newScenario.initialSuggestedReply || "Hello!");
+            setCurrentSuggestionPhonetic(newScenario.initialSuggestedReplyPhonetic || null);
         } catch (e) {
             console.error(e);
+            setFeedbackToast('场景生成失败，请检查 API Key 或网络后重试。');
         } finally {
             setIsProcessing(false);
         }
@@ -386,7 +246,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
         setShowHint(false); // Reset hint toggle
 
         // Stop audio when sending new message
-        if (playerState.isPlaying) stopAudio();
+        if (isPlaying) onStopAudio();
 
         try {
             const turnResult = await continueRPGTurn(
@@ -394,7 +254,8 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                 messages.map(m => ({ sender: m.sender, text: m.text })),
                 userMsg.text,
                 user.learningLanguage,
-                user.nativeLanguage
+                user.nativeLanguage,
+                tutorSystem
             );
 
             // Update objectives
@@ -426,7 +287,10 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                 vocabularyHighlights: turnResult.vocabulary
             };
 
+            const newCompleted: Set<string> = new Set(completedObjectives);
+            turnResult.completedObjectives.forEach((o) => newCompleted.add(o));
             setMessages(prev => [...prev, aiMsg]);
+            saveSession(scenario, [...messages, userMsg, aiMsg], Array.from(newCompleted));
 
             if (turnResult.isScenarioComplete) {
                 setIsFinished(true);
@@ -439,6 +303,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
 
         } catch (e) {
             console.error(e);
+            setFeedbackToast('回复失败，请检查网络或 API 额度后重试。');
         } finally {
             setIsProcessing(false);
         }
@@ -472,8 +337,14 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
 
     // Actual teardown logic
     const performExit = () => {
-        stopAudio();
+        cancelSpeech();
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.stop();
+        }
+        setIsPlaying(false);
         setActiveMessageId(null);
+        setIsRecording(false);
+        setIsTranscribing(false);
         setScenario(null);
         setMessages([]);
         setCompletedObjectives(new Set());
@@ -483,6 +354,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
         setShowExitConfirm(false);
         setIsFinished(false);
         setShowVictoryModal(false);
+        clearSession();
     };
 
     // Toggle confirmation modal
@@ -509,17 +381,27 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                         <p className="text-gray-300 animate-pulse">Generating your unique scenario...</p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full">
-                        {THEMES.map(theme => (
+                    <div className="w-full">
+                        {hasSavedSession && (
                             <button
-                                key={theme.id}
-                                onClick={() => handleStart(theme.id)}
-                                className="group relative bg-card border border-gray-700 hover:border-secondary hover:bg-secondary/10 p-6 rounded-2xl transition-all duration-300 flex flex-col items-center gap-3 hover:-translate-y-1 hover:shadow-xl"
+                                onClick={resumeSession}
+                                className="w-full mb-6 flex items-center justify-center gap-2 px-6 py-4 rounded-2xl bg-secondary/20 border border-secondary/50 text-secondary font-bold hover:bg-secondary/30 transition-colors"
                             >
-                                <span className="text-4xl group-hover:scale-110 transition-transform">{theme.icon}</span>
-                                <span className="font-bold text-gray-200 group-hover:text-white">{theme.label}</span>
+                                <RotateCcw size={18} /> 继续上次的对话
                             </button>
-                        ))}
+                        )}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full">
+                            {THEMES.map(theme => (
+                                <button
+                                    key={theme.id}
+                                    onClick={() => handleStart(theme.id)}
+                                    className="group relative bg-card border border-gray-700 hover:border-secondary hover:bg-secondary/10 p-6 rounded-2xl transition-all duration-300 flex flex-col items-center gap-3 hover:-translate-y-1 hover:shadow-xl"
+                                >
+                                    <span className="text-4xl group-hover:scale-110 transition-transform">{theme.icon}</span>
+                                    <span className="font-bold text-gray-200 group-hover:text-white">{theme.label}</span>
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 )}
             </div>
@@ -693,7 +575,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                                         </p>
                                     )}
 
-                                    {/* Audio Player */}
+                                    {/* Audio Player (simplified) */}
                                     {isAi && isAudioActive && (
                                         <div className="mt-3 bg-gray-900/80 rounded-lg p-3 border border-gray-700">
                                             <div className="flex items-center gap-3">
@@ -800,6 +682,17 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                         >
                             <Languages size={14} /> Phonetic Guide
                         </button>
+
+                        {/* Voice Input Toggle */}
+                        <button
+                            onClick={isRecording ? stopRecording : startRecording}
+                            disabled={isProcessing || isFinished || isTranscribing}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-30 ${isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
+                            title={isRecording ? '停止录音并识别' : '语音输入（录音后自动转写）'}
+                        >
+                            {isRecording ? <Square size={14} fill="currentColor" /> : <Mic size={14} />}
+                            {isTranscribing ? '识别中…' : isRecording ? '停止' : '语音'}
+                        </button>
                     </div>
 
                     <div className="relative flex items-center gap-2">
@@ -821,7 +714,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                         </button>
                     </div>
                     <div className="text-center mt-2">
-                         <span className="text-[10px] text-gray-600 uppercase tracking-widest font-bold">Type to Speak</span>
+                         <span className="text-[10px] text-gray-600 uppercase tracking-widest font-bold">Type or Speak to Reply</span>
                     </div>
                 </div>
             </div>

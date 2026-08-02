@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
-import { Language, CEFRLevel, UserProfile } from '../types';
-import { registerUser } from '../services/storageService';
-import { SUPPORTED_LANGUAGES } from '../constants';
+import { Language, CEFRLevel, UserProfile, MentorPersona } from '../types';
+import { registerUser, saveUser } from '../services/storageService';
+import { SUPPORTED_LANGUAGES, MENTOR_PERSONAS, TOPIC_PACKAGES } from '../constants';
 import { ArrowRight, Globe, Sparkles } from 'lucide-react';
 
 interface LoginViewProps {
@@ -15,10 +15,20 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
   const [nativeLang, setNativeLang] = useState<Language>(Language.English);
   const [learningLang, setLearningLang] = useState<Language>(Language.Japanese);
   const [level, setLevel] = useState<CEFRLevel>(CEFRLevel.A1);
+  const [mentor, setMentor] = useState<MentorPersona>('encourager');
+  const [topics, setTopics] = useState<string[]>([]);
+
+  const toggleTopic = (id: string) => {
+    setTopics((prev) => prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]);
+  };
 
   const handleRegister = () => {
     if (!username.trim()) return;
     const user = registerUser(username, nativeLang, learningLang, level);
+    user.mentorPersona = mentor;
+    user.preferredTopics = topics;
+    user.aiMemory.interests = topics;
+    saveUser(user);
     onLogin(user);
   };
 
@@ -102,12 +112,55 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                  </div>
               </div>
               <button
+                onClick={() => setStep(3)}
+                className="w-full py-3 bg-white text-dark font-bold rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                Next <ArrowRight size={18} />
+              </button>
+              <button onClick={() => setStep(1)} className="w-full text-center text-sm text-gray-500 hover:text-gray-300">
+                Back
+              </button>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="space-y-6 animate-in slide-in-from-right duration-300">
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">选择你的 AI 导师风格</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {MENTOR_PERSONAS.map((m) => (
+                    <button
+                      key={m.id}
+                      onClick={() => setMentor(m.id)}
+                      className={`p-3 rounded-xl border text-left transition-all ${mentor === m.id ? 'bg-primary/20 border-primary' : 'bg-dark border-gray-600 hover:border-gray-400'}`}
+                    >
+                      <div className="text-lg font-bold text-white flex items-center gap-1">{m.emoji} {m.label}</div>
+                      <div className="text-[11px] text-gray-400 mt-1 leading-snug">{m.description}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">你对什么感兴趣？（可多选，用来定制练习内容）</label>
+                <div className="flex flex-wrap gap-2">
+                  {TOPIC_PACKAGES.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => toggleTopic(t.id)}
+                      className={`px-3 py-1.5 rounded-full text-sm border transition-all ${topics.includes(t.id) ? 'bg-secondary/20 border-secondary text-secondary' : 'bg-dark border-gray-600 text-gray-400 hover:border-gray-400'}`}
+                    >
+                      {t.icon} {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <button
                 onClick={handleRegister}
                 className="w-full py-3 bg-gradient-to-r from-primary to-secondary text-white font-bold rounded-xl shadow-lg shadow-purple-900/30 hover:brightness-110 transition-all flex items-center justify-center gap-2"
               >
                 Start Learning <Sparkles size={18} />
               </button>
-              <button onClick={() => setStep(1)} className="w-full text-center text-sm text-gray-500 hover:text-gray-300">
+              <button onClick={() => setStep(2)} className="w-full text-center text-sm text-gray-500 hover:text-gray-300">
                 Back
               </button>
             </div>

@@ -27,7 +27,20 @@ export enum AppMode {
   WritingTree = 'writing_tree',
   Profile = 'profile',
   Vocabulary = 'vocabulary',
-  RPG = 'rpg'
+  RPG = 'rpg',
+  Daily = 'daily',
+  Import = 'import',
+  Social = 'social'
+}
+
+// --- Personalization (Phase 2/3) ---
+export type MentorPersona = 'encourager' | 'strict' | 'friend' | 'professor';
+
+export interface AIMemory {
+  goals: string[];            // 用户的学习目标（如"能点咖啡""通过雅思"）
+  weakPoints: string[];       // AI 观察到的 recurring 薄弱点（时态/发音词等）
+  interests: string[];        // 兴趣主题（与 DRILL_TOPICS 对应）
+  notes: string;              // 自由备注
 }
 
 export interface AssessmentResult {
@@ -86,6 +99,11 @@ export interface VocabularyItem {
   partOfSpeech: string;
   language: Language;
   createdAt: number;
+  // --- SRS (Spaced Repetition) fields (Phase 1) ---
+  box?: number;        // Leitner box 1..5 (1 = 新词/最难)
+  dueDate?: number;    // 下次复习时间戳
+  reviews?: number;    // 已复习次数
+  lapses?: number;     // 遗忘次数
 }
 
 // --- Writing Tree System Types ---
@@ -191,10 +209,25 @@ export interface UserProfile {
   currentStreak: number;
   maxStreak: number;
   lastActiveDate: string; // YYYY-MM-DD
+  streakShields: number;  // 断签保护卡数量（Phase 1）
   
+  // Daily Quests (Phase 1)
+  dailyQuests: DailyQuest[];
+  lastQuestDate: string; // YYYY-MM-DD，用于每日刷新
+
+  // Personalization (Phase 2/3)
+  mentorPersona: MentorPersona;
+  preferredTopics: string[]; // DRILL_TOPICS ids
+  aiMemory: AIMemory;
+
+  // Monetization placeholder (Phase 3)
+  premium: boolean;
+
   // History
   joinedDate: number;
 }
+
+export type QuestKind = 'typing_words' | 'vocab_review' | 'rpg_sessions' | 'writing_words';
 
 export interface DailyQuest {
   id: string;
@@ -203,4 +236,5 @@ export interface DailyQuest {
   current: number;
   completed: boolean;
   rewardXP: number;
+  kind: QuestKind; // 用于活动发生时自动推进
 }

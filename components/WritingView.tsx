@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { UserProfile, WritingFeedback } from '../types';
 import { analyzeWriting } from '../services/aiService';
 import { addActivity } from '../services/storageService';
-import { Sparkles, ArrowRight, BookCheck, Wand2, Star } from 'lucide-react';
+import { Sparkles, ArrowRight, BookCheck, Wand2, Star, AlertCircle } from 'lucide-react';
 
 interface WritingViewProps {
   user: UserProfile;
@@ -23,11 +23,13 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
   const [feedback, setFeedback] = useState<WritingFeedback | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [activeTopic, setActiveTopic] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   const handleAnalyze = async () => {
     if (text.length < 10) return;
     setIsAnalyzing(true);
     setFeedback(null);
+    setError(null);
     try {
       const result = await analyzeWriting(text, user.learningLanguage, user.nativeLanguage);
       setFeedback(result);
@@ -49,8 +51,9 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
       );
       onComplete(updatedUser);
 
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
+      setError('AI 批改失败，请检查 API Key / 网络后重试。');
     } finally {
       setIsAnalyzing(false);
     }
@@ -114,6 +117,16 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
 
       {/* Right Column: Feedback Area */}
       <div className="h-full overflow-y-auto pr-2 custom-scrollbar">
+        {error && (
+            <div className="mb-4 p-4 bg-red-900/20 border border-red-800 text-red-300 rounded-xl flex items-start gap-3">
+                <AlertCircle size={20} className="shrink-0 mt-0.5" />
+                <div>
+                    <p className="font-semibold mb-1">批改失败</p>
+                    <p className="text-sm text-red-300/80">{error}</p>
+                    <button onClick={handleAnalyze} disabled={isAnalyzing || text.length < 10} className="mt-2 text-xs underline hover:text-white disabled:opacity-50">重试</button>
+                </div>
+            </div>
+        )}
         {!feedback ? (
             <div className="h-full flex flex-col items-center justify-center text-gray-600 border-2 border-dashed border-gray-800 rounded-xl bg-card/20">
                 <BookCheck size={48} className="mb-4 opacity-50" />

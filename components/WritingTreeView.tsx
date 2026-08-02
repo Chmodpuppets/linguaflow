@@ -213,6 +213,11 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
       try {
         const subStructure = await generateTreeStructure(parent?.title || title, user.learningLanguage);
         
+        if (!subStructure || subStructure.length === 0) {
+            showToast("AI 没有返回结构，请重试", "error");
+            return;
+        }
+
         const newNodes: WritingNode[] = subStructure.map(item => ({
             id: crypto.randomUUID(),
             parentId: activeNodeId,

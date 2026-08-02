@@ -1,9 +1,9 @@
 
-import React, { useMemo, useState } from 'react';
-import { UserProfile, ActivityLog, Language, LanguageProgress, CEFRLevel } from '../types';
-import { getLogs, ensureLanguageProgress } from '../services/storageService';
-import { Trophy, Flame, Calendar, Clock, PenTool, Type, Zap, TrendingUp, TrendingDown, Activity, Check, Globe, Settings, GraduationCap, ChevronDown, User, LogOut } from 'lucide-react';
-import { SUPPORTED_LANGUAGES } from '../constants';
+import React, { useMemo, useState, useRef } from 'react';
+import { UserProfile, ActivityLog, Language, LanguageProgress, CEFRLevel, MentorPersona } from '../types';
+import { getLogs, ensureLanguageProgress, saveUser } from '../services/storageService';
+import { Trophy, Flame, Calendar, Clock, PenTool, Type, Zap, TrendingUp, TrendingDown, Activity, Check, Globe, Settings, GraduationCap, ChevronDown, User, LogOut, Download, Upload, Database, Crown } from 'lucide-react';
+import { SUPPORTED_LANGUAGES, MENTOR_PERSONAS, TOPIC_PACKAGES } from '../constants';
 import AssessmentView from './AssessmentView';
 
 interface ProfileViewProps {
@@ -61,9 +61,12 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
     const week2Logs = langLogs.filter(l => new Date(l.timestamp) >= fourteenDaysAgo && new Date(l.timestamp) < sevenDaysAgo);
 
     const getAvgError = (ls: ActivityLog[]) => {
-        if (!ls.length) return 0;
-        const totalAcc = ls.reduce((acc, l) => acc + (l.details.accuracy || 0), 0);
-        const avgAcc = totalAcc / ls.length;
+        // Only sessions that actually recorded accuracy (e.g. typing) count.
+        // Writing/tree/vocab logs have no accuracy and must not pollute the rate.
+        const accLogs = ls.filter(l => typeof l.details.accuracy === 'number');
+        if (!accLogs.length) return 0;
+        const totalAcc = accLogs.reduce((acc, l) => acc + (l.details.accuracy as number), 0);
+        const avgAcc = totalAcc / accLogs.length;
         return 100 - avgAcc;
     };
 
@@ -71,14 +74,15 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
     const prevErrorRate = getAvgError(week2Logs);
     const errorRateDiff = currentErrorRate - prevErrorRate; 
 
-    // 4. Accuracy Trend (Last 7 active sessions)
+    // 4. Accuracy Trend (Last 7 active sessions that recorded accuracy)
     const recentSessions = [...langLogs]
+        .filter(l => typeof l.details.accuracy === 'number')
         .sort((a, b) => a.timestamp - b.timestamp)
         .slice(-7);
         
     const accuracyTrend = recentSessions.map(l => ({
         date: l.date.slice(5),
-        acc: l.details.accuracy || 0,
+        acc: l.details.accuracy as number,
         type: l.type
     }));
 
@@ -112,6 +116,76 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
     updatedUser.progress[user.learningLanguage].cefrLevel = level;
     onUpdateUser(updatedUser);
     setShowAssessment(false); // Close assessment if open
+  };
+
+  // --- Personalization (Phase 2/3) ---
+  const handleMentorChange = (id: MentorPersona) => {
+    const updatedUser = { ...user, mentorPersona: id };
+    onUpdateUser(updatedUser);
+  };
+
+  const handleTopicToggle = (id: string) => {
+    const has = user.preferredTopics.includes(id);
+    const preferredTopics = has ? user.preferredTopics.filter(t => t !== id) : [...user.preferredTopics, id];
+    const updatedUser = {
+      ...user,
+      preferredTopics,
+      aiMemory: { ...user.aiMemory, interests: preferredTopics },
+    };
+    onUpdateUser(updatedUser);
+  };
+
+  const handleGoalsChange = (text: string) => {
+    const goals = text.split(/[\n；;]/).map(s => s.trim()).filter(Boolean);
+    const updatedUser = { ...user, aiMemory: { ...user.aiMemory, goals } };
+    onUpdateUser(updatedUser);
+  };
+
+  const [newWeakPoint, setNewWeakPoint] = useState('');
+  const handleAddWeakPoint = () => {
+    const w = newWeakPoint.trim();
+    if (!w) return;
+    if (user.aiMemory.weakPoints.includes(w)) { setNewWeakPoint(''); return; }
+    const updatedUser = { ...user, aiMemory: { ...user.aiMemory, weakPoints: [...user.aiMemory.weakPoints, w] } };
+    onUpdateUser(updatedUser);
+    setNewWeakPoint('');
+  };
+
+  // --- Local backup / restore (Phase 3 云同步占位) ---
+  const fileRef = useRef<HTMLInputElement>(null);
+  const BACKUP_KEYS = [
+    'linguaflow_user', 'linguaflow_logs', 'linguaflow_library',
+    'linguaflow_writing_tree', 'linguaflow_vocabulary', 'linguaflow_rpg_session',
+  ];
+
+  const exportBackup = () => {
+    const data: Record<string, string | null> = {};
+    BACKUP_KEYS.forEach(k => { data[k] = localStorage.getItem(k); });
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `linguaflow-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importBackup = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(String(reader.result));
+        BACKUP_KEYS.forEach(k => {
+          if (data[k] != null) localStorage.setItem(k, data[k]);
+        });
+        const reloaded = localStorage.getItem('linguaflow_user');
+        if (reloaded) onUpdateUser(JSON.parse(reloaded));
+        alert('备份已导入，数据已恢复。');
+      } catch {
+        alert('导入失败：文件格式不正确。');
+      }
+    };
+    reader.readAsText(file);
   };
 
   // --- Render Helpers ---
@@ -430,6 +504,130 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                           </button>
                       </div>
                   </div>
+              </div>
+
+              {/* Personalization Card */}
+              <div className="bg-card border border-gray-700 rounded-2xl p-6 h-fit">
+                <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+                  <User size={20} className="text-secondary" /> AI 导师与兴趣
+                </h3>
+                <div className="space-y-6">
+                  <div>
+                    <label className="text-sm font-bold text-gray-400 mb-2 block">导师风格</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {MENTOR_PERSONAS.map((m) => (
+                        <button
+                          key={m.id}
+                          onClick={() => handleMentorChange(m.id)}
+                          className={`p-2.5 rounded-xl border text-left transition-all ${user.mentorPersona === m.id ? 'bg-primary/20 border-primary' : 'bg-dark border-gray-600 hover:border-gray-400'}`}
+                        >
+                          <div className="text-sm font-bold text-white">{m.emoji} {m.label}</div>
+                          <div className="text-[10px] text-gray-400 mt-0.5 leading-snug">{m.description}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-bold text-gray-400 mb-2 block">兴趣主题（决定练习内容偏向）</label>
+                    <div className="flex flex-wrap gap-2">
+                      {TOPIC_PACKAGES.map((t) => (
+                        <button
+                          key={t.id}
+                          onClick={() => handleTopicToggle(t.id)}
+                          className={`px-3 py-1.5 rounded-full text-sm border transition-all ${user.preferredTopics.includes(t.id) ? 'bg-secondary/20 border-secondary text-secondary' : 'bg-dark border-gray-600 text-gray-400 hover:border-gray-400'}`}
+                        >
+                          {t.icon} {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-bold text-gray-400 mb-2 block">学习目标（每行一个，AI 会记住并据此陪练）</label>
+                    <textarea
+                      value={user.aiMemory.goals.join('\n')}
+                      onChange={(e) => handleGoalsChange(e.target.value)}
+                      placeholder={"例如：\n能去咖啡店点单\n通过雅思口语6.5\n看懂无字幕美剧"}
+                      className="w-full bg-dark border border-gray-600 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-secondary resize-none h-24"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-bold text-gray-400 mb-2 block">薄弱点（AI 会据此重点纠正，可手动补充）</label>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {user.aiMemory.weakPoints.length === 0 && (
+                        <span className="text-xs text-gray-600">暂无记录。练得越多，AI 越懂你的弱点。</span>
+                      )}
+                      {user.aiMemory.weakPoints.map((w, i) => (
+                        <span key={i} className="px-2.5 py-1 rounded-full text-xs bg-yellow-500/10 border border-yellow-500/30 text-yellow-300">
+                          {w}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        value={newWeakPoint}
+                        onChange={(e) => setNewWeakPoint(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleAddWeakPoint()}
+                        placeholder="如：过去时态、发音 r/l"
+                        className="flex-1 bg-dark border border-gray-600 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-secondary"
+                      />
+                      <button
+                        onClick={handleAddWeakPoint}
+                        className="px-3 py-2 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/80"
+                      >
+                        添加
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Data & Backup Card */}
+              <div className="bg-card border border-gray-700 rounded-2xl p-6 h-fit">
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <Database size={20} className="text-blue-400" /> 数据备份与同步
+                </h3>
+                <p className="text-xs text-gray-400 mb-4 leading-relaxed">
+                  LinguaFlow 默认<b className="text-white">纯本地</b>存储，隐私不出本机。导出备份可在换设备时恢复；云端同步（多端实时同步、无限存储）是计划中的增值功能。
+                </p>
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={exportBackup}
+                    className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-600/50 font-bold transition-colors"
+                  >
+                    <Download size={16} /> 导出本地备份
+                  </button>
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-dark hover:bg-gray-800 text-gray-200 border border-gray-600 font-bold transition-colors"
+                  >
+                    <Upload size={16} /> 导入备份恢复
+                  </button>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="application/json"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) importBackup(f);
+                      e.target.value = '';
+                    }}
+                  />
+                </div>
+
+                <div className="mt-5 pt-4 border-t border-gray-700">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Crown size={16} className="text-yellow-400" />
+                    <span className="text-sm font-bold text-white">LinguaFlow 高级</span>
+                    {user.premium && <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-300">已解锁</span>}
+                  </div>
+                  <p className="text-xs text-gray-500 leading-relaxed">
+                    高级模型、无限云同步、真人陪练预约等增值能力正在规划中。当前所有核心功能完全免费、本地可用。
+                  </p>
+                </div>
               </div>
 
               {/* Assessment Area */}
