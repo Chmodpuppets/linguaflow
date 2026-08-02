@@ -351,6 +351,9 @@ const SPEECH_LANG_MAP: Record<string, string> = {
   German: "de-DE",
   Chinese: "zh-CN",
   Italian: "it-IT",
+  Russian: "ru-RU",
+  Greek: "el-GR",
+  Arabic: "ar-SA",
 };
 
 export const languageToSpeechLang = (lang: Language): string => SPEECH_LANG_MAP[lang] || "en-US";

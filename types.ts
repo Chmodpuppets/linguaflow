@@ -7,7 +7,10 @@ export enum Language {
   French = 'French',
   German = 'German',
   Chinese = 'Chinese',
-  Italian = 'Italian'
+  Italian = 'Italian',
+  Russian = 'Russian',
+  Greek = 'Greek',
+  Arabic = 'Arabic'
 }
 
 export enum CEFRLevel {
@@ -129,6 +132,9 @@ export interface ScriptPack {
   description: string;
   groups: string[];         // 可选分组（用户选择练习范围）
   items: ScriptItem[];
+  // 把用户的拉丁/罗马字输入转成目标字形，用于校验（生成式闭环）。
+  // 不提供则禁用文本输入，仅用虚拟键盘点按（适合无简单罗马字映射的复杂文字，如阿拉伯连写）。
+  transliterate?: (input: string, item: ScriptItem) => string;
 }
 
 export interface ScriptCardProgress {

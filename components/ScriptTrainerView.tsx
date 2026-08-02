@@ -1,11 +1,10 @@
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { UserProfile, ScriptPack, ScriptItem } from '../types';
-import { getScriptPackForLanguage } from '../data/scriptPacks.ja';
+import { getScriptPacks, getScriptPackForLanguage } from '../data/scriptPacks';
 import { getDueScriptItems, reviewScriptCard, addActivity } from '../services/storageService';
-import { romajiToKana } from '../services/romajiKana';
 import { generateSpeech } from '../services/aiService';
-import { PenLine, Volume2, Check, X, RotateCcw, Keyboard, ArrowRight, Eye, Languages } from 'lucide-react';
+import { PenLine, Volume2, Check, RotateCcw, Keyboard, ArrowRight, Eye } from 'lucide-react';
 
 interface ScriptTrainerViewProps {
   user: UserProfile;
@@ -13,10 +12,13 @@ interface ScriptTrainerViewProps {
 }
 
 const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUser }) => {
-  const pack: ScriptPack | null = useMemo(
-    () => getScriptPackForLanguage(user.learningLanguage),
-    [user.learningLanguage]
-  );
+  const packs = useMemo(() => getScriptPacks(), []);
+  const [packId, setPackId] = useState<string>('');
+  const selectedPack: ScriptPack = useMemo(() => {
+    const byId = packs.find(p => p.id === packId);
+    if (byId) return byId;
+    return getScriptPackForLanguage(user.learningLanguage) || packs[0];
+  }, [packs, packId, user.learningLanguage]);
 
   const [group, setGroup] = useState<string>('');
   const [queue, setQueue] = useState<ScriptItem[]>([]);
@@ -27,7 +29,6 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
   const [sessionDone, setSessionDone] = useState(false);
   const [stats, setStats] = useState({ reviewed: 0, correct: 0 });
 
-  // 用 ref 记录本轮计数，避免闭包拿到旧值
   const reviewedRef = useRef(0);
   const correctRef = useRef(0);
 
@@ -35,16 +36,22 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
 
   // 虚拟键盘：当前分组去重后的字形
   const keyboardKeys = useMemo(() => {
-    if (!pack || !group) return [];
+    if (!selectedPack || !group) return [];
     const set = new Set<string>();
-    pack.items.filter(i => i.group === group).forEach(i => set.add(i.answer));
+    selectedPack.items.filter(i => i.group === group).forEach(i => set.add(i.answer));
     return Array.from(set);
-  }, [pack, group]);
+  }, [selectedPack, group]);
+
+  const selectPack = (id: string) => {
+    setPackId(id);
+    setGroup('');
+    setSessionDone(false);
+  };
 
   const startGroup = (g: string) => {
-    if (!pack) return;
-    const items = pack.items.filter(it => it.group === g);
-    let due = getDueScriptItems(pack.id, items);
+    if (!selectedPack) return;
+    const items = selectedPack.items.filter(it => it.group === g);
+    let due = getDueScriptItems(selectedPack.id, items);
     if (due.length === 0) due = items; // 全部已熟也可整体复习
     setGroup(g);
     setQueue(due);
@@ -58,13 +65,12 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
     correctRef.current = 0;
   };
 
-  const evaluate = (raw: string, known: boolean): boolean => {
+  const evaluate = (raw: string): boolean => {
     if (!current) return false;
-    const isKata = current.targetScript === 'katakana';
     let userAnswer = (raw || '').trim();
-    // 若输入为纯 ASCII（罗马字）则转换；否则视为已直接写出字形
-    if (/^[\x00-\x7F]+$/.test(userAnswer)) {
-      userAnswer = romajiToKana(userAnswer, isKata);
+    // 纯 ASCII（拉丁/罗马字）且有转换器时，转成目标字形再比对
+    if (/^[\x00-\x7F]+$/.test(userAnswer) && selectedPack.transliterate) {
+      userAnswer = selectedPack.transliterate(userAnswer, current);
     }
     return userAnswer === current.answer;
   };
@@ -72,8 +78,8 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
   const submit = () => {
     if (!current || revealed) return;
     if (!input.trim()) return;
-    const ok = evaluate(input, true);
-    reviewScriptCard(pack!.id, current.id, ok);
+    const ok = evaluate(input);
+    reviewScriptCard(selectedPack.id, current.id, ok);
     setLastCorrect(ok);
     setRevealed(true);
     if (ok) correctRef.current += 1;
@@ -82,7 +88,7 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
   // 看答案（主动跳过，记为未掌握）
   const revealSkip = () => {
     if (!current || revealed) return;
-    reviewScriptCard(pack!.id, current.id, false);
+    reviewScriptCard(selectedPack.id, current.id, false);
     setLastCorrect(false);
     setRevealed(true);
   };
@@ -109,41 +115,46 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
     const { user: updated } = addActivity(
       user,
       'script',
-      user.learningLanguage,
+      selectedPack.language,
       xp,
-      `字形特训：${group} 共 ${rev} 个，正确 ${cor}`,
+      `字形特训：${selectedPack.name} · ${group} 共 ${rev} 个，正确 ${cor}`,
       { count: rev }
     );
     onUpdateUser(updated);
   };
 
   const speak = (text: string) => {
-    if (text) generateSpeech(text, { lang: user.learningLanguage });
+    if (text) generateSpeech(text, { lang: selectedPack.language });
   };
 
-  // 未提供该语言的字形包
-  if (!pack) {
-    return (
-      <div className="max-w-3xl mx-auto h-full flex flex-col items-center justify-center text-center">
-        <Languages size={48} className="text-gray-600 mb-4" />
-        <h3 className="text-xl font-bold text-white mb-2">该语言的字形特训包即将上线</h3>
-        <p className="text-gray-400 text-sm max-w-md">
-          当前已支持：日本語。文字/字母产出特训是数据驱动的——任何语言（韩语 Hangul、俄语西里尔、阿拉伯文等）只要有字形映射包即可接入。
-        </p>
-        <p className="text-gray-500 text-xs mt-3">你正在学习：{user.learningLanguage}</p>
-      </div>
-    );
-  }
+  const hasTransliterate = !!selectedPack.transliterate;
 
   // 分组选择
   if (!group || sessionDone) {
     return (
       <div className="max-w-4xl mx-auto">
+        {/* 语言切换 tab */}
+        <div className="flex flex-wrap gap-2 mb-6">
+          {packs.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => selectPack(p.id)}
+              className={`px-4 py-2 rounded-xl text-sm font-bold border transition-colors ${
+                p.id === selectedPack.id
+                  ? 'bg-primary text-white border-primary'
+                  : 'bg-card border-gray-700 text-gray-300 hover:border-secondary'
+              }`}
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
+
         <div className="mb-6">
           <h3 className="text-xl font-bold text-white flex items-center gap-2">
             <PenLine className="text-secondary" /> 选择要特训的分组
           </h3>
-          <p className="text-gray-400 text-sm mt-1">{pack.description}</p>
+          <p className="text-gray-400 text-sm mt-1">{selectedPack.description}</p>
         </div>
 
         {sessionDone && (
@@ -155,7 +166,7 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
             </p>
             <button
               onClick={() => startGroup(group)}
-              className="px-6 py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary/80 flex items-center gap-2 mx-auto"
+              className="px-6 py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary/80 flex items-center justify-center gap-2 mx-auto"
             >
               <RotateCcw size={18} /> 再来一轮
             </button>
@@ -163,8 +174,8 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {pack.groups.map((g) => {
-            const count = pack.items.filter(i => i.group === g).length;
+          {selectedPack.groups.map((g) => {
+            const count = selectedPack.items.filter(i => i.group === g).length;
             return (
               <button
                 key={g}
@@ -187,13 +198,15 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
       {/* 进度条 */}
       <div className="flex items-center justify-between mb-4 text-sm">
         <button onClick={() => { setGroup(''); setSessionDone(false); }} className="text-gray-400 hover:text-white">
-          ← {group}
+          ← {selectedPack.name} · {group}
         </button>
         <span className="text-gray-500">{Math.min(idx + 1, queue.length)} / {queue.length}</span>
       </div>
 
       <div className="bg-card border border-gray-700 rounded-2xl p-8 text-center">
-        <div className="text-xs text-gray-500 mb-2">请写出对应字形（罗马字或听音）</div>
+        <div className="text-xs text-gray-500 mb-2">
+          请写出对应字形{hasTransliterate ? '（输入罗马字 / 拉丁字母）' : '（点按下方键盘）'}
+        </div>
         <div className="text-4xl font-bold text-white mb-4 tracking-widest font-mono">
           {current.prompt}
         </div>
@@ -207,19 +220,23 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
 
         {!revealed ? (
           <div className="space-y-4">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
-              placeholder="输入罗马字，如 kya"
-              autoFocus
-              className="w-full bg-dark border border-gray-600 rounded-lg px-4 py-3 text-center text-2xl text-white font-mono outline-none focus:border-secondary"
-            />
+            {hasTransliterate ? (
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
+                placeholder="输入罗马字 / 拉丁字母"
+                autoFocus
+                className="w-full bg-dark border border-gray-600 rounded-lg px-4 py-3 text-center text-2xl text-white font-mono outline-none focus:border-secondary"
+              />
+            ) : (
+              <div className="text-sm text-gray-500 py-2">该文字无简单拉丁映射，请用下方键盘点按字形。</div>
+            )}
             <div className="flex gap-3">
               <button
                 onClick={submit}
-                disabled={!input.trim()}
+                disabled={!input.trim() && hasTransliterate}
                 className="flex-1 py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary/80 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 <Check size={18} /> 提交

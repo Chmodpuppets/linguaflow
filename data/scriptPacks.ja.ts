@@ -76,10 +76,7 @@ export const JA_KANA_PACK: ScriptPack = {
     ...build('浊音（平假名）', DAKUON_ROMAJI, 'hiragana'),
     ...build('浊音（片假名）', DAKUON_ROMAJI, 'katakana'),
   ],
+  transliterate: (input, item) => romajiToKana(input, item.targetScript === 'katakana'),
 };
 
-// 已上线的字形包（按语言检索）；后续新增语言在此追加
-export const SCRIPT_PACKS: ScriptPack[] = [JA_KANA_PACK];
-
-export const getScriptPackForLanguage = (lang: Language): ScriptPack | null =>
-  SCRIPT_PACKS.find((p) => p.language === lang) ?? null;
+// 字形包聚合见 ./scriptPacks.ts（SCRIPT_PACKS / getScriptPackForLanguage / getScriptPacks）

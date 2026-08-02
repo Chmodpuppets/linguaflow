@@ -27,6 +27,9 @@ export const SUPPORTED_LANGUAGES = [
   { id: Language.German, label: 'Deutsch', flag: '🇩🇪', code: 'de-DE' },
   { id: Language.Chinese, label: '中文', flag: '🇨🇳', code: 'zh-CN' },
   { id: Language.Italian, label: 'Italiano', flag: '🇮🇹', code: 'it-IT' },
+  { id: Language.Russian, label: 'Русский', flag: '🇷🇺', code: 'ru-RU' },
+  { id: Language.Greek, label: 'Ελληνικά', flag: '🇬🇷', code: 'el-GR' },
+  { id: Language.Arabic, label: 'العربية', flag: '🇸🇦', code: 'ar-SA' },
 ];
 
 export const DRILL_TOPICS = [
