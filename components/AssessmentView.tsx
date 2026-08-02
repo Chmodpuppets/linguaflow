@@ -16,7 +16,7 @@ const AssessmentView: React.FC<AssessmentViewProps> = ({ language, onLevelSet })
 
   const handleAssessment = async () => {
     if (inputText.trim().length < 20) {
-        setError("Please write at least a few sentences for an accurate assessment.");
+        setError("请至少写几句话，以便进行准确的评估。");
         return;
     }
     setError(null);
@@ -26,7 +26,7 @@ const AssessmentView: React.FC<AssessmentViewProps> = ({ language, onLevelSet })
       setResult(data);
       onLevelSet(data.level);
     } catch (err) {
-      setError("Failed to connect to AI. Please check your API key or try again.");
+      setError("无法连接 AI，请检查你的 API 密钥或重试。");
     } finally {
       setIsLoading(false);
     }
@@ -36,16 +36,16 @@ const AssessmentView: React.FC<AssessmentViewProps> = ({ language, onLevelSet })
     <div className="max-w-3xl mx-auto space-y-8">
       <div className="bg-card p-6 rounded-2xl border border-gray-700/50">
         <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
-          <span className="text-secondary">AI</span> Level Check
+          <span className="text-secondary">AI</span> 水平测试
         </h2>
         <p className="text-gray-400 mb-6">
-          Write a short paragraph about yourself, your hobbies, or your day (30-100 words). 
-          Our AI will analyze your vocabulary and grammar to assign a CEFR level.
+          用{language}写一小段关于你自己、爱好或日常的文字（30–100 词）。
+          AI 会分析你的词汇和语法，给出 CEFR 等级。
         </p>
 
         <textarea
           className="w-full h-48 bg-dark/50 border border-gray-700 rounded-xl p-4 text-gray-200 focus:ring-2 focus:ring-secondary focus:border-transparent outline-none resize-none transition-all"
-          placeholder={`Write something in ${language} here...`}
+          placeholder={`在这里用 ${language} 写点什么……`}
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
         />
@@ -64,7 +64,7 @@ const AssessmentView: React.FC<AssessmentViewProps> = ({ language, onLevelSet })
             className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-secondary to-blue-600 hover:from-secondary/90 hover:to-blue-600/90 text-white font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-900/20"
           >
             {isLoading ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}
-            {isLoading ? 'Analyzing...' : 'Analyze My Level'}
+            {isLoading ? '分析中……' : '分析我的等级'}
           </button>
         </div>
       </div>
@@ -76,17 +76,17 @@ const AssessmentView: React.FC<AssessmentViewProps> = ({ language, onLevelSet })
               <div className="w-32 h-32 rounded-full border-4 border-secondary flex items-center justify-center bg-secondary/10 shadow-[0_0_30px_rgba(168,85,247,0.3)]">
                 <span className="text-5xl font-bold text-white">{result.level}</span>
               </div>
-              <p className="mt-3 text-sm text-gray-400 font-medium tracking-wider uppercase">CEFR Level</p>
+              <p className="mt-3 text-sm text-gray-400 font-medium tracking-wider uppercase">CEFR 等级</p>
             </div>
 
             <div className="flex-grow space-y-4">
-              <h3 className="text-xl font-semibold text-white">Analysis Report</h3>
+              <h3 className="text-xl font-semibold text-white">分析报告</h3>
               <p className="text-gray-300 leading-relaxed">{result.reasoning}</p>
               
               <div className="grid grid-cols-2 gap-4 mt-4">
                 <div className="bg-dark/40 p-3 rounded-lg border border-gray-700/50">
                     <div className="flex justify-between items-end mb-1">
-                        <span className="text-xs text-gray-400">Vocabulary</span>
+                        <span className="text-xs text-gray-400">词汇</span>
                         <span className="text-secondary font-bold">{result.vocabularyScore}%</span>
                     </div>
                     <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
@@ -95,7 +95,7 @@ const AssessmentView: React.FC<AssessmentViewProps> = ({ language, onLevelSet })
                 </div>
                 <div className="bg-dark/40 p-3 rounded-lg border border-gray-700/50">
                     <div className="flex justify-between items-end mb-1">
-                        <span className="text-xs text-gray-400">Grammar</span>
+                        <span className="text-xs text-gray-400">语法</span>
                         <span className="text-blue-500 font-bold">{result.grammarScore}%</span>
                     </div>
                     <div className="h-2 bg-gray-700 rounded-full overflow-hidden">

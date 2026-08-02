@@ -49,7 +49,7 @@ const ImportView: React.FC<ImportViewProps> = ({ user }) => {
         .replace(/\s+/g, ' ')
         .trim();
       setText(plain.slice(0, 4000));
-      if (!title) setTitle(url.split('/').slice(-1)[0] || 'Imported');
+      if (!title) setTitle(url.split('/').slice(-1)[0] || '导入内容');
       setStatus({ type: 'ok', msg: '已抓取，可编辑后保存或提取词汇。' });
     } catch (e) {
       setStatus({
@@ -75,7 +75,7 @@ const ImportView: React.FC<ImportViewProps> = ({ user }) => {
       createdAt: Date.now(),
     };
     saveLibraryItem(item);
-    setStatus({ type: 'ok', msg: '已存入「记忆库 Memory Bank」，可去那里点「练习」做打字训练。' });
+    setStatus({ type: 'ok', msg: '已存入「记忆库」，可去那里点「练习」做打字训练。' });
   };
 
   const extractVocab = async () => {
@@ -88,7 +88,7 @@ const ImportView: React.FC<ImportViewProps> = ({ user }) => {
     const words = extractWords(text);
     let added = 0;
     for (const w of words) {
-      let details = { definition: '（离线占位，联网后可由 AI 补充）', example: '', partOfSpeech: 'word' };
+      let details = { definition: '（离线占位，联网后可由 AI 补充）', example: '', partOfSpeech: '词性' };
       try {
         const d = await generateWordDetails(w, lang, user.nativeLanguage);
         details = { definition: d.definition, example: d.example, partOfSpeech: d.partOfSpeech };

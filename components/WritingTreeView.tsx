@@ -157,7 +157,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
     }
     
     setNodeToDelete(null);
-    showToast("Project item deleted", "success");
+    showToast("项目条目已删除", "success");
   };
 
   // --- Editor Operations ---
@@ -238,9 +238,9 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
         
         setNodes(updatedNodes);
         saveWritingTree(updatedNodes);
-        showToast(`Generated ${newNodes.length} sections`, "success");
+        showToast(`已生成 ${newNodes.length} 个章节`, "success");
       } catch (e) {
-        showToast("Failed to generate structure", "error");
+        showToast("生成结构失败", "error");
       } finally {
         setIsGeneratingStructure(false);
       }
@@ -252,9 +252,9 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
       try {
           const polished = await polishText(inspirationText, user.learningLanguage);
           setInspirationText(polished);
-          showToast("Text polished & formatted", "success");
+          showToast("文本已润色并排版", "success");
       } catch (e) {
-          showToast("Failed to polish text", "error");
+          showToast("文本润色失败", "error");
       } finally {
           setIsPolishing(false);
       }
@@ -263,14 +263,14 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
   const handleInsertInspiration = () => {
       if (!inspirationText.trim()) return;
       if (!activeNodeId) {
-          showToast("Select a node to insert text", "error");
+          showToast("请选择一个节点以插入文本", "error");
           return;
       }
       
       const newContent = content ? content + '\n\n' + inspirationText : inspirationText;
       setContent(newContent);
       setInspirationText('');
-      showToast("Merged into document", "success");
+      showToast("已合并到文档", "success");
   };
 
   const handleClassifyInspiration = async () => {
@@ -278,8 +278,8 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
       
       // If no project exists, warn user
       if (nodes.length === 0) {
-          if (confirm("You don't have any projects yet. Create a new root project to start?")) {
-               handleCreateNode('root', null, 'My Project', inspirationText);
+          if (confirm("你还没有任何项目。要创建一个新根项目开始吗？")) {
+               handleCreateNode('root', null, '我的项目', inspirationText);
                setInspirationText('');
           }
           return;
@@ -291,7 +291,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
           const result = await classifyInspiration(inspirationText, nodes, user.learningLanguage);
           
           let targetParentId = activeNodeId;
-          let targetParentTitle = activeNodeId ? (nodes.find(n => n.id === activeNodeId)?.title || "Current Node") : "Root";
+          let targetParentTitle = activeNodeId ? (nodes.find(n => n.id === activeNodeId)?.title || "当前节点") : "根节点";
 
           // Try to find the suggested parent in our tree
           // Enhance matching: exact match > partial match
@@ -319,14 +319,14 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
           }
 
           // Use the REFINED title and content from AI
-          const newNode = handleCreateNode('idea', targetParentId, result.refinedTitle || "New Idea", result.refinedContent || inspirationText);
+          const newNode = handleCreateNode('idea', targetParentId, result.refinedTitle || "新想法", result.refinedContent || inspirationText);
           
           setInspirationText('');
           setActiveNodeId(newNode.id);
           
-          showToast(`Created new node: "${result.refinedTitle}"`, "success");
+          showToast(`已创建新节点："${result.refinedTitle}"`, "success");
       } catch (e) {
-          showToast("AI classification failed", "error");
+          showToast("AI 分类失败", "error");
       } finally {
           setIsClassifying(false);
       }
@@ -377,14 +377,14 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                         <button 
                             onClick={(e) => { e.stopPropagation(); handleCreateNode('section', node.id, 'New Section'); }}
                             className="p-1.5 text-gray-500 hover:text-green-400 hover:bg-gray-700 rounded-md transition-colors"
-                            title="Add Child Node"
+                            title="添加子节点"
                         >
                             <Plus size={14} />
                         </button>
                         <button 
                             onClick={(e) => { e.stopPropagation(); setNodeToDelete(node.id); }}
                             className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-gray-700 rounded-md transition-colors"
-                            title="Delete Node"
+                            title="删除节点"
                         >
                             <Trash2 size={14} />
                         </button>
@@ -408,25 +408,25 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                 <div className="bg-card border border-gray-600 p-6 rounded-2xl shadow-2xl max-w-sm w-full transform transition-all animate-in zoom-in-95">
                     <div className="flex items-center gap-3 text-red-400 mb-2">
                         <AlertTriangle size={24} />
-                        <h3 className="text-xl font-bold text-white">Delete Item?</h3>
+                        <h3 className="text-xl font-bold text-white">删除条目？</h3>
                     </div>
                     <p className="text-gray-300 mb-6 text-sm leading-relaxed">
-                        Are you sure you want to delete <span className="font-bold text-white">"{nodes.find(n => n.id === nodeToDelete)?.title}"</span>? 
+                        确定要删除 <span className="font-bold text-white">"{nodes.find(n => n.id === nodeToDelete)?.title}"</span> 吗？
                         <br/><br/>
-                        This will permanently delete this item and any content inside it. This action cannot be undone.
+                        这将永久删除该条目及其内部的所有内容。此操作无法撤销。
                     </p>
                     <div className="flex justify-end gap-3">
                         <button 
                             onClick={() => setNodeToDelete(null)}
                             className="px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-colors font-medium text-sm"
                         >
-                            Cancel
+                            取消
                         </button>
                         <button 
                             onClick={confirmDeleteNode}
                             className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold transition-colors flex items-center gap-2 text-sm shadow-lg shadow-red-900/20"
                         >
-                            <Trash2 size={16} /> Delete
+                            <Trash2 size={16} /> 删除
                         </button>
                     </div>
                 </div>
@@ -437,14 +437,14 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
         <div className="w-full lg:w-1/4 bg-card border border-gray-700 rounded-xl flex flex-col overflow-hidden">
             <div className="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-900/50">
                 <span className="font-bold text-gray-300 flex items-center gap-2">
-                    <GitBranch size={18} /> Structure
+                    <GitBranch size={18} /> 结构
                 </span>
                 <button 
                     onClick={() => handleCreateNode('root', null, 'New Book Project')}
                     className="flex items-center gap-1 px-2 py-1 bg-primary/20 text-primary hover:bg-primary/30 rounded-md text-xs font-bold transition-all"
-                    title="Add Root Project"
+                    title="添加根项目"
                 >
-                    <Plus size={14} /> New Book
+                    <Plus size={14} /> 新建书籍
                 </button>
             </div>
             
@@ -454,8 +454,8 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                         <div className="w-12 h-12 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-3">
                             <FolderOpen className="text-gray-600" />
                         </div>
-                        <p className="mb-2">No projects yet.</p>
-                        <button onClick={() => handleCreateNode('root', null, 'My First Book')} className="text-secondary hover:underline font-bold">Create your first book</button>
+                        <p className="mb-2">还没有项目。</p>
+                        <button onClick={() => handleCreateNode('root', null, '我的第一本书')} className="text-secondary hover:underline font-bold">创建你的第一本书</button>
                     </div>
                 ) : (
                     renderTree(null)
@@ -468,8 +468,8 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
             {!activeNodeId ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-gray-500">
                     <Layout size={64} className="mb-4 opacity-20" />
-                    <p className="text-lg">Select a node from the tree to start writing</p>
-                    <p className="text-sm opacity-50">Or create a new one</p>
+                    <p className="text-lg">从左侧结构树中选择一个节点开始写作</p>
+                    <p className="text-sm opacity-50">或创建一个新的节点</p>
                 </div>
             ) : (
                 <>
@@ -479,7 +479,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
                             className="bg-transparent text-xl font-bold text-white outline-none flex-1 placeholder-gray-600 focus:placeholder-gray-500"
-                            placeholder="Node Title..."
+                            placeholder="节点标题……"
                         />
                         <div className="flex items-center gap-2">
                              <button 
@@ -487,7 +487,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                                 disabled={isSaving}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${isSaving ? 'bg-green-600/50 text-white' : 'bg-green-600 hover:bg-green-500 text-white'}`}
                              >
-                                <Save size={18} /> {isSaving ? 'Saving...' : 'Save'}
+                                <Save size={18} /> {isSaving ? '保存中……' : '保存'}
                              </button>
                         </div>
                     </div>
@@ -496,13 +496,13 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                         value={content}
                         onChange={(e) => setContent(e.target.value)}
                         className="flex-1 bg-transparent p-6 resize-none outline-none text-gray-200 leading-relaxed text-lg custom-scrollbar placeholder-gray-700 font-serif"
-                        placeholder="Start writing your masterpiece..."
+                        placeholder="开始写你的杰作……"
                     />
                     
                     <div className="p-2 bg-gray-900/50 border-t border-gray-700 text-xs text-gray-500 flex justify-between px-4">
-                         <span>{content.trim().split(/\s+/).filter(w=>w).length} words</span>
+                         <span>{content.trim().split(/\s+/).filter(w=>w).length} 字</span>
                          {activeNodeId && nodes.find(n => n.id === activeNodeId)?.updatedAt && (
-                             <span>Last saved: {new Date(nodes.find(n => n.id === activeNodeId)!.updatedAt).toLocaleTimeString()}</span>
+                             <span>最后保存：{new Date(nodes.find(n => n.id === activeNodeId)!.updatedAt).toLocaleTimeString()}</span>
                          )}
                     </div>
                 </>
@@ -515,7 +515,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
             {/* AI Coach Card */}
             <div className="bg-card border border-gray-700 rounded-xl p-4 flex flex-col flex-1 max-h-[50%]">
                 <div className="flex items-center gap-2 font-bold text-white mb-3">
-                    <Bot size={18} className="text-secondary" /> AI Writing Coach
+                    <Bot size={18} className="text-secondary" /> AI 写作教练
                 </div>
                 
                 <div className="flex-1 overflow-y-auto custom-scrollbar bg-dark/30 rounded-lg p-3 text-sm text-gray-300 mb-3 border border-gray-800">
@@ -525,11 +525,11 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                         ) : (
                             <div className="text-gray-500 italic text-center py-4 flex flex-col items-center gap-2">
                                 <Sparkles className="opacity-20" size={24} />
-                                <p>"Select 'Coach Me' to get structural feedback and style advice."</p>
+                                <p>"点击'指导我'获取结构反馈与风格建议。"</p>
                             </div>
                         )
                     ) : (
-                        <div className="text-gray-500 italic">Select a node to get feedback.</div>
+                        <div className="text-gray-500 italic">选择一个节点以获取反馈。</div>
                     )}
                 </div>
 
@@ -540,7 +540,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                         className="p-2 bg-blue-600/10 hover:bg-blue-600/20 border border-blue-600/30 text-blue-300 rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition-colors disabled:opacity-50"
                     >
                         {isGeneratingStructure ? <Sparkles size={14} className="animate-spin"/> : <FolderTree size={14} />}
-                        Auto-Structure
+                        自动结构
                     </button>
                     <button 
                         onClick={handleCoach}
@@ -548,7 +548,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                         className="p-2 bg-secondary/10 hover:bg-secondary/20 border border-secondary/30 text-secondary rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition-colors disabled:opacity-50"
                     >
                          {isCoaching ? <Sparkles size={14} className="animate-spin"/> : <Bot size={14} />}
-                        Coach Me
+                        指导我
                     </button>
                 </div>
             </div>
@@ -557,17 +557,17 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
             <div className="bg-card border border-gray-700 rounded-xl p-4 flex flex-col flex-1">
                  <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2 font-bold text-white">
-                        <Lightbulb size={18} className="text-yellow-400" /> Inspiration Box
+                        <Lightbulb size={18} className="text-yellow-400" /> 灵感盒
                     </div>
                     {inspirationText && (
-                        <button onClick={() => setInspirationText('')} className="text-xs text-gray-500 hover:text-white">Clear</button>
+                        <button onClick={() => setInspirationText('')} className="text-xs text-gray-500 hover:text-white">清空</button>
                     )}
                 </div>
                 <textarea 
                     value={inspirationText}
                     onChange={(e) => setInspirationText(e.target.value)}
                     className="flex-1 bg-dark/30 border border-gray-800 rounded-lg p-3 resize-none outline-none text-sm text-gray-300 mb-3 focus:border-gray-600 transition-colors placeholder-gray-600"
-                    placeholder="Drop raw ideas, quotes, or snippets here... Then let AI organize them."
+                    placeholder="在这里放入原始想法、名言或片段……然后让 AI 帮你整理。"
                 />
                 
                 <div className="grid grid-cols-3 gap-1.5">
@@ -576,10 +576,10 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                         onClick={handlePolishInspiration}
                         disabled={!inspirationText.trim() || isPolishing}
                         className="py-2 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 rounded-lg text-xs font-bold border border-indigo-500/30 transition-colors flex flex-col items-center justify-center gap-1 disabled:opacity-50"
-                        title="AI Polish (Grammar & Format)"
+                        title="AI 润色（语法与排版）"
                     >
                         {isPolishing ? <Sparkles size={14} className="animate-spin" /> : <Wand2 size={14} />}
-                        Polish
+                        润色
                     </button>
 
                     {/* INSERT Button (Replaces "Add Here") */}
@@ -587,10 +587,10 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                         onClick={handleInsertInspiration}
                         disabled={!inspirationText.trim()}
                         className="py-2 bg-green-600/20 hover:bg-green-600/30 text-green-300 rounded-lg text-xs font-bold border border-green-500/30 transition-colors flex flex-col items-center justify-center gap-1 disabled:opacity-50"
-                        title="Append to current document"
+                        title="追加到当前文档"
                     >
                         <ArrowUpRight size={14} /> 
-                        Insert
+                        插入
                     </button>
 
                     {/* Smart Node Button (Renamed from Auto-File) */}
@@ -598,10 +598,10 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                         onClick={handleClassifyInspiration}
                         disabled={!inspirationText.trim() || isClassifying}
                         className="py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-bold border border-gray-600 transition-colors flex flex-col items-center justify-center gap-1 disabled:opacity-50"
-                        title="Create new node in tree"
+                        title="在结构树中创建新节点"
                     >
                         {isClassifying ? <Sparkles size={14} className="animate-spin text-yellow-400" /> : <GitBranch size={14} />}
-                        New Node
+                        新建节点
                     </button>
                 </div>
             </div>

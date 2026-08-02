@@ -44,25 +44,25 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
             <div className="w-16 h-16 bg-gradient-to-br from-primary to-secondary rounded-2xl mx-auto flex items-center justify-center text-3xl font-bold shadow-lg mb-4">
               L
             </div>
-            <h1 className="text-2xl font-bold">Welcome to LinguaFlow</h1>
-            <p className="text-gray-400 mt-2">Your journey to fluency starts here.</p>
+            <h1 className="text-2xl font-bold">欢迎使用 LinguaFlow</h1>
+            <p className="text-gray-400 mt-2">你的流利之路从这里开始。</p>
           </div>
 
           {step === 1 && (
             <div className="space-y-6 animate-in slide-in-from-right duration-300">
               <div>
-                <label className="block text-sm font-medium text-gray-400 mb-2">What should we call you?</label>
+                <label className="block text-sm font-medium text-gray-400 mb-2">我们该怎么称呼你？</label>
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Enter your nickname"
+                  placeholder="输入你的昵称"
                   className="w-full bg-dark border border-gray-600 rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none transition-all"
                   autoFocus
                 />
               </div>
               <div>
-                 <label className="block text-sm font-medium text-gray-400 mb-2">Native Language</label>
+                 <label className="block text-sm font-medium text-gray-400 mb-2">母语</label>
                  <select
                     value={nativeLang}
                     onChange={(e) => setNativeLang(e.target.value as Language)}
@@ -78,7 +78,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                 disabled={!username.trim()}
                 className="w-full py-3 bg-white text-dark font-bold rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                Next <ArrowRight size={18} />
+                下一步 <ArrowRight size={18} />
               </button>
             </div>
           )}
@@ -86,7 +86,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
           {step === 2 && (
             <div className="space-y-6 animate-in slide-in-from-right duration-300">
                <div>
-                 <label className="block text-sm font-medium text-gray-400 mb-2">Target Language</label>
+                 <label className="block text-sm font-medium text-gray-400 mb-2">想学的语言</label>
                  <select
                     value={learningLang}
                     onChange={(e) => setLearningLang(e.target.value as Language)}
@@ -98,7 +98,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                  </select>
               </div>
               <div>
-                 <label className="block text-sm font-medium text-gray-400 mb-2">Current Level (Estimate)</label>
+                 <label className="block text-sm font-medium text-gray-400 mb-2">当前水平（估算）</label>
                  <div className="grid grid-cols-3 gap-2">
                     {Object.values(CEFRLevel).map(l => (
                         <button
@@ -115,10 +115,10 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                 onClick={() => setStep(3)}
                 className="w-full py-3 bg-white text-dark font-bold rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                Next <ArrowRight size={18} />
+                下一步 <ArrowRight size={18} />
               </button>
               <button onClick={() => setStep(1)} className="w-full text-center text-sm text-gray-500 hover:text-gray-300">
-                Back
+                返回
               </button>
             </div>
           )}
@@ -158,10 +158,10 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                 onClick={handleRegister}
                 className="w-full py-3 bg-gradient-to-r from-primary to-secondary text-white font-bold rounded-xl shadow-lg shadow-purple-900/30 hover:brightness-110 transition-all flex items-center justify-center gap-2"
               >
-                Start Learning <Sparkles size={18} />
+                开始学习 <Sparkles size={18} />
               </button>
               <button onClick={() => setStep(2)} className="w-full text-center text-sm text-gray-500 hover:text-gray-300">
-                Back
+                返回
               </button>
             </div>
           )}

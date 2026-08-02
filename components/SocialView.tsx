@@ -83,7 +83,7 @@ const SocialView: React.FC<SocialViewProps> = ({ user }) => {
         <div className="grid grid-cols-3 gap-3 mt-5 text-center">
           <div className="bg-gray-900/50 rounded-xl py-3">
             <div className="text-2xl font-bold text-white">Lv.{progress?.level}</div>
-            <div className="text-[10px] text-gray-500 uppercase">Level</div>
+            <div className="text-[10px] text-gray-500 uppercase">等级</div>
           </div>
           <div className="bg-gray-900/50 rounded-xl py-3">
             <div className="text-2xl font-bold text-white">{weeklyOutput}</div>

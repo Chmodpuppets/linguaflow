@@ -11,11 +11,11 @@ interface WritingViewProps {
 }
 
 const TOPICS = [
-  "Describe your favorite childhood memory.",
-  "What is your opinion on social media?",
-  "Describe the room you are currently in.",
-  "Write a letter to a friend inviting them to dinner.",
-  "Explain a traditional dish from your country."
+  "描述你最喜欢的童年回忆。",
+  "你对社交媒体有什么看法？",
+  "描述你现在所在的房间。",
+  "写一封信邀请朋友来吃饭。",
+  "介绍一道你家乡的传统菜。"
 ];
 
 const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
@@ -71,7 +71,7 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
       <div className="flex flex-col space-y-4 h-full">
         {/* Topic Suggestion Carousel */}
         <div className="bg-card p-4 rounded-xl border border-gray-700">
-            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Guided Topics</h3>
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">写作题目</h3>
             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
                 {TOPICS.map((t, i) => (
                     <button 
@@ -94,11 +94,11 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
             <textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                placeholder={`Start writing in ${user.learningLanguage} here...`}
+                placeholder={`用 ${user.learningLanguage} 写点什么……`}
                 className="flex-grow w-full bg-dark/50 border border-gray-700 rounded-xl p-6 text-lg leading-relaxed text-gray-200 focus:ring-2 focus:ring-secondary focus:border-transparent outline-none resize-none transition-all"
             />
             <div className="absolute bottom-4 right-4 text-gray-500 text-sm font-mono">
-                {text.length} chars
+                {text.length} 字
             </div>
         </div>
 
@@ -108,9 +108,9 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
             className="w-full py-4 bg-gradient-to-r from-primary to-secondary hover:brightness-110 text-white font-bold rounded-xl shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
             {isAnalyzing ? (
-                <>Analyzing <Sparkles className="animate-spin" size={18} /></>
+                <>分析中 <Sparkles className="animate-spin" size={18} /></>
             ) : (
-                <>Get AI Feedback <Wand2 size={18} /></>
+                <>获取 AI 批改 <Wand2 size={18} /></>
             )}
         </button>
       </div>
@@ -130,7 +130,7 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
         {!feedback ? (
             <div className="h-full flex flex-col items-center justify-center text-gray-600 border-2 border-dashed border-gray-800 rounded-xl bg-card/20">
                 <BookCheck size={48} className="mb-4 opacity-50" />
-                <p>Submit your writing to receive detailed feedback.</p>
+                <p>提交你的作文，获取详细批改。</p>
             </div>
         ) : (
             <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
@@ -139,15 +139,15 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
                 <div className="bg-gradient-to-r from-yellow-500/10 to-transparent p-4 rounded-xl border border-yellow-500/20 flex items-center gap-3">
                     <Star size={24} className="text-yellow-400 fill-current animate-pulse" />
                     <div>
-                        <h4 className="font-bold text-yellow-100">Feedback Received!</h4>
-                        <p className="text-xs text-yellow-200/70">You earned XP for your effort.</p>
+                        <h4 className="font-bold text-yellow-100">已收到批改！</h4>
+                        <p className="text-xs text-yellow-200/70">你的努力已获得经验值。</p>
                     </div>
                 </div>
 
                 {/* Score Card */}
                 <div className="bg-card p-6 rounded-xl border border-gray-700 flex items-center justify-between">
                     <div>
-                        <h3 className="text-gray-400 text-sm font-medium">Estimated Level</h3>
+                        <h3 className="text-gray-400 text-sm font-medium">预估等级</h3>
                         <p className="text-3xl font-bold text-white mt-1">{feedback.cefrEstimation}</p>
                     </div>
                     <div className="text-right max-w-[60%]">
@@ -159,7 +159,7 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
                 <div className="bg-card rounded-xl border border-gray-700 overflow-hidden">
                     <div className="p-4 bg-gray-800/50 border-b border-gray-700 font-semibold text-white flex items-center gap-2">
                         <Sparkles size={16} className="text-yellow-400" />
-                        AI Polished Version
+                        AI 润色版
                     </div>
                     <div className="p-6 text-gray-200 leading-relaxed bg-dark/30">
                         {feedback.correctedText}
@@ -170,10 +170,10 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
                 <div className="space-y-4">
                     <h3 className="text-white font-semibold flex items-center gap-2">
                         <BookCheck size={18} className="text-secondary" />
-                        Specific Improvements
+                        具体改进建议
                     </h3>
                     {feedback.suggestions.length === 0 ? (
-                        <p className="text-gray-500 italic">No specific errors found. Great job!</p>
+                        <p className="text-gray-500 italic">没有发现具体错误，写得真好！</p>
                     ) : (
                         feedback.suggestions.map((item, idx) => (
                             <div key={idx} className="bg-card p-4 rounded-xl border border-gray-700 hover:border-gray-600 transition-colors">

@@ -22,7 +22,7 @@ const parseNotes = (notes: string) => {
     const translationMatch = notes.match(/\[Translation\]\n([\s\S]*?)(?=\n\[|$)/);
     const phoneticMatch = notes.match(/\[Phonetic Guide\]\n([\s\S]*?)(?=\n\[|$)/);
     return {
-        translation: translationMatch ? translationMatch[1].trim() : "Translation unavailable",
+        translation: translationMatch ? translationMatch[1].trim() : "暂无译文",
         phoneticGuide: phoneticMatch ? phoneticMatch[1].trim() : ""
     };
 };
@@ -156,7 +156,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
         mediaRecorder.start();
         setIsRecording(true);
     } catch (err) {
-        alert("Could not access microphone.");
+        alert("无法访问麦克风。");
     }
   };
 
@@ -256,7 +256,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
           setTimeout(() => inputRef.current?.focus(), 100);
       } catch (error) {
           console.error(error);
-          setErrorMsg("Failed to generate content. The server might be busy. Please try again.");
+          setErrorMsg("内容生成失败，服务器可能繁忙，请重试。");
           setContent(null);
       } finally {
           setIsLoading(false);
@@ -282,7 +282,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
           setTimeout(() => inputRef.current?.focus(), 100);
       } catch (error) {
           console.error(error);
-          setErrorMsg("Failed to generate content. Please check your connection.");
+          setErrorMsg("内容生成失败，请检查网络连接。");
           setContent(null);
       } finally {
           setIsLoading(false);
@@ -304,7 +304,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
 
     const newItem: UserContent = {
       id: generateId(),
-      title: content.topic || 'Typing Practice',
+      title: content.topic || '打字练习',
       content: content.text,
       notes: notesParts.join('\n\n'), // Persist translation/phonetics here
       language: user.learningLanguage,
@@ -321,7 +321,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
         stopAudio();
         // Use provided content (e.g. from Library)
         // Try to parse translation/phonetics from notes if available
-        const parsed = initialData.notes ? parseNotes(initialData.notes) : { translation: "Custom Memory Bank content", phoneticGuide: "" };
+        const parsed = initialData.notes ? parseNotes(initialData.notes) : { translation: "自定义记忆库内容", phoneticGuide: "" };
 
         setContent({
             text: initialData.text,
@@ -485,11 +485,11 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
               <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700 mb-8 max-w-lg w-full text-center">
                   <div className="flex items-center justify-center gap-2 text-yellow-500 mb-2">
                       <ShieldAlert size={20} />
-                      <span className="font-bold">Hardcore Rules Active</span>
+                      <span className="font-bold">硬核模式已开启</span>
                   </div>
                   <p className="text-sm text-gray-400">
-                      In Campaign Mode, all hints (Translation, Audio, Phonetics) are disabled. 
-                      You must rely on pure memory and typing skill.
+                      在闯关模式下，所有提示（译文、音频、发音）都会关闭。
+                      只能靠纯记忆和打字硬实力。
                   </p>
               </div>
 
@@ -563,7 +563,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
             <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                     <span className="px-3 py-1 rounded-full bg-primary/20 text-primary text-sm font-bold border border-primary/30">
-                        {activeStage ? activeStage.cefr : "Practice"}
+                        {activeStage ? activeStage.cefr : "练习"}
                     </span>
                     
                     {/* HINT & AUDIO CONTROLS - HIDDEN IN STRICT CAMPAIGN MODE */}
@@ -575,7 +575,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                                         onClick={togglePlayback}
                                         disabled={!content}
                                         className={`p-2 rounded-md transition-colors flex items-center gap-2 ${isSpeaking ? 'bg-green-500/20 text-green-400' : 'hover:bg-gray-700 text-gray-300'}`}
-                                        title="Play Audio"
+                                        title="播放音频"
                                     >
                                         {isSpeaking ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
                                     </button>
@@ -624,25 +624,25 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                                             : 'bg-secondary/10 text-secondary border-secondary/30 hover:bg-secondary/20 hover:text-white'
                                         }
                                     `}
-                                    title={savedToLibrary ? "Content saved to Memory Bank" : "Save this content to Memory Bank"}
+                                    title={savedToLibrary ? "内容已存入记忆库" : "保存到记忆库"}
                                 >
                                     {savedToLibrary ? <Check size={16} /> : <Bookmark size={16} />}
-                                    {savedToLibrary ? "Saved" : "Save"}
+                                    {savedToLibrary ? "已保存" : "保存"}
                                 </button>
 
                             </div>
 
                             {content?.phoneticGuide && (
-                                <button onClick={() => setShowPhonetic(!showPhonetic)} className={`ml-2 p-2 rounded-lg ${showPhonetic ? 'bg-secondary/20 text-secondary' : 'text-gray-400 hover:text-gray-200'}`} title="Toggle Phonetic Guide"><Keyboard size={18} /></button>
+                                <button onClick={() => setShowPhonetic(!showPhonetic)} className={`ml-2 p-2 rounded-lg ${showPhonetic ? 'bg-secondary/20 text-secondary' : 'text-gray-400 hover:text-gray-200'}`} title="切换发音指南"><Keyboard size={18} /></button>
                             )}
-                            <button onClick={() => setShowTranslation(!showTranslation)} className={`p-2 rounded-lg ${showTranslation ? 'bg-blue-500/20 text-blue-400' : 'text-gray-400 hover:text-gray-200'}`} title="Toggle Translation"><Eye size={18} /></button>
+                            <button onClick={() => setShowTranslation(!showTranslation)} className={`p-2 rounded-lg ${showTranslation ? 'bg-blue-500/20 text-blue-400' : 'text-gray-400 hover:text-gray-200'}`} title="切换译文"><Eye size={18} /></button>
                         </>
                     )}
                     
                     {/* STRICT MODE INDICATOR */}
                     {isStrictMode && (
                         <div className="flex items-center gap-2 px-3 py-1 bg-red-900/30 border border-red-800 rounded-lg text-red-400 text-xs font-bold uppercase tracking-wider">
-                            <Lock size={12} /> Strict Mode
+                            <Lock size={12} /> 硬核模式
                         </div>
                     )}
 
@@ -650,7 +650,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                 
                 <div className="flex items-center gap-6">
                     <div className="flex flex-col items-end">
-                        <span className="text-xs text-gray-500 uppercase tracking-widest">Speed</span>
+                        <span className="text-xs text-gray-500 uppercase tracking-widest">速度</span>
                         <span className="text-xl font-mono font-bold text-white">{wpm} <span className="text-sm font-normal text-gray-500">WPM</span></span>
                     </div>
                     <button 
@@ -659,7 +659,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                         className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors text-sm font-medium"
                     >
                         <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
-                        Exit Drill
+                        退出练习
                     </button>
                 </div>
             </div>
@@ -673,11 +673,11 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
       {isLoading ? (
           <div className="bg-dark rounded-2xl p-12 border border-gray-800 shadow-2xl min-h-[300px] flex items-center justify-center flex-col gap-4">
              <div className="w-12 h-12 border-4 border-secondary border-t-transparent rounded-full animate-spin"></div>
-             <p className="text-gray-400 animate-pulse">Generating tailored practice...</p>
+             <p className="text-gray-400 animate-pulse">正在生成专属练习……</p>
              {errorMsg && (
                  <div className="mt-4 p-3 bg-red-900/20 border border-red-800 text-red-300 rounded-lg text-sm max-w-sm text-center">
                      {errorMsg}
-                     <button onClick={() => fetchPracticeContent('random')} className="block mx-auto mt-2 text-xs underline hover:text-white">Try Again</button>
+                     <button onClick={() => fetchPracticeContent('random')} className="block mx-auto mt-2 text-xs underline hover:text-white">重试</button>
                  </div>
              )}
           </div>
@@ -685,8 +685,8 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
             // Setup Screen
             <div className="bg-dark rounded-2xl p-6 md:p-8 border border-gray-800 shadow-2xl min-h-[400px]">
                  <div className="text-center mb-8">
-                     <h3 className="text-2xl font-bold text-white mb-2">Typing Adventure</h3>
-                     <p className="text-gray-400">Select a mode to begin your training.</p>
+                     <h3 className="text-2xl font-bold text-white mb-2">打字闯关</h3>
+                     <p className="text-gray-400">选择一种模式开始训练。</p>
                  </div>
 
                  {/* Mode Tabs */}
@@ -695,19 +695,19 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                         onClick={() => setActiveTab('campaign')}
                         className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold transition-all ${activeTab === 'campaign' ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-105' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
                      >
-                        <Swords size={18} /> Campaign <span className="text-[10px] bg-black/30 px-1.5 py-0.5 rounded text-white/70">STRICT</span>
+                        <Swords size={18} /> 闯关 <span className="text-[10px] bg-black/30 px-1.5 py-0.5 rounded text-white/70">硬核</span>
                      </button>
                      <button 
                         onClick={() => setActiveTab('practice')}
                         className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold transition-all ${activeTab === 'practice' ? 'bg-gray-700 text-white shadow-lg border border-gray-600' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
                      >
-                        <LayoutGrid size={18} /> AI Practice
+                        <LayoutGrid size={18} /> AI 练习
                      </button>
                      <button 
                         onClick={() => setActiveTab('memory')}
                         className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold transition-all ${activeTab === 'memory' ? 'bg-secondary text-white shadow-lg shadow-secondary/20' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
                      >
-                        <Book size={18} /> Memory Bank
+                        <Book size={18} /> 记忆库
                      </button>
                  </div>
 
@@ -732,7 +732,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                             className="flex flex-col items-center justify-center gap-2 p-4 bg-gradient-to-br from-gray-800 to-gray-700 hover:brightness-110 border border-gray-700 hover:border-white/30 rounded-xl transition-all"
                          >
                              <Sparkles size={32} className="text-yellow-400" />
-                             <span className="text-sm font-bold text-white">Surprise Me</span>
+                             <span className="text-sm font-bold text-white">随机来一个</span>
                          </button>
                      </div>
                  )}
@@ -741,8 +741,8 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                      <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
                          {libraryItems.length === 0 ? (
                              <div className="text-center py-12 border-2 border-dashed border-gray-800 rounded-xl">
-                                 <p className="text-gray-500 mb-4">Your Memory Bank is empty.</p>
-                                 <div className="text-sm text-gray-600">Complete AI drills or add your own content to review it here.</div>
+                                 <p className="text-gray-500 mb-4">你的记忆库还是空的。</p>
+                                 <div className="text-sm text-gray-600">完成 AI 练习或添加自己的内容，就能在这里复习。</div>
                              </div>
                          ) : (
                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -811,23 +811,23 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                 </div>
                 <div>
                     <h3 className="text-xl font-bold text-green-400">
-                        {activeStage ? (passedStage ? "Stage Cleared!" : "Drill Complete") : "Drill Completed!"}
+                        {activeStage ? (passedStage ? "关卡通过！" : "练习完成") : "练习已完成！"}
                     </h3>
                     <p className="text-green-300/70">
-                        {savedToLibrary && isAISource ? "XP Awarded & Saved to Memory Bank." : "XP Awarded. Memory reinforced."}
+                        {savedToLibrary && isAISource ? "已获得经验并存入记忆库。" : "已获得经验，记忆已巩固。"}
                     </p>
                 </div>
             </div>
             
             <div className="flex items-center gap-4">
                  <div className="flex flex-col items-center px-4 border-r border-green-800">
-                     <span className="text-xs text-green-500/80 uppercase">Accuracy</span>
+                     <span className="text-xs text-green-500/80 uppercase">准确率</span>
                      <span className="text-2xl font-bold text-white">
                          {accuracy}%
                      </span>
                  </div>
                  <div className="flex flex-col items-center px-4 border-r border-green-800">
-                     <span className="text-xs text-green-500/80 uppercase">XP Earned</span>
+                     <span className="text-xs text-green-500/80 uppercase">获得经验</span>
                      <span className="text-2xl font-bold text-white flex items-center gap-1">
                          <Star size={16} className="text-yellow-400" fill="currentColor" /> 
                          {20 + Math.floor(content!.text.length/5) + (wpm > 40 ? 10 : 0)}
@@ -837,7 +837,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                     onClick={() => {setContent(null); setFinished(false);}}
                     className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg transition-colors flex items-center gap-2"
                 >
-                    Next Drill <Play size={16} />
+                    下一个练习 <Play size={16} />
                 </button>
             </div>
         </div>
@@ -857,7 +857,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                              onClick={() => handleAddVocabulary(item)}
                              disabled={addedVocabWords.has(item.word)}
                              className={`text-gray-500 hover:text-white transition-colors ${addedVocabWords.has(item.word) ? 'text-green-500 opacity-50 cursor-default' : ''}`}
-                             title="Add to Vocabulary Bank"
+                             title="加入词库"
                           >
                              {addedVocabWords.has(item.word) ? <Check size={16} /> : <Plus size={16} />}
                           </button>

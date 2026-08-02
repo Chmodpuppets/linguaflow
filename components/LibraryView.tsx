@@ -142,20 +142,20 @@ const LibraryView: React.FC<LibraryViewProps> = ({ user, onPractice }) => {
         <div className="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-900/50">
           <h2 className="font-bold text-white flex items-center gap-2">
             <BookOpen size={20} className="text-secondary" />
-            Memory Bank
+            记忆库
           </h2>
           <div className="flex gap-2">
               <button 
                 onClick={handleCreateReadingLog}
                 className="p-2 bg-secondary/20 hover:bg-secondary/30 text-secondary border border-secondary/50 rounded-lg transition-colors"
-                title="New Reading Reflection Log"
+                title="新建阅读反思日志"
               >
                 <BrainCircuit size={20} />
               </button>
               <button 
                 onClick={handleCreateNew}
                 className="p-2 bg-primary hover:bg-primary/80 rounded-lg text-white transition-colors shadow-lg shadow-primary/20"
-                title="Add new standard memory"
+                title="添加普通记忆"
               >
                 <Plus size={20} />
               </button>
@@ -165,20 +165,20 @@ const LibraryView: React.FC<LibraryViewProps> = ({ user, onPractice }) => {
           {items.length === 0 ? (
              <div className="flex flex-col items-center justify-center h-64 text-gray-500 text-sm text-center px-4">
                 <Sparkles className="mb-4 opacity-30" size={48} />
-                <p className="text-lg font-medium text-gray-400 mb-2">Empty Bank</p>
-                <p className="mb-6 opacity-70 max-w-[200px]">Save articles, book excerpts, or thoughts here.</p>
+                <p className="text-lg font-medium text-gray-400 mb-2">记忆库还是空的</p>
+                <p className="mb-6 opacity-70 max-w-[200px]">在这里保存文章、书籍摘录或你的想法。</p>
                 <div className="flex flex-col gap-3 w-full max-w-[200px]">
                     <button 
                         onClick={handleCreateNew}
                         className="flex items-center justify-center gap-2 py-2 px-4 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg transition-colors font-medium text-white"
                     >
-                        <FileText size={16} /> Add Text
+                        <FileText size={16} /> 添加文本
                     </button>
                     <button 
                         onClick={handleCreateReadingLog}
                         className="flex items-center justify-center gap-2 py-2 px-4 bg-secondary/10 hover:bg-secondary/20 border border-secondary/30 text-secondary rounded-lg transition-colors font-medium"
                     >
-                        <BrainCircuit size={16} /> Log Reading
+                        <BrainCircuit size={16} /> 记录阅读
                     </button>
                 </div>
              </div>
@@ -207,7 +207,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ user, onPractice }) => {
         {!selectedItem && !isCreating && (
           <div className="flex flex-col items-center opacity-50">
             <BookOpen size={48} className="mb-4" />
-            <p>Select a memory to review or add a new one.</p>
+            <p>选择一条记忆来复习，或新建一条。</p>
           </div>
         )}
 
@@ -224,7 +224,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ user, onPractice }) => {
                     type="text" 
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder="Title (e.g., Favorite Poem, Daily Mantra)"
+                    placeholder="标题（如：最爱的诗、每日格言）"
                     className="bg-transparent text-lg font-bold text-white outline-none w-full placeholder-gray-600"
                  />
               </div>
@@ -233,7 +233,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ user, onPractice }) => {
                     <button 
                         onClick={() => handleDelete(selectedItem!.id)}
                         className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-900/10 rounded-lg transition-colors"
-                        title="Delete"
+                        title="删除"
                     >
                         <Trash2 size={20} />
                     </button>
@@ -242,7 +242,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ user, onPractice }) => {
                     onClick={handleSave}
                     className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg font-medium transition-colors shadow-lg shadow-green-900/20"
                  >
-                    <Save size={18} /> Save
+                    <Save size={18} /> 保存
                  </button>
               </div>
             </div>
@@ -252,20 +252,20 @@ const LibraryView: React.FC<LibraryViewProps> = ({ user, onPractice }) => {
                 {/* Source Content */}
                 <div className="flex-1 flex flex-col p-4 overflow-y-auto custom-scrollbar relative group bg-gradient-to-b from-gray-900/0 to-gray-900/10">
                     <div className="flex justify-between items-center mb-2">
-                         <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Passage Content</span>
+                         <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">原文内容</span>
                          {!isCreating && (
                              <button 
                                 onClick={() => onPractice({ text: content, title, notes })}
                                 className="text-xs flex items-center gap-1 bg-blue-600/20 text-blue-400 px-3 py-1.5 rounded-full hover:bg-blue-600/40 transition-colors font-medium border border-blue-500/30"
                              >
-                                <Type size={12} /> Practice in Drill
+                                <Type size={12} /> 加入练习
                              </button>
                          )}
                     </div>
                     <textarea 
                         value={content}
                         onChange={(e) => setContent(e.target.value)}
-                        placeholder="Paste a beautiful paragraph, a quote, or an article snippet here..."
+                        placeholder="在这里粘贴一段优美的文字、一句名言，或文章片段……"
                         className="flex-1 bg-transparent resize-none outline-none text-gray-200 leading-relaxed custom-scrollbar placeholder-gray-700 text-lg font-serif"
                     />
                 </div>
@@ -278,13 +278,13 @@ const LibraryView: React.FC<LibraryViewProps> = ({ user, onPractice }) => {
                             onClick={() => setShowReflection(false)}
                             className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${!showReflection ? 'text-white bg-transparent border-b-2 border-primary' : 'text-gray-500 hover:text-gray-300 border-b-2 border-transparent bg-black/20'}`}
                         >
-                            <PenLine size={14} className="inline mr-1 -mt-0.5" /> Quick Notes
+                            <PenLine size={14} className="inline mr-1 -mt-0.5" /> 快速笔记
                         </button>
                         <button 
                              onClick={() => setShowReflection(true)}
                              className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${showReflection ? 'text-secondary bg-secondary/5 border-b-2 border-secondary' : 'text-gray-500 hover:text-gray-300 border-b-2 border-transparent bg-black/20'}`}
                         >
-                            <BrainCircuit size={14} className="inline mr-1 -mt-0.5" /> Deep Reading Log
+                            <BrainCircuit size={14} className="inline mr-1 -mt-0.5" /> 深度阅读日志
                         </button>
                     </div>
 
@@ -292,7 +292,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ user, onPractice }) => {
                         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4 bg-secondary/5">
                             <div className="flex justify-between items-center">
                                 <h4 className="text-sm font-bold text-secondary flex items-center gap-2">
-                                    <Sparkles size={14} /> Guided Reflection
+                                    <Sparkles size={14} /> 引导式反思
                                 </h4>
                                 <button 
                                     onClick={handleAnalyzeReflection}
@@ -300,61 +300,61 @@ const LibraryView: React.FC<LibraryViewProps> = ({ user, onPractice }) => {
                                     className="text-xs flex items-center gap-1 bg-secondary text-white px-3 py-1.5 rounded-lg hover:bg-secondary/90 transition-colors disabled:opacity-50 shadow-lg shadow-secondary/20"
                                 >
                                     {isAnalyzingReflection ? <Sparkles size={12} className="animate-spin" /> : <BrainCircuit size={12} />} 
-                                    {isAnalyzingReflection ? 'Analyzing...' : 'AI Analyze Text'}
+                                    {isAnalyzingReflection ? '分析中……' : 'AI 分析文本'}
                                 </button>
                             </div>
                             
                             {!content.trim() && (
                                 <div className="p-3 bg-yellow-900/20 border border-yellow-800/30 text-yellow-500 text-xs rounded-lg">
-                                    Paste your text on the left to use AI analysis.
+                                    请在左侧粘贴文本，以使用 AI 分析。
                                 </div>
                             )}
 
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-400 mb-1.5">What is the main topic?</label>
+                                    <label className="block text-xs font-bold text-gray-400 mb-1.5">主要主题是什么？</label>
                                     <input 
                                         type="text" 
                                         value={reflectionTopic}
                                         onChange={e => setReflectionTopic(e.target.value)}
                                         className="w-full bg-dark border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:border-secondary outline-none transition-colors"
-                                        placeholder="e.g. The benefits of daily writing..."
+                                        placeholder="例如：每日写作的好处……"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-400 mb-1.5">Most impressive/key point?</label>
+                                    <label className="block text-xs font-bold text-gray-400 mb-1.5">最打动你 / 最关键的点？</label>
                                     <textarea 
                                         value={reflectionPoint}
                                         onChange={e => setReflectionPoint(e.target.value)}
                                         className="w-full bg-dark border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:border-secondary outline-none resize-none h-20 transition-colors"
-                                        placeholder="What stood out to you?"
+                                        placeholder="哪一点让你印象深刻？"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-400 mb-1.5">Examples given by author?</label>
+                                    <label className="block text-xs font-bold text-gray-400 mb-1.5">作者举了哪些例子？</label>
                                     <textarea 
                                         value={reflectionExamples}
                                         onChange={e => setReflectionExamples(e.target.value)}
                                         className="w-full bg-dark border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:border-secondary outline-none resize-none h-20 transition-colors"
-                                        placeholder="List examples mentioned..."
+                                        placeholder="列出文中提到的例子……"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-400 mb-1.5">Your own opinion?</label>
+                                    <label className="block text-xs font-bold text-gray-400 mb-1.5">你自己的看法？</label>
                                     <textarea 
                                         value={reflectionOpinion}
                                         onChange={e => setReflectionOpinion(e.target.value)}
                                         className="w-full bg-dark border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:border-secondary outline-none resize-none h-20 transition-colors"
-                                        placeholder="Do you agree? Why or why not?"
+                                        placeholder="你赞同吗？为什么？"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-400 mb-1.5">One sentence summary</label>
+                                    <label className="block text-xs font-bold text-gray-400 mb-1.5">一句话总结</label>
                                     <textarea 
                                         value={reflectionSummary}
                                         onChange={e => setReflectionSummary(e.target.value)}
                                         className="w-full bg-dark border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:border-secondary outline-none resize-none h-16 transition-colors"
-                                        placeholder="Summarize the core message..."
+                                        placeholder="概括核心观点……"
                                     />
                                 </div>
                             </div>
@@ -364,7 +364,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ user, onPractice }) => {
                             <textarea 
                                 value={notes}
                                 onChange={(e) => setNotes(e.target.value)}
-                                placeholder="Write vocabulary notes, grammar breakdowns, or your thoughts here..."
+                                placeholder="在这里写词汇笔记、语法拆解，或你的想法……"
                                 className="flex-1 bg-transparent resize-none outline-none text-yellow-100/80 font-mono text-sm leading-relaxed custom-scrollbar placeholder-gray-700/50"
                             />
                         </div>

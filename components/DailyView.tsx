@@ -64,7 +64,7 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser, onNavigate })
                 <Flame size={20} />
                 <span className="text-2xl font-bold">{user.currentStreak}</span>
               </div>
-              <span className="text-[10px] text-gray-500 uppercase">Day Streak</span>
+              <span className="text-[10px] text-gray-500 uppercase">连续天数</span>
             </div>
             <div className="flex flex-col items-center px-4 py-2 bg-gray-900/60 rounded-xl border border-gray-800">
               <div className="flex items-center gap-1 text-sky-400">
@@ -168,7 +168,7 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser, onNavigate })
         <h2 className="text-lg font-bold text-white mb-3">随便练点什么</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            { mode: AppMode.RPG, label: 'LinguaQuest', icon: <MessageSquare size={22} />, desc: '情景对话练口语' },
+            { mode: AppMode.RPG, label: '剧情对话', icon: <MessageSquare size={22} />, desc: '情景对话练口语' },
             { mode: AppMode.Typing, label: '打字冒险', icon: <Type size={22} />, desc: '手感与速度' },
             { mode: AppMode.Writing, label: '写作工坊', icon: <PenTool size={22} />, desc: 'AI 批改输出' },
             { mode: AppMode.Import, label: '导入内容', icon: <BookOpen size={22} />, desc: '学你自己的材料' },
