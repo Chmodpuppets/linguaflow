@@ -4,6 +4,7 @@ import { UserProfile, WritingFeedback, CEFRLevel } from '../types';
 import { analyzeWriting } from '../services/aiService';
 import { addActivity } from '../services/storageService';
 import { countWords } from '../services/textUtils';
+import GuidedWritingView from './GuidedWritingView';
 import { Sparkles, ArrowRight, BookCheck, Wand2, Star, AlertCircle } from 'lucide-react';
 
 interface WritingViewProps {
@@ -64,6 +65,7 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [activeTopic, setActiveTopic] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<'free' | 'guided'>('free');
 
   const handleAnalyze = async () => {
     if (text.length < 10) return;
@@ -105,7 +107,27 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 h-[calc(100vh-140px)]">
+    <div className="max-w-5xl mx-auto">
+      {/* 模式切换：自由写作 / 引导练习 */}
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={() => setMode('free')}
+          className={`px-4 py-2 rounded-xl text-sm font-bold border transition-colors ${mode === 'free' ? 'bg-primary text-white border-primary' : 'bg-card border-gray-700 text-gray-300 hover:border-secondary'}`}
+        >
+          自由写作
+        </button>
+        <button
+          onClick={() => setMode('guided')}
+          className={`px-4 py-2 rounded-xl text-sm font-bold border transition-colors ${mode === 'guided' ? 'bg-primary text-white border-primary' : 'bg-card border-gray-700 text-gray-300 hover:border-secondary'}`}
+        >
+          引导练习（A1 友好）
+        </button>
+      </div>
+
+      {mode === 'guided' ? (
+        <GuidedWritingView user={user} onComplete={onComplete} />
+      ) : (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-[calc(100vh-200px)]">
       
       {/* Left Column: Input Area */}
       <div className="flex flex-col space-y-4 h-full">
@@ -236,6 +258,8 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
             </div>
         )}
       </div>
+      </div>
+      )}
     </div>
   );
 };

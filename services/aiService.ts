@@ -1,5 +1,5 @@
 
-import { Language, CEFRLevel, AssessmentResult, TypingContent, WritingFeedback, WritingNode, NodeType, ReadingReflection, RPGScenario, RPGTurnResult, UserProfile } from '../types';
+import { Language, CEFRLevel, AssessmentResult, TypingContent, WritingFeedback, GuidedWritingFeedback, GuidedMode, WritingNode, NodeType, ReadingReflection, RPGScenario, RPGTurnResult, UserProfile } from '../types';
 import { MENTOR_PERSONAS } from '../constants';
 import { getAIConfig, AIConfig } from './storageService';
 
@@ -341,6 +341,94 @@ export const generateWordDetails = async (word: string, targetLang: Language, na
   } catch (error) {
     console.error("Word details error:", error);
     return { definition: "Auto-generation failed", example: "", partOfSpeech: "Unknown" };
+  }
+};
+
+// 引导式微写作：按模式上下文校验学习者的一句话/短文
+// mode='scaffold': context = { template, hint }  句型填空
+// mode='wordchain': context = { words: [{word,meaning}] }  看词造句
+// mode='prompt': context = { situation }  情境一句
+export interface GuidedContext {
+  template?: string;
+  hint?: string;
+  words?: Array<{ word: string; meaning: string }>;
+  situation?: string;
+}
+
+export const analyzeGuidedWriting = async (
+  text: string,
+  targetLanguage: Language,
+  nativeLanguage: Language,
+  cefrLevel: CEFRLevel,
+  mode: GuidedMode,
+  ctx: GuidedContext
+): Promise<GuidedWritingFeedback> => {
+  let modeDesc = '';
+  if (mode === 'scaffold') {
+    modeDesc = `句型填空模式。模板：「${ctx.template ?? ''}」（提示：${ctx.hint ?? ''}）。学生应把 ___ 替换成合理内容并写出完整句。判断填空是否合理、整句语法是否正确。`;
+  } else if (mode === 'wordchain') {
+    const ws = (ctx.words ?? []).map((w) => `${w.word}(${w.meaning})`).join('、');
+    modeDesc = `看词造句模式。要求用以下词造一句话：${ws}。判断是否合理使用了这些词、语法是否正确。`;
+  } else {
+    modeDesc = `情境一句模式。情境：「${ctx.situation ?? ''}」。学生用目标语言写 1-3 句回应。`;
+  }
+
+  const prompt = `
+    Act as a strict but encouraging language tutor. The student is learning ${targetLanguage} at CEFR ${cefrLevel} (native: ${nativeLanguage}).
+    ${modeDesc}
+
+    Student's writing: "${text}"
+
+    Judge whether the writing is acceptable: meaning conveyed AND grammar mostly correct for CEFR ${cefrLevel}. Be lenient on structures above this level (do not require them). Focus on ${cefrLevel}-typical errors: particles, polite form, word order, script orthography.
+
+    Return ONLY valid JSON. No Markdown.
+    Structure:
+    {
+      "isCorrect": boolean,
+      "correctedText": "string (corrected version in ${targetLanguage})",
+      "issues": [ { "original": "string", "fix": "string (in ${targetLanguage})", "reason": "string (in ${nativeLanguage})" } ],
+      "encouragement": "string (in ${nativeLanguage}: first praise what they did well, then state the single most important fix)",
+      "cefrEstimation": "A1" | "A2" | "B1" | "B2" | "C1" | "C2"
+    }
+  `;
+
+  try {
+    const responseText = await chatCompletion(prompt);
+    return parseAIJSON<GuidedWritingFeedback>(responseText, {
+      isCorrect: false,
+      correctedText: text,
+      issues: [],
+      encouragement: '批改失败，请重试。',
+      cefrEstimation: CEFRLevel.A1,
+    });
+  } catch (error) {
+    console.error('Guided writing analysis error:', error);
+    throw new Error('Failed to analyze guided writing.');
+  }
+};
+
+// 看词造句：AI 生成若干适合该等级的常用词（带母语释义），供学习者造句
+export const generateSentenceWords = async (
+  targetLanguage: Language,
+  nativeLanguage: Language,
+  cefrLevel: CEFRLevel
+): Promise<Array<{ word: string; meaning: string }>> => {
+  const prompt = `
+    Give 3 common ${cefrLevel}-level ${targetLanguage} words that a learner could use to form a simple sentence.
+    For each, provide the word in ${targetLanguage} and a concise meaning in ${nativeLanguage}.
+    Pick concrete, everyday words (nouns/verbs/adjectives) that combine naturally into one sentence.
+
+    Return ONLY valid JSON. No Markdown.
+    Structure:
+    { "words": [ { "word": "string", "meaning": "string" } ] }
+  `;
+  try {
+    const responseText = await chatCompletion(prompt);
+    const parsed = parseAIJSON<{ words: Array<{ word: string; meaning: string }> }>(responseText, { words: [] });
+    return parsed.words ?? [];
+  } catch (error) {
+    console.error('Generate sentence words error:', error);
+    return [];
   }
 };
 

@@ -77,6 +77,17 @@ export interface WritingFeedback {
   cefrEstimation: CEFRLevel;
 }
 
+// 引导式微写作（句型填空 / 看词造句 / 情境一句）的 AI 反馈
+export type GuidedMode = 'scaffold' | 'wordchain' | 'prompt';
+
+export interface GuidedWritingFeedback {
+  isCorrect: boolean;        // 整体可接受（语义传达 + 语法对该等级基本正确）
+  correctedText: string;     // AI 改写后的正确句子（目标语言）
+  issues: Array<{ original: string; fix: string; reason: string }>;
+  encouragement: string;     // 母语：先肯定，再给一个最该改进的点
+  cefrEstimation: CEFRLevel;
+}
+
 export interface ReadingReflection {
   topic: string;           // 这篇文章的主题是什么？
   impressivePoint: string; // 哪个观点最让你印象深刻？
