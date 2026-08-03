@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState, useRef } from 'react';
-import { UserProfile, ActivityLog, Language, LanguageProgress, CEFRLevel, MentorPersona } from '../types';
+import { UserProfile, ActivityLog, Language, LanguageProgress, CEFRLevel, MentorPersona, TargetExam } from '../types';
 import { getLogs, ensureLanguageProgress, saveUser, getAIConfig, saveAIConfig, clearAllLearningData, AIConfig } from '../services/storageService';
 import { testModelConnection, GLM_ENV_API_KEY } from '../services/aiService';
 import { Trophy, Flame, Calendar, Clock, PenTool, Type, Zap, TrendingUp, TrendingDown, Activity, Check, Globe, Settings, GraduationCap, ChevronDown, User, LogOut, Download, Upload, Database, Crown, AlertTriangle } from 'lucide-react';
@@ -142,6 +142,12 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
     updatedUser.progress[user.learningLanguage].cefrLevel = level;
     onUpdateUser(updatedUser);
     setShowAssessment(false); // Close assessment if open
+  };
+
+  // 考试目标（写作批改评分体系门控）。雅思仅对英语生效。
+  const handleTargetExamChange = (exam: TargetExam) => {
+    const updatedUser = { ...user, targetExam: exam };
+    onUpdateUser(updatedUser);
   };
 
   // --- Personalization (Phase 2/3) ---
@@ -517,6 +523,27 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                             <GraduationCap className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={20} />
                         </div>
                         <p className="text-xs text-gray-500 mt-2">如果觉得内容太简单或太难，可手动调整。</p>
+                      </div>
+
+                      {/* Target Exam Selector */}
+                      <div>
+                        <label className="text-sm font-bold text-gray-400 mb-2 block">考试目标（写作评分）</label>
+                        <div className="relative">
+                            <select
+                                value={user.targetExam ?? 'none'}
+                                onChange={(e) => handleTargetExamChange(e.target.value as TargetExam)}
+                                className="w-full appearance-none bg-dark border border-gray-700 text-white rounded-xl py-3 pl-4 pr-10 focus:ring-2 focus:ring-secondary focus:border-transparent outline-none cursor-pointer text-lg"
+                            >
+                                <option value="none">无（通用 CEFR 反馈）</option>
+                                <option value="IELTS">雅思 IELTS（英语）</option>
+                                <option value="TOEFL">托福 TOEFL</option>
+                                <option value="JLPT">日语 JLPT</option>
+                                <option value="TOPIK">韩语 TOPIK</option>
+                                <option value="DELE">西/法语 DELE</option>
+                            </select>
+                            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={20} />
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">目前仅「雅思 IELTS」会输出 TR/CC/LR/GRA 四项评分，且仅对英语学习生效；其他框架仍回落到通用反馈。</p>
                       </div>
 
                       {/* AI Assessment Trigger */}

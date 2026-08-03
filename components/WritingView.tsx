@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { UserProfile, WritingFeedback, WritingRevisionFeedback, CEFRLevel } from '../types';
+import { UserProfile, WritingFeedback, WritingRevisionFeedback, CEFRLevel, IeltsBandScores } from '../types';
 import { analyzeWriting, analyzeWritingRevision } from '../services/aiService';
 import { addActivity } from '../services/storageService';
 import { countWords } from '../services/textUtils';
@@ -56,6 +56,10 @@ const TOPICS_BY_LEVEL: Record<CEFRLevel, string[]> = {
   ],
 };
 
+// 雅思 band 颜色（>=7 绿 / >=6 黄 / >=5 橙 / 其余红）
+const ieltsBandColor = (b: number): string =>
+  b >= 7 ? 'text-green-400' : b >= 6 ? 'text-yellow-400' : b >= 5 ? 'text-orange-400' : 'text-red-400';
+
 const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
   // 按用户当前目标语言的 CEFR 等级选题（无等级记录默认 A1）
   const userLevel = user.progress[user.learningLanguage]?.cefrLevel ?? CEFRLevel.A1;
@@ -84,10 +88,10 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
       let result: WritingFeedback;
       if (isRevision && firstFeedback) {
         // 二稿：把首稿 + 上次建议 + 当前二稿一起送审
-        result = await analyzeWritingRevision(firstDraftText, text, firstFeedback, user.learningLanguage, user.nativeLanguage, userLevel);
+        result = await analyzeWritingRevision(firstDraftText, text, firstFeedback, user.learningLanguage, user.nativeLanguage, userLevel, user.targetExam);
         setRevisionResult(result as WritingRevisionFeedback);
       } else {
-        result = await analyzeWriting(text, user.learningLanguage, user.nativeLanguage, userLevel);
+        result = await analyzeWriting(text, user.learningLanguage, user.nativeLanguage, userLevel, user.targetExam);
         setFirstFeedback(result);
         setFirstDraftText(text);
         setRevisionResult(null);
@@ -265,8 +269,38 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
                   </div>
                 )}
 
-                {/* Score Card */}
-                <div className="bg-card p-6 rounded-xl border border-gray-700 flex items-center justify-between">
+                {/* Score Card — 英语+雅思目标显示 IELTS 四项；否则显示 CEFR */}
+                {feedback.examScores ? (
+                  <div className="bg-card p-6 rounded-xl border border-gray-700 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-gray-400 text-sm font-medium">雅思写作总分 (IELTS)</h3>
+                        <p className="text-4xl font-bold text-white mt-1">{feedback.examScores.overall.toFixed(1)}</p>
+                      </div>
+                      <div className="text-right max-w-[55%]">
+                        <p className="text-gray-300 italic text-sm">"{feedback.generalComment}"</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      {([
+                        { key: 'taskResponse', label: 'TR 任务回应', val: feedback.examScores.taskResponse },
+                        { key: 'coherenceCohesion', label: 'CC 连贯衔接', val: feedback.examScores.coherenceCohesion },
+                        { key: 'lexicalResource', label: 'LR 词汇资源', val: feedback.examScores.lexicalResource },
+                        { key: 'grammaticalRange', label: 'GRA 语法多样', val: feedback.examScores.grammaticalRange },
+                      ] as { key: keyof IeltsBandScores['feedback']; label: string; val: number }[]).map((c) => (
+                        <div key={c.key} className="bg-dark/50 border border-gray-700 rounded-lg p-3">
+                          <div className="flex items-baseline justify-between">
+                            <span className="text-xs text-gray-400">{c.label}</span>
+                            <span className={`text-xl font-bold ${ieltsBandColor(c.val)}`}>{c.val.toFixed(1)}</span>
+                          </div>
+                          <p className="text-xs text-gray-400 mt-1 leading-snug">{feedback.examScores!.feedback[c.key]}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-500">CEFR 参考：{feedback.cefrEstimation}</p>
+                  </div>
+                ) : (
+                  <div className="bg-card p-6 rounded-xl border border-gray-700 flex items-center justify-between">
                     <div>
                         <h3 className="text-gray-400 text-sm font-medium">预估等级</h3>
                         <p className="text-3xl font-bold text-white mt-1">{feedback.cefrEstimation}</p>
@@ -274,7 +308,8 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
                     <div className="text-right max-w-[60%]">
                         <p className="text-gray-300 italic">"{feedback.generalComment}"</p>
                     </div>
-                </div>
+                  </div>
+                )}
 
                 {/* Corrections */}
                 <div className="bg-card rounded-xl border border-gray-700 overflow-hidden">

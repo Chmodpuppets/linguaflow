@@ -22,6 +22,25 @@ export enum CEFRLevel {
   C2 = 'C2'
 }
 
+// 考试目标框架（写作批改可按其输出对应评分体系）。目前仅 IELTS 实现细节；
+// 其他框架仅占位，回落到通用 CEFR 反馈。注意：雅思只适用于英语。
+export type TargetExam = 'none' | 'IELTS' | 'TOEFL' | 'JLPT' | 'TOPIK' | 'DELE';
+
+// 雅思写作四项评分（0–9，可含 .5）。仅当 learningLanguage === English 且目标 = IELTS 时由 AI 输出。
+export interface IeltsBandScores {
+  taskResponse: number;        // TR（Task Achievement / Task Response）
+  coherenceCohesion: number;   // CC
+  lexicalResource: number;     // LR
+  grammaticalRange: number;    // GRA
+  overall: number;             // 四项均值（保留一位小数）
+  feedback: {
+    taskResponse: string;
+    coherenceCohesion: string;
+    lexicalResource: string;
+    grammaticalRange: string;
+  };
+}
+
 export enum AppMode {
   Assessment = 'assessment',
   Typing = 'typing',
@@ -75,6 +94,8 @@ export interface WritingFeedback {
   }>;
   generalComment: string;
   cefrEstimation: CEFRLevel;
+  // 仅当 learningLanguage === English 且目标 = IELTS 时由 AI 填充；其余情况为 null。
+  examScores?: IeltsBandScores | null;
 }
 
 // 二稿改写闭环：在首稿批改基础上，对比二稿是否修复了问题。
@@ -317,6 +338,10 @@ export interface UserProfile {
   mentorPersona: MentorPersona;
   preferredTopics: string[]; // DRILL_TOPICS ids
   aiMemory: AIMemory;
+
+  // 考试目标（写作批改评分体系门控）。默认 'none' = 通用 CEFR 反馈。
+  // 仅当 learningLanguage === English 且本字段 = 'IELTS' 时启用雅思四项评分。
+  targetExam?: TargetExam;
 
   // Monetization placeholder (Phase 3)
   premium: boolean;

@@ -1,5 +1,5 @@
 
-import { Language, CEFRLevel, AssessmentResult, TypingContent, WritingFeedback, WritingRevisionFeedback, GuidedWritingFeedback, GuidedMode, WritingNode, NodeType, ReadingReflection, RPGScenario, RPGTurnResult, UserProfile, ScenarioDef } from '../types';
+import { Language, CEFRLevel, AssessmentResult, TypingContent, WritingFeedback, WritingRevisionFeedback, GuidedWritingFeedback, GuidedMode, WritingNode, NodeType, ReadingReflection, RPGScenario, RPGTurnResult, UserProfile, ScenarioDef, TargetExam } from '../types';
 import { MENTOR_PERSONAS } from '../constants';
 import { getAIConfig, AIConfig } from './storageService';
 
@@ -277,7 +277,47 @@ export const generateTypingContent = async (targetLang: Language, nativeLang: La
   }
 };
 
-export const analyzeWriting = async (text: string, targetLanguage: Language, nativeLanguage: Language, cefrLevel: CEFRLevel = CEFRLevel.A1): Promise<WritingFeedback> => {
+export const analyzeWriting = async (
+  text: string,
+  targetLanguage: Language,
+  nativeLanguage: Language,
+  cefrLevel: CEFRLevel = CEFRLevel.A1,
+  targetExam?: TargetExam
+): Promise<WritingFeedback> => {
+  // 雅思四项评分严格门控：仅英语 + 目标 IELTS 才启用，绝不污染其他语言/考试。
+  const isIelts = targetLanguage === Language.English && targetExam === 'IELTS';
+
+  // 雅思四项评分附加指令（门控启用时追加）
+  const ieltsBlock = isIelts
+    ? `
+    IMPORTANT — IELTS Academic Writing scoring:
+    The student is preparing for the IELTS Academic Writing test. In addition to the above, score this essay using the official IELTS 9-band criteria (bands can be whole or half: e.g. 5.0, 6.5, 7.0).
+    - "taskResponse": Task Response / Task Achievement (TR) — how fully and relevantly the task is addressed.
+    - "coherenceCohesion": Coherence & Cohesion (CC) — organization, linking, flow.
+    - "lexicalResource": Lexical Resource (LR) — vocabulary range, accuracy, appropriacy.
+    - "grammaticalRange": Grammatical Range & Accuracy (GRA) — grammar structures and correctness.
+    - "overall": the average of the four band scores, rounded to ONE decimal place.
+    In "feedback", give a SHORT (1 sentence) comment per criterion, in ${nativeLanguage}.
+    `
+    : '';
+
+  const ieltsJson = isIelts
+    ? `,
+      "examScores": {
+        "taskResponse": number (0-9, may be .5),
+        "coherenceCohesion": number (0-9, may be .5),
+        "lexicalResource": number (0-9, may be .5),
+        "grammaticalRange": number (0-9, may be .5),
+        "overall": number (0-9, average of the four, one decimal),
+        "feedback": {
+          "taskResponse": "string (in ${nativeLanguage})",
+          "coherenceCohesion": "string (in ${nativeLanguage})",
+          "lexicalResource": "string (in ${nativeLanguage})",
+          "grammaticalRange": "string (in ${nativeLanguage})"
+        }
+      }`
+    : '';
+
   const prompt = `
     Act as a strict but encouraging language tutor. The student is learning ${targetLanguage} at CEFR level ${cefrLevel} (native language: ${nativeLanguage}).
     Review their writing sample. Identify errors and suggest improvements.
@@ -287,7 +327,7 @@ export const analyzeWriting = async (text: string, targetLanguage: Language, nat
     - Focus feedback on errors typical of ${cefrLevel}: particles, polite form, basic word order, script orthography (kana/kanji spelling), agreement.
     - Be encouraging: in "generalComment", first state what they did well, then the single most important thing to improve.
     - Estimate the CEFR level of THIS sample honestly (it may differ from their declared level).
-
+    ${ieltsBlock}
     Text: "${text}"
 
     Explain all feedback, reasons for corrections, and the general comment in ${nativeLanguage}.
@@ -298,19 +338,22 @@ export const analyzeWriting = async (text: string, targetLanguage: Language, nat
       "correctedText": "string (The corrected version in ${targetLanguage})",
       "suggestions": [ { "original": "string", "suggestion": "string", "reason": "string (in ${nativeLanguage})" } ],
       "generalComment": "string (in ${nativeLanguage})",
-      "cefrEstimation": "A1" | "A2" | "B1" | "B2" | "C1" | "C2"
+      "cefrEstimation": "A1" | "A2" | "B1" | "B2" | "C1" | "C2"${ieltsJson}
     }
   `;
 
   try {
     const responseText = await chatCompletion(prompt);
-
-    return parseAIJSON<WritingFeedback>(responseText, {
+    const parsed = parseAIJSON<WritingFeedback>(responseText, {
         correctedText: text,
         suggestions: [],
         generalComment: "Analysis failed.",
-        cefrEstimation: CEFRLevel.A1
+        cefrEstimation: CEFRLevel.A1,
+        examScores: null
     });
+    // 兜底：非雅思场景强制清空（避免 AI 误带 examScores）
+    if (!isIelts) parsed.examScores = null;
+    return parsed;
   } catch (error) {
     console.error("Writing analysis error:", error);
     throw new Error("Failed to analyze writing.");
@@ -325,11 +368,31 @@ export const analyzeWritingRevision = async (
   previousFeedback: WritingFeedback,
   targetLanguage: Language,
   nativeLanguage: Language,
-  cefrLevel: CEFRLevel = CEFRLevel.A1
+  cefrLevel: CEFRLevel = CEFRLevel.A1,
+  targetExam?: TargetExam
 ): Promise<WritingRevisionFeedback> => {
   const prevSummary = previousFeedback.suggestions
     .map((s) => `- 「${s.original}」→「${s.suggestion}」(${s.reason})`)
     .join("\n");
+
+  // 雅思四项评分严格门控（与首稿一致）
+  const isIelts = targetLanguage === Language.English && targetExam === 'IELTS';
+  const ieltsBlock = isIelts
+    ? `
+    IMPORTANT — IELTS Academic Writing scoring (on the REVISED draft):
+    Score the revised draft using the official IELTS 9-band criteria (bands can be whole or half).
+    Provide: "taskResponse" (TR), "coherenceCohesion" (CC), "lexicalResource" (LR), "grammaticalRange" (GRA),
+    and "overall" = average of the four (one decimal). Each criterion gets a SHORT comment in ${nativeLanguage} under "feedback".
+    `
+    : '';
+  const ieltsJson = isIelts
+    ? `,
+      "examScores": {
+        "taskResponse": number, "coherenceCohesion": number, "lexicalResource": number, "grammaticalRange": number,
+        "overall": number (average, one decimal),
+        "feedback": { "taskResponse": "string", "coherenceCohesion": "string", "lexicalResource": "string", "grammaticalRange": "string" }
+      }`
+    : '';
 
   const prompt = `
     Act as a strict but encouraging language tutor. The student is learning ${targetLanguage} at CEFR ${cefrLevel} (native: ${nativeLanguage}).
@@ -353,7 +416,7 @@ export const analyzeWritingRevision = async (
     3. Estimate the CEFR level of the REVISED draft honestly (cefrEstimation).
     4. generalComment (in ${nativeLanguage}): state whether it improved overall, then the single next most important fix.
     5. improved: true only if the revised draft is clearly better than the first draft.
-
+    ${ieltsBlock}
     Explain all feedback and reasons in ${nativeLanguage}.
     Return ONLY valid JSON. No Markdown.
     Structure:
@@ -364,7 +427,7 @@ export const analyzeWritingRevision = async (
       "cefrEstimation": "A1" | "A2" | "B1" | "B2" | "C1" | "C2",
       "fixedIssues": ["string (in ${nativeLanguage})"],
       "remainingIssues": ["string (in ${nativeLanguage})"],
-      "improved": boolean
+      "improved": boolean${ieltsJson}
     }
   `;
 
@@ -378,10 +441,12 @@ export const analyzeWritingRevision = async (
       fixedIssues: [],
       remainingIssues: [],
       improved: false,
+      examScores: null,
     });
-    // 兜底：保证数组字段存在
+    // 兜底：保证数组字段存在；非雅思场景强制清空 examScores
     parsed.fixedIssues = parsed.fixedIssues ?? [];
     parsed.remainingIssues = parsed.remainingIssues ?? [];
+    if (!isIelts) parsed.examScores = null;
     return parsed;
   } catch (error) {
     console.error("Writing revision analysis error:", error);
