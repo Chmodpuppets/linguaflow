@@ -17,35 +17,21 @@ function generateId() {
     return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
 }
 
-// --- 记忆化单字符组件：每次按键只有光标位与刚输入的那一个会重渲染，
-//     其余命中缓存，避免长文本打字时全量重协调导致的卡顿 ---
-interface CharSpanProps {
-    char: string;
-    isTyped: boolean;
-    isCorrect: boolean;
-    isCurrent: boolean;
-    charRef?: React.Ref<HTMLSpanElement>;
+// --- 记忆化分段组件：把连续同状态（未输入/正确/错误）的字符合并成一个
+//     span，长文本下 DOM 节点数从 N 降到「状态切换次数」(通常仅几十个)，
+//     每次按键只需协调几十个节点，从根本上消除打字卡顿 ---
+interface RunSpanProps {
+    text: string;
+    status: 'untyped' | 'correct' | 'wrong';
 }
-const CharSpan = React.memo(({ char, isTyped, isCorrect, isCurrent, charRef }: CharSpanProps) => {
-    let colorClass = 'text-gray-500';
-    let bgClass = 'bg-transparent';
-    if (isTyped) {
-        if (isCorrect) {
-            colorClass = 'text-green-400';
-        } else {
-            colorClass = 'text-red-400';
-            bgClass = 'bg-red-900/30';
-        }
-    }
-    return (
-        <span
-            ref={charRef}
-            className={`relative ${colorClass} ${bgClass}`}
-        >
-            {isCurrent && <span className="absolute -left-[1px] -top-1 h-8 w-[2px] bg-secondary animate-pulse" />}
-            {char}
-        </span>
-    );
+const RunSpan = React.memo(({ text, status }: RunSpanProps) => {
+    const cls =
+        status === 'correct'
+            ? 'text-green-400'
+            : status === 'wrong'
+            ? 'bg-red-900/30 text-red-400'
+            : 'text-gray-500';
+    return <span className={cls}>{text}</span>;
 });
 
 // --- Helper: Parse Notes for Context ---
@@ -144,25 +130,14 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
       }
   }, [content]);
 
-  // 打字时让当前光标保持在可视区域：仅在光标离开可视区时才滚动，
-  // 避免每次按键都触发 smooth 滚动造成的卡顿与抖动
+  // 打字时让当前光标保持在可视区域：交给浏览器原生 scrollIntoView 处理，
+  // 仅当光标真正离屏时才滚动，且不再手动读取布局（getBoundingClientRect
+  // 会强制同步重排，长文本下每次按键都会触发，是卡顿主因之一）
   useEffect(() => {
       if (!content || finished) return;
-      const container = textContainerRef.current;
-      const char = currentCharRef.current;
-      if (!container || !char) return;
-
-      const containerRect = container.getBoundingClientRect();
-      const charRect = char.getBoundingClientRect();
-      const margin = 8;
-      const isVisible =
-          charRect.top >= containerRect.top + margin &&
-          charRect.bottom <= containerRect.bottom - margin;
-      if (isVisible) return; // 光标已在可视区，无需滚动
-
-      const relativeTop = charRect.top - containerRect.top + container.scrollTop;
-      const targetScroll = relativeTop - container.clientHeight / 2 + charRect.height / 2;
-      container.scrollTo({ top: Math.max(0, targetScroll), behavior: 'smooth' });
+      const cursor = currentCharRef.current;
+      if (!cursor) return;
+      cursor.scrollIntoView({ block: 'nearest' });
   }, [inputValue, content, finished]);
 
   // --- Audio Engine Logic (Web Speech API) ---
@@ -508,19 +483,63 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
 
   const renderText = () => {
     if (!content || !content.text) return null;
+    const text = content.text;
     const len = inputValue.length;
+    const showCursor = !finished;
+
+    // 把文本按「已输入正确 / 已输入错误 / 未输入」三种状态合并成连续片段，
+    // 仅在光标位置插入一个独立的光标 span，避免逐字符渲染上千个 DOM 节点。
+    const nodes: React.ReactNode[] = [];
+    let runStart = 0;
+    let runStatus: 'correct' | 'wrong' | 'untyped' | null = null;
+
+    const pushRun = (end: number) => {
+      if (runStatus === null) return;
+      const chunk = text.slice(runStart, end);
+      if (chunk) {
+        nodes.push(
+          <RunSpan
+            key={`${runStatus}-${runStart}`}
+            text={chunk}
+            status={runStatus}
+          />
+        );
+      }
+      runStart = end;
+    };
+
+    for (let idx = 0; idx < text.length; idx++) {
+      // 在光标所在位置插入光标竖线（仅在未完成且未到达末尾时）
+      if (showCursor && idx === len) {
+        pushRun(idx);
+        nodes.push(
+          <span
+            key="cursor"
+            ref={currentCharRef}
+            className="relative inline-block"
+          >
+            <span className="absolute -left-[1px] -top-1 h-8 w-[2px] bg-secondary animate-pulse" />
+            {'​'}
+          </span>
+        );
+        runStatus = null;
+      }
+      const status: 'correct' | 'wrong' | 'untyped' =
+        idx < len
+          ? inputValue[idx] === text[idx]
+            ? 'correct'
+            : 'wrong'
+          : 'untyped';
+      if (runStatus !== status) {
+        pushRun(idx);
+        runStatus = status;
+      }
+    }
+    pushRun(text.length);
+
     return (
       <div className="text-2xl md:text-3xl font-mono leading-relaxed break-words tracking-wide">
-        {content.text.split('').map((char, index) => (
-          <CharSpan
-            key={index}
-            char={char}
-            isTyped={index < len}
-            isCorrect={inputValue[index] === char}
-            isCurrent={index === len}
-            charRef={index === len ? currentCharRef : undefined}
-          />
-        ))}
+        {nodes}
       </div>
     );
   };
