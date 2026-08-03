@@ -41,6 +41,24 @@ export const GUIDED_TEMPLATES: Partial<Record<Language, Partial<Record<CEFRLevel
       { id: 'ja-a1-6', template: '___ にいます。', hint: '填你在哪里（如：学校 / 家 / 会社）', answerExample: '学校' },
       { id: 'ja-a1-17', template: '___ は ___ にあります。', hint: '某物在某处：前填物品、后填地点（如：本 / つくえ）', answerExample: '本' },
     ],
+    [CEFRLevel.A2]: [
+      { id: 'ja-a2-1', template: '昨日、___と一緒に___をしました。', hint: '前填人，后填做的事（如 友達 朋友 / 映画を見る 看电影）', answerExample: '友達' },
+      { id: 'ja-a2-2', template: '一番好きな___は___です。理由は___からです。', hint: '类别 / 事物 / 原因（如 食べ物 食物 / ピザ 披萨 / おいしい 好吃）', answerExample: 'ピザ' },
+      { id: 'ja-a2-3', template: '普段は朝___しますが、今日は___しました。', hint: '日常 / 今天不同（如 コーヒーを飲む 喝咖啡 / お茶を飲んだ 喝了茶）', answerExample: 'コーヒーを飲む' },
+      { id: 'ja-a2-4', template: '時間があれば、___します。', hint: '填计划（如 祖母に会いに行く 去看奶奶）', answerExample: '祖母に会いに行く' },
+      { id: 'ja-a2-5', template: '___は___だと思います。', hint: '事物 / 评价（如 この本 这本书 / 面白い 有趣）', answerExample: '面白い' },
+    ],
+    [CEFRLevel.B1]: [
+      { id: 'ja-b1-1', template: '私の意見では、___べきです。なぜなら___からです。', hint: '观点 / 原因（如 毎日運動する 该每天运动 / 健康に良い 对健康好）', answerExample: '毎日運動する' },
+      { id: 'ja-b1-2', template: '___たことがありませんが、いつか___てみたいです。', hint: '未做过的事（动词た形，如 パリに行った 去过巴黎）/ 想做的事（动词て形，如 行っ 去）', answerExample: 'パリに行った' },
+      { id: 'ja-b1-3', template: '___でも、やはり___します。', hint: '让步 / 主句（如 雨が降った 下雨了 / 散歩に出かけ 去散步）', answerExample: '雨が降った' },
+      { id: 'ja-b1-4', template: '___する一番良い方法は、___することです。', hint: '目标 / 方法（如 言語を覚える 学语言 / 毎日練習する 每天练习）', answerExample: '言語を覚える' },
+    ],
+    [CEFRLevel.B2]: [
+      { id: 'ja-b2-1', template: '多くの人は___と思っていますが、私は___と主張したいです。', hint: '对立观点 / 你的论点（如 お金で幸せが買える 钱能买幸福 / そうではない 并非如此）', answerExample: 'お金で幸せが買える' },
+      { id: 'ja-b2-2', template: '___の問題は、___について大きな議論を呼んでいます。', hint: '议题 / 争议点（如 AI / 仕事への影響 对就业的影响）', answerExample: 'AI' },
+      { id: 'ja-b2-3', template: '___は、___するだけでなく、___もします。', hint: '事物 / 作用 / 附加影响（如 このアプリ 这个应用 / 時間を節約す 节省时间 / 集中力を高め 也提高专注力）', answerExample: 'このアプリ' },
+    ],
   },
   [Language.English]: {
     [CEFRLevel.A1]: [
