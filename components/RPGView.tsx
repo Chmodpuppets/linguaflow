@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { UserProfile, RPGScenario, RPGMessage, ScenarioDef } from '../types';
+import { UserProfile, RPGScenario, RPGMessage, ScenarioDef, CEFRLevel } from '../types';
 import { RPG_PACKS } from '../data/rpgScenarios';
 import { startRPGScenario, continueRPGTurn, generateSpeech, cancelSpeech, transcribeAudio, buildTutorSystemPrompt } from '../services/aiService';
 import { addActivity, saveVocabularyItem } from '../services/storageService';
@@ -8,7 +8,7 @@ import {
     Send, Mic, Volume2, User, Bot, CheckCircle2, 
     Gamepad2, Sparkles, BookA, ArrowRight,
     Loader2, Trophy, RotateCcw, XCircle, Play, Pause, X,
-    Languages, Lightbulb, AlertTriangle, Square
+    Languages, Lightbulb, AlertTriangle, Square, Wand2, Trash2, Save
 } from 'lucide-react';
 
 interface RPGViewProps {
@@ -37,6 +37,18 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
     const [currentDef, setCurrentDef] = useState<ScenarioDef | null>(null); // 当前预置剧本（用于“再玩一次”）
     const [currentChoices, setCurrentChoices] = useState<string[]>([]);    // 本轮回合的剧情分支选项
 
+    // --- 自定义剧情 ---
+    const [showCustomForm, setShowCustomForm] = useState(false);
+    const [customTitle, setCustomTitle] = useState('');
+    const [customContext, setCustomContext] = useState('');
+    const [customUserRole, setCustomUserRole] = useState('');
+    const [customAiRole, setCustomAiRole] = useState('');
+    const [customLevel, setCustomLevel] = useState<string>('auto');
+    const [customObjectives, setCustomObjectives] = useState('');
+    const [customInspired, setCustomInspired] = useState('');
+    const [saveCustom, setSaveCustom] = useState(true);
+    const [myScenarios, setMyScenarios] = useState<ScenarioDef[]>([]);
+
     // AI 导师"记住你"的系统提示（人设 + 目标 + 薄弱点）
     const tutorSystem = buildTutorSystemPrompt(user);
 
@@ -64,8 +76,59 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
 
     useEffect(() => {
         setHasSavedSession(!!loadSession());
+        loadMyScenarios();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // --- 自定义剧情：本地保存 / 生成 ---
+    const loadMyScenarios = () => {
+        try {
+            const raw = localStorage.getItem('linguaflow_rpg_custom');
+            if (raw) setMyScenarios(JSON.parse(raw));
+        } catch { /* ignore */ }
+    };
+    const persistCustom = (def: ScenarioDef) => {
+        const next = [def, ...myScenarios.filter(s => s.id !== def.id)].slice(0, 30);
+        setMyScenarios(next);
+        try { localStorage.setItem('linguaflow_rpg_custom', JSON.stringify(next)); } catch { /* ignore quota */ }
+    };
+    const removeCustom = (id: string) => {
+        const next = myScenarios.filter(s => s.id !== id);
+        setMyScenarios(next);
+        try { localStorage.setItem('linguaflow_rpg_custom', JSON.stringify(next)); } catch { /* ignore */ }
+    };
+    const handleCustomGenerate = () => {
+        if (!customTitle.trim() || !customUserRole.trim()) {
+            setFeedbackToast('请至少填写「剧情主题」和「我的角色」。');
+            return;
+        }
+        const level = (customLevel === 'auto'
+            ? (user.progress[user.learningLanguage]?.cefrLevel || 'A1')
+            : customLevel) as CEFRLevel;
+        const objs = customObjectives
+            .split(/[\n,，、]/)
+            .map(s => s.trim())
+            .filter(Boolean);
+        const def: ScenarioDef = {
+            id: 'custom-' + Date.now(),
+            title: customTitle.trim(),
+            context: customContext.trim()
+                ? `${customTitle.trim()} — ${customContext.trim()}`
+                : customTitle.trim(),
+            userRole: customUserRole.trim(),
+            aiRole: customAiRole.trim() || '对方角色',
+            character: customAiRole.trim()
+                ? { name: customAiRole.trim(), persona: `扮演「${customAiRole.trim()}」，在「${customTitle.trim()}」场景中，语气自然、贴合设定与世界观，绝不跳出角色。` }
+                : undefined,
+            objectives: objs.length ? objs : ['自然地推进对话，完成场景中的互动目标'],
+            cefrRange: [level, level],
+            tags: ['自定义', ...(customInspired.trim() ? ['灵感'] : [])],
+            inspiredBy: customInspired.trim() || undefined,
+        };
+        if (saveCustom) persistCustom(def);
+        setShowCustomForm(false);
+        handleStart(def, '自定义剧情');
+    };
 
     const resumeSession = () => {
         const s = loadSession();
@@ -381,6 +444,55 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                                 <RotateCcw size={18} /> 继续上次的对话
                             </button>
                         )}
+
+                        {/* 自定义剧情入口 */}
+                        <button
+                            onClick={() => setShowCustomForm(true)}
+                            className="w-full mb-8 flex items-center justify-center gap-3 px-6 py-5 rounded-2xl bg-gradient-to-r from-secondary/30 to-primary/30 border border-secondary/40 text-white font-bold hover:brightness-110 transition-all shadow-lg shadow-secondary/10"
+                        >
+                            <Wand2 size={22} className="text-secondary" /> 自定义剧情 · 一键生成你的专属场景
+                        </button>
+
+                        {/* 我的自定义剧本 */}
+                        {myScenarios.length > 0 && (
+                            <div className="mb-8">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <Save size={18} className="text-primary" />
+                                    <h3 className="text-white font-bold">我的自定义剧本</h3>
+                                    <span className="text-xs text-gray-500">（本机保存，可复用）</span>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                    {myScenarios.map(sc => (
+                                        <div key={sc.id} className="group relative bg-card border border-gray-700 hover:border-primary p-4 rounded-xl transition-all">
+                                            <button
+                                                onClick={() => handleStart(sc, '自定义剧情')}
+                                                className="text-left w-full"
+                                            >
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <span className="font-bold text-gray-200 group-hover:text-white">{sc.title}</span>
+                                                    {sc.inspiredBy && (
+                                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 whitespace-nowrap">灵感</span>
+                                                    )}
+                                                </div>
+                                                <p className="text-xs text-gray-500 mt-1 line-clamp-2">{sc.context}</p>
+                                                <div className="flex flex-wrap gap-1 mt-2">
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">你：{sc.userRole}</span>
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">TA：{sc.aiRole}</span>
+                                                </div>
+                                            </button>
+                                            <button
+                                                onClick={() => removeCustom(sc.id)}
+                                                className="absolute top-2 right-2 p-1 rounded-full text-gray-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                                                title="删除"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         <div className="space-y-8">
                             {RPG_PACKS.map(pack => (
                                 <div key={pack.id}>
@@ -415,6 +527,121 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                                     </div>
                                 </div>
                             ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* 自定义剧情弹窗 */}
+                {showCustomForm && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                        <div className="bg-card border border-secondary/40 p-6 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto custom-scrollbar">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                    <Wand2 size={20} className="text-secondary" /> 创建自定义剧情
+                                </h3>
+                                <button onClick={() => setShowCustomForm(false)} className="text-gray-500 hover:text-white transition-colors"><X size={20} /></button>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">剧情主题 *</label>
+                                    <input
+                                        value={customTitle}
+                                        onChange={e => setCustomTitle(e.target.value)}
+                                        placeholder="如：在赛博朋克城市当赏金猎人"
+                                        className="w-full mt-1 bg-dark border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-600 outline-none focus:ring-2 focus:ring-secondary"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">场景设定（可选）</label>
+                                    <textarea
+                                        value={customContext}
+                                        onChange={e => setCustomContext(e.target.value)}
+                                        placeholder="补充时间、地点、世界观或背景故事"
+                                        rows={2}
+                                        className="w-full mt-1 bg-dark border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-600 outline-none focus:ring-2 focus:ring-secondary resize-none"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">我的角色 *</label>
+                                        <input
+                                            value={customUserRole}
+                                            onChange={e => setCustomUserRole(e.target.value)}
+                                            placeholder="如：新来的实习生"
+                                            className="w-full mt-1 bg-dark border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-600 outline-none focus:ring-2 focus:ring-secondary"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">对方角色（可选）</label>
+                                        <input
+                                            value={customAiRole}
+                                            onChange={e => setCustomAiRole(e.target.value)}
+                                            placeholder="如：严厉的老板"
+                                            className="w-full mt-1 bg-dark border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-600 outline-none focus:ring-2 focus:ring-secondary"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">难度</label>
+                                        <select
+                                            value={customLevel}
+                                            onChange={e => setCustomLevel(e.target.value)}
+                                            className="w-full mt-1 bg-dark border border-gray-700 rounded-lg px-3 py-2 text-white outline-none focus:ring-2 focus:ring-secondary"
+                                        >
+                                            <option value="auto">跟随我的等级</option>
+                                            <option value="A1">A1</option>
+                                            <option value="A2">A2</option>
+                                            <option value="B1">B1</option>
+                                            <option value="B2">B2</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">灵感来源（可选）</label>
+                                        <input
+                                            value={customInspired}
+                                            onChange={e => setCustomInspired(e.target.value)}
+                                            placeholder="如：银翼杀手"
+                                            className="w-full mt-1 bg-dark border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-600 outline-none focus:ring-2 focus:ring-secondary"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">任务目标（可选，每行一个）</label>
+                                    <textarea
+                                        value={customObjectives}
+                                        onChange={e => setCustomObjectives(e.target.value)}
+                                        placeholder={'不填则给一个通用目标\n可填：\n点一杯饮料\n问清价格'}
+                                        rows={3}
+                                        className="w-full mt-1 bg-dark border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-600 outline-none focus:ring-2 focus:ring-secondary resize-none"
+                                    />
+                                </div>
+                                <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={saveCustom}
+                                        onChange={e => setSaveCustom(e.target.checked)}
+                                        className="accent-secondary w-4 h-4"
+                                    />
+                                    保存到「我的自定义剧本」以便下次复用
+                                </label>
+                            </div>
+
+                            <div className="flex justify-end gap-3 mt-6">
+                                <button
+                                    onClick={() => setShowCustomForm(false)}
+                                    className="px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-colors font-medium text-sm"
+                                >
+                                    取消
+                                </button>
+                                <button
+                                    onClick={handleCustomGenerate}
+                                    className="px-5 py-2 bg-secondary hover:bg-secondary/90 text-white rounded-lg font-bold transition-colors flex items-center gap-2"
+                                >
+                                    <Sparkles size={16} /> 一键生成
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
