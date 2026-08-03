@@ -8,7 +8,7 @@ export interface GuidedTemplate {
   answerExample: string;  // 示例答案（仅供参考，校验由 AI 完成）
 }
 
-// 按语言 × 等级维护的句型模板库。当前日语 A1 优先（用户画像），结构通用可扩展。
+// 按语言 × 等级维护的句型模板库。结构通用可扩展，新增语言只需往此处加条目。
 export const GUIDED_TEMPLATES: Partial<Record<Language, Partial<Record<CEFRLevel, GuidedTemplate[]>>>> = {
   [Language.Japanese]: {
     [CEFRLevel.A1]: [
@@ -42,6 +42,36 @@ export const GUIDED_TEMPLATES: Partial<Record<Language, Partial<Record<CEFRLevel
       { id: 'ja-a1-17', template: '___ は ___ にあります。', hint: '某物在某处：前填物品、后填地点（如：本 / つくえ）', answerExample: '本' },
     ],
   },
+  [Language.English]: {
+    [CEFRLevel.A1]: [
+      { id: 'en-a1-1', template: 'I am ___ .', hint: '填你的职业（如 a student / a teacher）', answerExample: 'a student' },
+      { id: 'en-a1-2', template: 'I like ___ .', hint: '填你喜欢的事物（如 music / dogs）', answerExample: 'music' },
+      { id: 'en-a1-3', template: 'This is my ___ .', hint: '填一件物品（如 book / phone）', answerExample: 'book' },
+      { id: 'en-a1-4', template: 'I eat ___ for breakfast.', hint: '填早餐食物（如 bread / eggs）', answerExample: 'eggs' },
+      { id: 'en-a1-5', template: 'My name is ___ .', hint: '填你的名字', answerExample: 'Tom' },
+      { id: 'en-a1-6', template: 'I am from ___ .', hint: '填你的国家（如 China / Japan）', answerExample: 'China' },
+      { id: 'en-a1-7', template: 'I can ___ .', hint: '填你会的事（如 swim / speak English）', answerExample: 'swim' },
+      { id: 'en-a1-8', template: 'I go to ___ every day.', hint: '填地点（如 school / work）', answerExample: 'school' },
+    ],
+    [CEFRLevel.A2]: [
+      { id: 'en-a2-1', template: 'Yesterday, I ___ with ___ .', hint: '前填做的事，后填人（如 went to a movie / my friend）', answerExample: 'went to a movie' },
+      { id: 'en-a2-2', template: 'My favorite ___ is ___ because ___ .', hint: '类别 / 事物 / 原因（如 food / pizza / it is delicious）', answerExample: 'pizza' },
+      { id: 'en-a2-3', template: 'I usually ___ in the morning, but today I ___ .', hint: '日常 / 今天不同（如 drink coffee / drank tea）', answerExample: 'drink coffee' },
+      { id: 'en-a2-4', template: 'If I have time, I will ___ .', hint: '填计划（如 visit my grandma）', answerExample: 'visit my grandma' },
+      { id: 'en-a2-5', template: 'I think ___ is ___ .', hint: '事物 / 评价（如 this book / interesting）', answerExample: 'interesting' },
+    ],
+    [CEFRLevel.B1]: [
+      { id: 'en-b1-1', template: 'In my opinion, ___ because ___ .', hint: '观点 / 原因（如 we should exercise / it keeps us healthy）', answerExample: 'we should exercise' },
+      { id: 'en-b1-2', template: 'I have never ___ , but I would like to ___ .', hint: '未做过的事 / 想做的事（如 been to Paris / go there）', answerExample: 'been to Paris' },
+      { id: 'en-b1-3', template: 'Although ___ , I still ___ .', hint: '让步 / 主句（如 it was raining / went for a walk）', answerExample: 'it was raining' },
+      { id: 'en-b1-4', template: 'The best way to ___ is to ___ .', hint: '目标 / 方法（如 learn a language / practice daily）', answerExample: 'learn a language' },
+    ],
+    [CEFRLevel.B2]: [
+      { id: 'en-b2-1', template: 'While some people believe ___ , I would argue that ___ .', hint: '对立观点 / 你的论点（如 money buys happiness / it does not）', answerExample: 'money buys happiness' },
+      { id: 'en-b2-2', template: 'The issue of ___ has sparked considerable debate regarding ___ .', hint: '议题 / 争议点（如 AI / its impact on jobs）', answerExample: 'AI' },
+      { id: 'en-b2-3', template: 'Not only does ___ , but it also ___ .', hint: '事物 / 附加影响（如 this app save time / improve focus）', answerExample: 'this app save time' },
+    ],
+  },
 };
 
 // 情境库：通用（不绑语言），按等级。给中文情境，让学习者用目标语言写 1-3 句。
@@ -60,6 +90,16 @@ export const GUIDED_PROMPTS: Partial<Record<CEFRLevel, string[]>> = {
     '用目标语言说说你明天的计划。',
     '用目标语言比较你喜欢的两种食物。',
     '用目标语言描述你的日常作息（至少三句）。',
+  ],
+  [CEFRLevel.B1]: [
+    '用目标语言描述一次让你印象深刻的旅行经历（至少三句，用过去时）。',
+    '用目标语言说明你支持或反对某件事的理由（给出至少两个理由）。',
+    '用目标语言讲述你学会某件重要事情的过程（起因、经过、结果）。',
+  ],
+  [CEFRLevel.B2]: [
+    '用目标语言就一个社会话题阐述你的立场，正反两面都要涉及（至少四句）。',
+    '用目标语言写一封正式邮件，申请一个职位或项目，说明你的资历与动机。',
+    '用目标语言评论最近的一部作品或事件，给出有深度的看法（至少四句）。',
   ],
 };
 

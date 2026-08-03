@@ -6,7 +6,7 @@ import { ensureLanguageProgress } from '../services/storageService';
 import { Globe, CheckCircle2, Clock, ArrowRight, PenLine } from 'lucide-react';
 
 // 写作功能目前支持的语言（写作树 + 引导练习 scaffold 模板）
-export const WRITING_SUPPORTED_LANGUAGES: Language[] = [Language.Japanese];
+export const WRITING_SUPPORTED_LANGUAGES: Language[] = [Language.Japanese, Language.English];
 
 interface WritingLanguageGateProps {
   user: UserProfile;
@@ -17,8 +17,8 @@ interface WritingLanguageGateProps {
 
 /**
  * 语言门控：当用户的学习语言不在写作支持列表中时，
- * 显示"目前仅支持日语，其他语言待开发"提示页，
- * 并允许用户一键切换到日语。
+ * 显示"目前仅支持部分语言，其他语言待开发"提示页，
+ * 并允许用户一键切换到任一已支持语言。
  */
 const WritingLanguageGate: React.FC<WritingLanguageGateProps> = ({
   user,
@@ -30,11 +30,13 @@ const WritingLanguageGate: React.FC<WritingLanguageGateProps> = ({
 
   if (isSupported) return <>{children}</>;
 
-  const switchToJapanese = () => {
-    let updated = { ...user, learningLanguage: Language.Japanese };
-    updated = ensureLanguageProgress(updated, Language.Japanese);
+  const switchToLanguage = (lang: Language) => {
+    let updated = { ...user, learningLanguage: lang };
+    updated = ensureLanguageProgress(updated, lang);
     onUpdateUser(updated);
   };
+
+  const currentLang = SUPPORTED_LANGUAGES.find((l) => l.id === user.learningLanguage);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
@@ -46,19 +48,40 @@ const WritingLanguageGate: React.FC<WritingLanguageGateProps> = ({
           </div>
           <h2 className="text-2xl font-bold text-white mb-2">{featureName} · 语言选择</h2>
           <p className="text-gray-400 text-sm">
-            {featureName}目前仅支持日语内容。你的学习语言是
+            {featureName}目前仅支持部分语言。你的学习语言是
             <span className="text-secondary font-semibold mx-1">
-              {SUPPORTED_LANGUAGES.find((l) => l.id === user.learningLanguage)?.flag}{' '}
-              {SUPPORTED_LANGUAGES.find((l) => l.id === user.learningLanguage)?.label}
+              {currentLang?.flag} {currentLang?.label}
             </span>
-            ，请切换到日语体验，或期待更多语言上线。
+            ，请选择下方已支持的语言开始体验。
           </p>
         </div>
 
-        {/* 语言列表 */}
+        {/* 已支持语言：切换入口 */}
         <div className="bg-card border border-gray-700 rounded-xl p-4 mb-6">
           <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-            <Globe size={14} /> 支持的语言
+            <CheckCircle2 size={14} className="text-green-400" /> 已支持 · 点击切换
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {WRITING_SUPPORTED_LANGUAGES.map((langId) => {
+              const lang = SUPPORTED_LANGUAGES.find((l) => l.id === langId)!;
+              return (
+                <button
+                  key={langId}
+                  onClick={() => switchToLanguage(langId)}
+                  className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-primary to-secondary text-white font-bold hover:brightness-110 transition-all"
+                >
+                  <span className="text-lg">{lang.flag}</span>
+                  {lang.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 全部语言可用性概览 */}
+        <div className="bg-card border border-gray-700 rounded-xl p-4">
+          <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <Globe size={14} /> 全部语言支持情况
           </div>
           <div className="grid grid-cols-2 gap-2">
             {SUPPORTED_LANGUAGES.map((lang) => {
@@ -87,14 +110,6 @@ const WritingLanguageGate: React.FC<WritingLanguageGateProps> = ({
             })}
           </div>
         </div>
-
-        {/* 切换按钮 */}
-        <button
-          onClick={switchToJapanese}
-          className="w-full py-3.5 rounded-xl bg-gradient-to-r from-primary to-secondary text-white font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all shadow-lg shadow-primary/20"
-        >
-          切换到日语并开始 <ArrowRight size={18} />
-        </button>
 
         <p className="text-center text-xs text-gray-600 mt-4">
           更多语言的写作内容正在开发中，敬请期待 🚀

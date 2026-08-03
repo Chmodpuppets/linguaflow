@@ -1,9 +1,9 @@
 import { WritingNode, Language, CEFRLevel } from '../types';
 
-// 默认写作成长树：3 条主题路径 × 3 个难度递进任务（A1 → A1+ → A2）
+// 默认写作成长树：每条主题路径含多个难度递进任务（A1 → A2 → B1 → B2）。
 // 每条路径第一个任务解锁，完成后解锁下一个。
 // scaffold 为目标语言句型模板（含 ___）；空串表示自由写（用 scaffoldHint 作情境提示）。
-// 当前 scaffold 以日语 A1 为基准（用户画像），结构通用，其他语言可替换 scaffold 内容。
+// 按语言分组维护，结构通用，新增语言只需往 TREE_THEMES 加条目。
 
 interface TaskSeed {
   title: string;
@@ -12,7 +12,13 @@ interface TaskSeed {
   scaffoldHint: string;
 }
 
-const THEMES: Array<{ id: string; title: string; tasks: TaskSeed[] }> = [
+interface ThemeSeed {
+  id: string;
+  title: string;
+  tasks: TaskSeed[];
+}
+
+const JAPANESE_THEMES: ThemeSeed[] = [
   {
     id: 'theme-intro',
     title: '自我介绍',
@@ -42,7 +48,49 @@ const THEMES: Array<{ id: string; title: string; tasks: TaskSeed[] }> = [
   },
 ];
 
-export function createDefaultGrowthTree(_lang: Language, _level: CEFRLevel): WritingNode[] {
+const ENGLISH_THEMES: ThemeSeed[] = [
+  {
+    id: 'en-intro',
+    title: '自我介绍',
+    tasks: [
+      { title: '一句话介绍自己', cefrLevel: CEFRLevel.A1, scaffold: 'I am a ___.', scaffoldHint: '填你的职业（如 a student / a teacher）' },
+      { title: '你来自哪里', cefrLevel: CEFRLevel.A1, scaffold: 'I am from ___.', scaffoldHint: '填你的国家（如 China / Japan）' },
+      { title: '两句连起来', cefrLevel: CEFRLevel.A2, scaffold: 'My name is ___ and I ___ for a living.', scaffoldHint: '前填名字，后填职业（如 work as a doctor）' },
+      { title: '描述你自己', cefrLevel: CEFRLevel.B1, scaffold: 'I would describe myself as ___ because ___.', scaffoldHint: '前填性格词（如 outgoing），后填原因' },
+      { title: '正式自我介绍', cefrLevel: CEFRLevel.B2, scaffold: '', scaffoldHint: '用正式/学术语气写一段自我介绍：背景、专业、目标，至少四句' },
+    ],
+  },
+  {
+    id: 'en-daily',
+    title: '日常生活',
+    tasks: [
+      { title: '你的早晨', cefrLevel: CEFRLevel.A1, scaffold: 'I ___ at 7 o’clock.', scaffoldHint: '填你早上做的事（如 wake up / eat breakfast）' },
+      { title: '早餐吃什么', cefrLevel: CEFRLevel.A1, scaffold: 'I eat ___ for breakfast.', scaffoldHint: '填早餐食物（如 bread / eggs）' },
+      { title: '日常顺序', cefrLevel: CEFRLevel.A2, scaffold: 'Every day, I ___ before I ___.', scaffoldHint: '前填先做的事，后填后做的事' },
+      { title: '昨天做了什么', cefrLevel: CEFRLevel.B1, scaffold: 'Yesterday, I ___ and then I ___.', scaffoldHint: '前填过去做的事，后填接着做的事' },
+      { title: '难忘的一天', cefrLevel: CEFRLevel.B2, scaffold: '', scaffoldHint: '写一段令你难忘的一天的经历：时间、事件、感受，至少四句' },
+    ],
+  },
+  {
+    id: 'en-hobby',
+    title: '兴趣爱好',
+    tasks: [
+      { title: '你喜欢什么', cefrLevel: CEFRLevel.A1, scaffold: 'I like ___.', scaffoldHint: '填你喜欢的事物（如 music / dogs）' },
+      { title: '最爱的事物', cefrLevel: CEFRLevel.A1, scaffold: 'My favorite ___ is ___.', scaffoldHint: '前填类别（如 food），后填具体事物' },
+      { title: '周末活动', cefrLevel: CEFRLevel.A2, scaffold: 'On weekends, I usually ___ with ___.', scaffoldHint: '前填活动，后填一起的人' },
+      { title: '偏好比较', cefrLevel: CEFRLevel.B1, scaffold: 'I prefer ___ to ___ because ___.', scaffoldHint: '前填偏好 A，中填偏好 B，后填原因' },
+      { title: '为什么重要', cefrLevel: CEFRLevel.B2, scaffold: '', scaffoldHint: '写一段为什么这个爱好对你重要：起源、意义、收获，至少四句' },
+    ],
+  },
+];
+
+const TREE_THEMES: Partial<Record<Language, ThemeSeed[]>> = {
+  [Language.Japanese]: JAPANESE_THEMES,
+  [Language.English]: ENGLISH_THEMES,
+};
+
+export function createDefaultGrowthTree(lang: Language, _level: CEFRLevel): WritingNode[] {
+  const themes = TREE_THEMES[lang] ?? TREE_THEMES[Language.Japanese]!;
   const now = Date.now();
   const nodes: WritingNode[] = [];
 
@@ -58,9 +106,10 @@ export function createDefaultGrowthTree(_lang: Language, _level: CEFRLevel): Wri
     isExpanded: true,
     createdAt: now,
     updatedAt: now,
+    language: lang,
   });
 
-  for (const th of THEMES) {
+  for (const th of themes) {
     nodes.push({
       id: th.id,
       parentId: 'root',
@@ -73,6 +122,7 @@ export function createDefaultGrowthTree(_lang: Language, _level: CEFRLevel): Wri
       isExpanded: true,
       createdAt: now,
       updatedAt: now,
+      language: lang,
     });
     th.tasks.forEach((t, i) => {
       nodes.push({
@@ -93,6 +143,7 @@ export function createDefaultGrowthTree(_lang: Language, _level: CEFRLevel): Wri
         scaffold: t.scaffold,
         scaffoldHint: t.scaffoldHint,
         order: i,
+        language: lang,
       });
     });
   }

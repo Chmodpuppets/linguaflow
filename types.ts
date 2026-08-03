@@ -179,6 +179,7 @@ export interface WritingNode {
   scaffold?: string;       // 脚手架模板（含 ___，空串表示自由写）
   scaffoldHint?: string;   // 填空提示
   order?: number;          // 同主题内顺序（解锁链用）
+  language?: Language;      // 该树所属语言（root/theme/task 均写入，便于按语言重建缓存）
 }
 
 // --- RPG System Types ---

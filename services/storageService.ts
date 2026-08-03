@@ -406,8 +406,10 @@ export const saveWritingTree = (nodes: WritingNode[]) => {
 export const ensureGrowthTree = (lang: Language, level: CEFRLevel): WritingNode[] => {
     const existing = getWritingTree();
     const isGrowthFormat = existing.some((n) => n.type === 'task');
-    if (existing.length > 0 && isGrowthFormat) return existing;
-    // 旧格式写书树（root/chapter/section）或空树 → 生成新成长树
+    const rootLang = existing.find((n) => n.type === 'root')?.language;
+    // 有效成长树且语言匹配当前学习语言 → 直接复用
+    if (existing.length > 0 && isGrowthFormat && rootLang === lang) return existing;
+    // 旧格式 / 空树 / 语言不匹配（切换语言）→ 生成对应语言的新成长树
     const tree = createDefaultGrowthTree(lang, level);
     saveWritingTree(tree);
     return tree;
