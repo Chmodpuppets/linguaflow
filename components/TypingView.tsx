@@ -71,6 +71,8 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
   const [libraryItems, setLibraryItems] = useState<UserContent[]>([]);
   
   const inputRef = useRef<HTMLInputElement>(null);
+  const textContainerRef = useRef<HTMLDivElement>(null);
+  const currentCharRef = useRef<HTMLSpanElement>(null);
 
   // --- Accuracy tracking refs (keystroke-level) ---
   const totalTypedRef = useRef(0);   // total characters typed (incl. corrections)
@@ -105,7 +107,28 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
       errorCountRef.current = 0;
       prevInputLenRef.current = 0;
       setAccuracy(100);
+      // 新练习开始时文本区回到顶部
+      if (textContainerRef.current) {
+          textContainerRef.current.scrollTop = 0;
+      }
   }, [content]);
+
+  // 打字时让当前光标始终保持在可视区域中央，避免页面整体下滚
+  useEffect(() => {
+      if (!content || finished) return;
+      const container = textContainerRef.current;
+      const char = currentCharRef.current;
+      if (!container || !char) return;
+
+      // 下一帧等 DOM 更新后再滚动，避免闪动
+      requestAnimationFrame(() => {
+          const containerRect = container.getBoundingClientRect();
+          const charRect = char.getBoundingClientRect();
+          const relativeTop = charRect.top - containerRect.top + container.scrollTop;
+          const targetScroll = relativeTop - container.clientHeight / 2 + charRect.height / 2;
+          container.scrollTo({ top: Math.max(0, targetScroll), behavior: 'smooth' });
+      });
+  }, [inputValue, content, finished]);
 
   // --- Audio Engine Logic (Web Speech API) ---
 
@@ -466,7 +489,11 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
             }
           }
           return (
-            <span key={index} className={`relative ${colorClass} ${bgClass} transition-colors duration-75`}>
+            <span
+              key={index}
+              ref={isCurrent ? currentCharRef : null}
+              className={`relative ${colorClass} ${bgClass} transition-colors duration-75`}
+            >
               {isCurrent && <span className="absolute -left-[1px] -top-1 h-8 w-[2px] bg-secondary animate-pulse" />}
               {char}
             </span>
@@ -762,42 +789,45 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                  )}
             </div>
         ) : (
-          <div 
-            className="bg-dark rounded-2xl p-8 md:p-12 border border-gray-800 shadow-2xl min-h-[300px] flex flex-col justify-center cursor-text"
+          <div
+            className="bg-dark rounded-2xl p-8 md:p-12 border border-gray-800 shadow-2xl min-h-[300px] cursor-text relative"
             onClick={() => inputRef.current?.focus()}
           >
-            <div className="space-y-6">
+            <div
+              ref={textContainerRef}
+              className="max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar space-y-6"
+            >
                 {/* Phonetic / Input Hint */}
                 {content.phoneticGuide && showPhonetic && !isStrictMode && (
-                    <div className="text-gray-500 font-mono text-sm md:text-base leading-loose tracking-wide mb-2 opacity-70 select-none">
+                    <div className="text-gray-500 font-mono text-sm md:text-base leading-loose tracking-wide opacity-70 select-none">
                         {content.phoneticGuide}
                     </div>
                 )}
-                
+
                 {/* The Actual Text */}
                 {renderText()}
 
                 {/* Translation Overlay (if enabled) */}
                 {showTranslation && !isStrictMode && (
-                    <div className="mt-8 pt-6 border-t border-gray-800 text-blue-300/80 italic text-lg animate-in fade-in">
+                    <div className="pt-6 border-t border-gray-800 text-blue-300/80 italic text-lg animate-in fade-in">
                         "{content.translation}"
                     </div>
                 )}
-                
-                {/* Hidden Input */}
-                <input
-                ref={inputRef}
-                type="text"
-                className="opacity-0 absolute inset-0 cursor-default"
-                value={inputValue}
-                onChange={handleInput}
-                autoFocus
-                autoComplete="off"
-                autoCorrect="off"
-                autoCapitalize="off"
-                spellCheck="false"
-                />
             </div>
+
+            {/* Hidden Input：覆盖整张卡片用于点击聚焦，但不拦截鼠标事件，避免挡住滚动条 */}
+            <input
+              ref={inputRef}
+              type="text"
+              className="opacity-0 absolute inset-0 cursor-default pointer-events-none"
+              value={inputValue}
+              onChange={handleInput}
+              autoFocus
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
+            />
           </div>
         )}
       </div>
