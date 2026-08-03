@@ -1,5 +1,5 @@
 
-import { Language, CEFRLevel, AssessmentResult, TypingContent, WritingFeedback, GuidedWritingFeedback, GuidedMode, WritingNode, NodeType, ReadingReflection, RPGScenario, RPGTurnResult, UserProfile } from '../types';
+import { Language, CEFRLevel, AssessmentResult, TypingContent, WritingFeedback, WritingRevisionFeedback, GuidedWritingFeedback, GuidedMode, WritingNode, NodeType, ReadingReflection, RPGScenario, RPGTurnResult, UserProfile, ScenarioDef } from '../types';
 import { MENTOR_PERSONAS } from '../constants';
 import { getAIConfig, AIConfig } from './storageService';
 
@@ -314,6 +314,78 @@ export const analyzeWriting = async (text: string, targetLanguage: Language, nat
   } catch (error) {
     console.error("Writing analysis error:", error);
     throw new Error("Failed to analyze writing.");
+  }
+};
+
+// 二稿改写闭环：学生拿到首稿批改后重写，本函数对比「首稿 + 上次建议 + 二稿」，
+// 判断哪些问题已修复、哪些仍在，并给出二稿的 CEFR 估算与总评。语言无关。
+export const analyzeWritingRevision = async (
+  originalText: string,
+  revisedText: string,
+  previousFeedback: WritingFeedback,
+  targetLanguage: Language,
+  nativeLanguage: Language,
+  cefrLevel: CEFRLevel = CEFRLevel.A1
+): Promise<WritingRevisionFeedback> => {
+  const prevSummary = previousFeedback.suggestions
+    .map((s) => `- 「${s.original}」→「${s.suggestion}」(${s.reason})`)
+    .join("\n");
+
+  const prompt = `
+    Act as a strict but encouraging language tutor. The student is learning ${targetLanguage} at CEFR ${cefrLevel} (native: ${nativeLanguage}).
+    They wrote a FIRST draft, you gave feedback, and they have now submitted a REVISED draft trying to apply it.
+
+    PREVIOUS FEEDBACK (on the first draft):
+    ${prevSummary || "(no specific corrections were listed)"}
+    Previous general comment: ${previousFeedback.generalComment}
+
+    FIRST DRAFT:
+    """${originalText}"""
+
+    REVISED DRAFT:
+    """${revisedText}"""
+
+    Tasks:
+    1. Compare the revised draft to the previous feedback. Did the student FIX the issues you raised?
+       - fixedIssues: problems from the previous feedback that are now resolved (in ${nativeLanguage}).
+       - remainingIssues: errors still present in the revised draft, or new mistakes introduced (in ${nativeLanguage}).
+    2. Give the best corrected version of the REVISED draft (correctedText).
+    3. Estimate the CEFR level of the REVISED draft honestly (cefrEstimation).
+    4. generalComment (in ${nativeLanguage}): state whether it improved overall, then the single next most important fix.
+    5. improved: true only if the revised draft is clearly better than the first draft.
+
+    Explain all feedback and reasons in ${nativeLanguage}.
+    Return ONLY valid JSON. No Markdown.
+    Structure:
+    {
+      "correctedText": "string",
+      "suggestions": [ { "original": "string", "suggestion": "string", "reason": "string (in ${nativeLanguage})" } ],
+      "generalComment": "string (in ${nativeLanguage})",
+      "cefrEstimation": "A1" | "A2" | "B1" | "B2" | "C1" | "C2",
+      "fixedIssues": ["string (in ${nativeLanguage})"],
+      "remainingIssues": ["string (in ${nativeLanguage})"],
+      "improved": boolean
+    }
+  `;
+
+  try {
+    const responseText = await chatCompletion(prompt);
+    const parsed = parseAIJSON<WritingRevisionFeedback>(responseText, {
+      correctedText: revisedText,
+      suggestions: [],
+      generalComment: "分析失败。",
+      cefrEstimation: CEFRLevel.A1,
+      fixedIssues: [],
+      remainingIssues: [],
+      improved: false,
+    });
+    // 兜底：保证数组字段存在
+    parsed.fixedIssues = parsed.fixedIssues ?? [];
+    parsed.remainingIssues = parsed.remainingIssues ?? [];
+    return parsed;
+  } catch (error) {
+    console.error("Writing revision analysis error:", error);
+    throw new Error("Failed to analyze revision.");
   }
 };
 
@@ -839,7 +911,73 @@ export const getWritingCoachFeedback = async (node: WritingNode, language: Langu
 
 // --- RPG System AI ---
 
-export const startRPGScenario = async (theme: string, level: CEFRLevel, language: Language, nativeLanguage: Language, systemContext?: string): Promise<RPGScenario> => {
+export const startRPGScenario = async (
+    theme: string,
+    level: CEFRLevel,
+    language: Language,
+    nativeLanguage: Language,
+    systemContext?: string,
+    scenarioDef?: ScenarioDef
+): Promise<RPGScenario> => {
+    // 预置剧本：用结构化字段保证质量与人设稳定，只让 AI 生成开场白
+    if (scenarioDef) {
+        const characterNote = scenarioDef.character
+            ? `\nYou are playing: ${scenarioDef.character.name} — ${scenarioDef.character.persona}`
+            : '';
+        const inspireNote = scenarioDef.inspiredBy
+            ? `\nThis scene is inspired by ${scenarioDef.inspiredBy}. Do NOT reproduce any copyrighted lines; improvise original dialogue that fits the vibe and stays in character.`
+            : '';
+        const prompt = `
+            Open this role-play scene in ${language} for a student at ${level} level.
+            Scene description: ${scenarioDef.context}
+            The user is playing: ${scenarioDef.userRole}
+            ${characterNote}${inspireNote}
+            User's objectives for this scene (in ${nativeLanguage}): ${scenarioDef.objectives.join('; ')}
+            Stay in character and set the scene naturally.
+
+            Return ONLY valid JSON.
+            Structure:
+            {
+              "initialMessage": "Your first line of dialogue to open the scene (in ${language})",
+              "initialPhonetic": "Phonetic guide/Romaji/Pinyin for the initial message",
+              "initialSuggestedReply": "A simple suggested response for the user to start (in ${language})",
+              "initialSuggestedReplyPhonetic": "Phonetic guide/Romaji/Pinyin for the initial suggested reply"
+            }
+        `;
+        try {
+            const responseText = systemContext
+                ? await chatCompletionWithSystem(systemContext, prompt)
+                : await chatCompletion(prompt);
+            const generated = parseAIJSON(responseText, {
+                initialMessage: '...',
+                initialSuggestedReply: '你好！',
+                initialPhonetic: undefined,
+                initialSuggestedReplyPhonetic: undefined,
+            });
+            return {
+                id: scenarioDef.id,
+                theme: theme,
+                title: scenarioDef.title,
+                context: scenarioDef.context,
+                userRole: scenarioDef.userRole,
+                aiRole: scenarioDef.aiRole,
+                initialMessage: generated.initialMessage || '...',
+                initialPhonetic: generated.initialPhonetic,
+                initialSuggestedReply: generated.initialSuggestedReply || '你好！',
+                initialSuggestedReplyPhonetic: generated.initialSuggestedReplyPhonetic,
+                objectives: scenarioDef.objectives,
+                difficulty: level,
+                universe: theme,
+                inspiredBy: scenarioDef.inspiredBy,
+                character: scenarioDef.character,
+            };
+        } catch (error) {
+            console.error("RPG Start (def) error:", error);
+            throw new Error("Failed to start RPG.");
+        }
+    }
+
+    // 旧逻辑：仅给主题词，由 AI 自由生成
     const prompt = `
         Create a Role-Playing Game Scenario in ${language} for a student at ${level} level.
         Theme: ${theme}.
@@ -913,6 +1051,7 @@ export const continueRPGTurn = async (
         6. Provide a "suggestedUserReply": A simple, natural sentence the user could say next in ${language}.
         7. Provide "phonetic": The phonetic guide/Romaji/Pinyin for YOUR response.
         8. Provide "suggestedUserReplyPhonetic": The phonetic guide/Romaji/Pinyin for the suggested user reply.
+        9. Provide "choices": 2-3 short, distinct next actions the user might take to advance the story (each under 8 words, in ${language}). These are optional decision points that branch the narrative.
 
         Return ONLY valid JSON.
         Structure:
@@ -925,7 +1064,8 @@ export const continueRPGTurn = async (
           "completedObjectives": ["Objective text exactly as in list if completed"],
           "vocabulary": [{ "word": "string", "meaning": "string in ${nativeLanguage}" }],
           "isScenarioComplete": boolean,
-          "feedback": "string or null"
+          "feedback": "string or null",
+          "choices": ["option 1", "option 2"]
         }
     `;
 
@@ -939,7 +1079,8 @@ export const continueRPGTurn = async (
         completedObjectives: [],
         vocabulary: [],
         isScenarioComplete: false,
-        feedback: null
+        feedback: null,
+        choices: []
     });
   } catch (error) {
     console.error("RPG Turn error:", error);

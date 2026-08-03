@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { UserProfile, WritingFeedback, CEFRLevel } from '../types';
-import { analyzeWriting } from '../services/aiService';
+import { UserProfile, WritingFeedback, WritingRevisionFeedback, CEFRLevel } from '../types';
+import { analyzeWriting, analyzeWritingRevision } from '../services/aiService';
 import { addActivity } from '../services/storageService';
 import { countWords } from '../services/textUtils';
 import GuidedWritingView from './GuidedWritingView';
@@ -68,19 +68,36 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<'free' | 'guided'>('free');
 
-  const handleAnalyze = async () => {
+  // 二稿改写闭环状态
+  const [firstFeedback, setFirstFeedback] = useState<WritingFeedback | null>(null);
+  const [firstDraftText, setFirstDraftText] = useState('');
+  const [isRevising, setIsRevising] = useState(false);
+  const [revisionResult, setRevisionResult] = useState<WritingRevisionFeedback | null>(null);
+
+  const handleAnalyze = async (isRevision = false) => {
     if (text.length < 10) return;
     setIsAnalyzing(true);
     setFeedback(null);
+    setRevisionResult(null);
     setError(null);
     try {
-      const result = await analyzeWriting(text, user.learningLanguage, user.nativeLanguage, userLevel);
+      let result: WritingFeedback;
+      if (isRevision && firstFeedback) {
+        // 二稿：把首稿 + 上次建议 + 当前二稿一起送审
+        result = await analyzeWritingRevision(firstDraftText, text, firstFeedback, user.learningLanguage, user.nativeLanguage, userLevel);
+        setRevisionResult(result as WritingRevisionFeedback);
+      } else {
+        result = await analyzeWriting(text, user.learningLanguage, user.nativeLanguage, userLevel);
+        setFirstFeedback(result);
+        setFirstDraftText(text);
+        setRevisionResult(null);
+      }
       setFeedback(result);
-      
+
       // Calculate XP: Base 50 + Length Bonus（CJK 按字符数，拉丁按词数）
       const wordCount = countWords(text, user.learningLanguage);
       const xp = 50 + Math.min(100, Math.floor(wordCount / 2));
-      
+
       const { user: updatedUser } = addActivity(
           user,
           'writing',
@@ -168,14 +185,14 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
         </div>
 
         <button
-            onClick={handleAnalyze}
+            onClick={() => handleAnalyze(isRevising)}
             disabled={isAnalyzing || text.length < 10}
             className="w-full py-4 bg-gradient-to-r from-primary to-secondary hover:brightness-110 text-white font-bold rounded-xl shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
             {isAnalyzing ? (
                 <>分析中 <Sparkles className="animate-spin" size={18} /></>
             ) : (
-                <>获取 AI 批改 <Wand2 size={18} /></>
+                <>{isRevising ? '对比批改（二稿）' : '获取 AI 批改'} <Wand2 size={18} /></>
             )}
         </button>
       </div>
@@ -208,6 +225,45 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
                         <p className="text-xs text-yellow-200/70">你的努力已获得经验值。</p>
                     </div>
                 </div>
+
+                {/* 二稿改写闭环入口 */}
+                {feedback && !revisionResult && !isRevising && (
+                  <button
+                    onClick={() => setIsRevising(true)}
+                    className="w-full py-3 rounded-xl border border-secondary/50 text-secondary font-bold hover:bg-secondary/10 transition-all flex items-center justify-center gap-2"
+                  >
+                    按批改重写二稿 <ArrowRight size={18} />
+                  </button>
+                )}
+                {isRevising && (
+                  <div className="bg-secondary/10 border border-secondary/30 p-4 rounded-xl flex items-center justify-between gap-3">
+                    <p className="text-sm text-secondary">二稿模式：参考上方批改修改文字，再点「对比批改」。</p>
+                    <button onClick={() => { setIsRevising(false); setRevisionResult(null); }} className="text-xs underline text-gray-400 hover:text-white flex-shrink-0">退出</button>
+                  </div>
+                )}
+                {revisionResult && (
+                  <div className="bg-card p-4 rounded-xl border border-gray-700 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-white">二稿对比</h4>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${revisionResult.improved ? 'bg-green-900/30 text-green-300' : 'bg-amber-900/30 text-amber-300'}`}>{revisionResult.improved ? '有进步' : '仍需努力'}</span>
+                    </div>
+                    {revisionResult.fixedIssues.length > 0 && (
+                      <div>
+                        <p className="text-xs text-green-400 mb-1">已修复（{revisionResult.fixedIssues.length}）</p>
+                        <ul className="text-sm text-gray-300 list-disc list-inside space-y-1">{revisionResult.fixedIssues.map((s, i) => <li key={i}>{s}</li>)}</ul>
+                      </div>
+                    )}
+                    {revisionResult.remainingIssues.length > 0 && (
+                      <div>
+                        <p className="text-xs text-red-400 mb-1">仍待改进（{revisionResult.remainingIssues.length}）</p>
+                        <ul className="text-sm text-gray-300 list-disc list-inside space-y-1">{revisionResult.remainingIssues.map((s, i) => <li key={i}>{s}</li>)}</ul>
+                      </div>
+                    )}
+                    {revisionResult.fixedIssues.length === 0 && revisionResult.remainingIssues.length === 0 && (
+                      <p className="text-sm text-gray-400">首稿问题已基本解决，保持！</p>
+                    )}
+                  </div>
+                )}
 
                 {/* Score Card */}
                 <div className="bg-card p-6 rounded-xl border border-gray-700 flex items-center justify-between">

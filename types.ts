@@ -77,6 +77,14 @@ export interface WritingFeedback {
   cefrEstimation: CEFRLevel;
 }
 
+// 二稿改写闭环：在首稿批改基础上，对比二稿是否修复了问题。
+// 语言无关——所有 learningLanguage 通用；与具体考试框架(IELTS/JLPT...)解耦。
+export interface WritingRevisionFeedback extends WritingFeedback {
+  fixedIssues: string[];      // 相较首稿已修复的问题（母语说明）
+  remainingIssues: string[];  // 二稿仍存在的错误 / 新问题
+  improved: boolean;          // 相较首稿是否整体进步
+}
+
 // 引导式微写作（句型填空 / 看词造句 / 情境一句）的 AI 反馈
 export type GuidedMode = 'scaffold' | 'wordchain' | 'prompt';
 
@@ -184,6 +192,35 @@ export interface WritingNode {
 
 // --- RPG System Types ---
 
+// 角色人设：用于让 AI 稳定扮演固定角色（影视/主题宇宙包）
+export interface CharacterProfile {
+  name: string;            // 角色名
+  persona: string;         // 性格 / 口癖 / 口语特征，喂给 AI 让人设稳定
+}
+
+// 预置剧本定义（语言无关，运行时由 AI 按用户学习语言生成台词）
+export interface ScenarioDef {
+  id: string;
+  title: string;
+  context: string;         // 场景描述（用户可见）
+  userRole: string;
+  aiRole: string;
+  character?: CharacterProfile;  // AI 要扮演的固定角色
+  objectives: string[];    // 任务目标（母语描述，如中文）
+  cefrRange: [CEFRLevel, CEFRLevel];
+  tags: string[];
+  inspiredBy?: string;     // “灵感来自 XXX”框架，绝不复制剧本原文
+}
+
+// 主题宇宙包：把场景打包成可探索的世界
+export interface UniversePack {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  scenarios: ScenarioDef[];
+}
+
 export interface RPGScenario {
   id: string;
   theme: string;
@@ -197,6 +234,9 @@ export interface RPGScenario {
   initialSuggestedReplyPhonetic?: string; // Pronunciation guide for suggested reply
   objectives: string[]; // e.g., ["Order a coffee", "Ask for the price"]
   difficulty: CEFRLevel;
+  universe?: string;       // 所属宇宙包名
+  inspiredBy?: string;     // 灵感来源（影视名场面包用）
+  character?: CharacterProfile; // 本场景 AI 扮演的角色人设
 }
 
 export interface RPGMessage {
@@ -220,6 +260,7 @@ export interface RPGTurnResult {
   vocabulary: Array<{ word: string; meaning: string }>;
   isScenarioComplete: boolean;
   feedback?: string; // Brief feedback on user's last input
+  choices?: string[]; // 2-3 个剧情分支选项（用户可一键选择推进）
 }
 
 // --- Gamification & User Types ---
