@@ -27,10 +27,10 @@ interface RunSpanProps {
 const RunSpan = React.memo(({ text, status }: RunSpanProps) => {
     const cls =
         status === 'correct'
-            ? 'text-green-400'
+            ? 'text-emerald-400'
             : status === 'wrong'
-            ? 'bg-red-900/30 text-red-400'
-            : 'text-gray-500';
+            ? 'text-red-400 underline decoration-red-500/70 decoration-wavy underline-offset-4'
+            : 'text-gray-400';
     return <span className={cls}>{text}</span>;
 });
 
@@ -399,6 +399,15 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
 
     setInputValue(val);
 
+    // 实时准确率：随输入立即更新，方便用户在顶部工具栏看到当前状态
+    const totalTyped = totalTypedRef.current;
+    const errors = errorCountRef.current;
+    setAccuracy(
+      totalTyped > 0
+        ? Math.max(0, Math.min(100, Math.round(((totalTyped - errors) / totalTyped) * 100)))
+        : 100
+    );
+
     if (startTime) {
       const timeElapsed = (Date.now() - startTime) / 60000;
       const wordsTyped = val.length / 5;
@@ -516,9 +525,9 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
           <span
             key="cursor"
             ref={currentCharRef}
-            className="relative inline-block"
+            className="relative inline-block rounded-sm bg-secondary/15"
           >
-            <span className="absolute -left-[1px] -top-1 h-8 w-[2px] bg-secondary animate-pulse" />
+            <span className="absolute left-0 top-0 h-full w-[3px] bg-secondary text-secondary shadow-[0_0_6px_currentColor] animate-pulse" />
             {'​'}
           </span>
         );
@@ -538,7 +547,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
     pushRun(text.length);
 
     return (
-      <div className="text-2xl md:text-3xl font-mono leading-relaxed break-words tracking-wide">
+      <div className="text-lg md:text-xl lg:text-2xl font-sans leading-loose break-words text-gray-200">
         {nodes}
       </div>
     );
@@ -627,111 +636,126 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
       
       {/* HEADER CONTROLS (Only visible when drilling) */}
       {content && (
-        <div className="flex flex-col gap-4 bg-card p-4 rounded-xl border border-gray-700 animate-in slide-in-from-top-4">
+        <div className="bg-card p-4 rounded-xl border border-gray-700 animate-in slide-in-from-top-4 space-y-4">
+            {/* 标题 / 等级 / 统计 / 退出 */}
             <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                    <span className="px-3 py-1 rounded-full bg-primary/20 text-primary text-sm font-bold border border-primary/30">
+                <div className="flex items-center gap-3 min-w-0">
+                    <span className="px-3 py-1 rounded-full bg-primary/20 text-primary text-sm font-bold border border-primary/30 shrink-0">
                         {activeStage ? activeStage.cefr : "练习"}
                     </span>
-                    
-                    {/* HINT & AUDIO CONTROLS - HIDDEN IN STRICT CAMPAIGN MODE */}
-                    {!isStrictMode && (
-                        <>
-                            <div className="flex items-center gap-2 pl-2 border-l border-gray-700">
-                                <div className="flex items-center gap-1 bg-gray-800/50 rounded-lg p-1 border border-gray-700">
-                                    <button
-                                        onClick={togglePlayback}
-                                        disabled={!content}
-                                        className={`p-2 rounded-md transition-colors flex items-center gap-2 ${isSpeaking ? 'bg-green-500/20 text-green-400' : 'hover:bg-gray-700 text-gray-300'}`}
-                                        title="播放音频"
-                                    >
-                                        {isSpeaking ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
-                                    </button>
-
-                                    <button onClick={toggleSpeed} className="p-1 px-2 text-xs font-mono font-bold text-gray-400 hover:text-white hover:bg-gray-700 rounded">
-                                        {playbackSpeed}x
-                                    </button>
-                                </div>
-
-                                <div className="flex items-center gap-1 bg-gray-800/50 rounded-lg p-1 border border-gray-700">
-                                    {!userAudioUrl ? (
-                                        <button onClick={isRecording ? stopRecording : startRecording} className={`p-2 rounded-md ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'hover:bg-gray-700 text-gray-300'}`} title="录制你的声音">
-                                            {isRecording ? <Square size={18} fill="currentColor" /> : <Mic size={18} />}
-                                        </button>
-                                    ) : (
-                                        <>
-                                            <button onClick={playUserRecording} className={`p-2 rounded-md ${isPlayingUser ? 'text-secondary' : 'text-gray-300'}`}><Ear size={18} /></button>
-                                            <button
-                                                onClick={handleTranscribe}
-                                                disabled={isTranscribing}
-                                                className={`p-2 rounded-md ${isTranscribing ? 'text-secondary animate-pulse' : 'text-gray-300 hover:text-white'}`}
-                                                title="用 AI 识别你的发音"
-                                            >
-                                                {isTranscribing ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
-                                            </button>
-                                            <button onClick={deleteUserRecording} className="p-2 rounded-md text-gray-400 hover:text-red-400"><Trash2 size={18} /></button>
-                                        </>
-                                    )}
-                                </div>
-
-                                {userAudioUrl && userTranscript !== null && (
-                                    <div className="text-sm text-gray-300 bg-gray-800/40 rounded-lg p-2 border border-gray-700">
-                                        <span className="text-gray-500 mr-2">识别结果:</span>
-                                        {userTranscript || "（无语音内容）"}
-                                    </div>
-                                )}
-
-                                {/* Save To Memory Bank Button */}
-                                <button
-                                    onClick={handleManualSave}
-                                    disabled={savedToLibrary}
-                                    className={`
-                                        flex items-center gap-2 px-3 py-2 rounded-lg transition-colors border font-medium text-sm
-                                        ${savedToLibrary 
-                                            ? 'bg-green-500/20 text-green-400 border-green-500/50 cursor-default' 
-                                            : 'bg-secondary/10 text-secondary border-secondary/30 hover:bg-secondary/20 hover:text-white'
-                                        }
-                                    `}
-                                    title={savedToLibrary ? "内容已存入记忆库" : "保存到记忆库"}
-                                >
-                                    {savedToLibrary ? <Check size={16} /> : <Bookmark size={16} />}
-                                    {savedToLibrary ? "已保存" : "保存"}
-                                </button>
-
-                            </div>
-
-                            {content?.phoneticGuide && (
-                                <button onClick={() => setShowPhonetic(!showPhonetic)} className={`ml-2 p-2 rounded-lg ${showPhonetic ? 'bg-secondary/20 text-secondary' : 'text-gray-400 hover:text-gray-200'}`} title="切换发音指南"><Keyboard size={18} /></button>
-                            )}
-                            <button onClick={() => setShowTranslation(!showTranslation)} className={`p-2 rounded-lg ${showTranslation ? 'bg-blue-500/20 text-blue-400' : 'text-gray-400 hover:text-gray-200'}`} title="切换译文"><Eye size={18} /></button>
-                        </>
-                    )}
-                    
-                    {/* STRICT MODE INDICATOR */}
-                    {isStrictMode && (
-                        <div className="flex items-center gap-2 px-3 py-1 bg-red-900/30 border border-red-800 rounded-lg text-red-400 text-xs font-bold uppercase tracking-wider">
-                            <Lock size={12} /> 硬核模式
-                        </div>
-                    )}
-
-                </div>
-                
-                <div className="flex items-center gap-6">
-                    <div className="flex flex-col items-end">
-                        <span className="text-xs text-gray-500 uppercase tracking-widest">速度</span>
-                        <span className="text-xl font-mono font-bold text-white">{wpm} <span className="text-sm font-normal text-gray-500">WPM</span></span>
+                    <div className="min-w-0">
+                        <h2 className="text-sm md:text-base font-bold text-white truncate">{content.topic}</h2>
+                        <p className="text-xs text-gray-500">
+                            {inputValue.length}/{content.text.length} 字符 · {Math.min(100, Math.round((inputValue.length / content.text.length) * 100))}%
+                        </p>
                     </div>
-                    <button 
-                        onClick={() => setContent(null)} 
+                </div>
+
+                <div className="flex items-center gap-2 md:gap-3">
+                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-800/50 rounded-lg border border-gray-700">
+                        <span className="text-xs text-gray-500">WPM</span>
+                        <span className="text-base md:text-lg font-bold text-white tabular-nums">{wpm}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-800/50 rounded-lg border border-gray-700">
+                        <span className="text-xs text-gray-500">准确率</span>
+                        <span className="text-base md:text-lg font-bold text-white tabular-nums">{accuracy}%</span>
+                    </div>
+                    <button
+                        onClick={() => setContent(null)}
                         disabled={isLoading}
-                        className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors text-sm font-medium"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors text-sm font-medium"
                     >
-                        <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
-                        退出练习
+                        <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
+                        退出
                     </button>
                 </div>
             </div>
-            
+
+            {/* 进度条 */}
+            <div className="h-1.5 w-full bg-gray-800 rounded-full overflow-hidden">
+                <div
+                    className="h-full bg-secondary transition-all duration-200"
+                    style={{ width: `${Math.min(100, (inputValue.length / content.text.length) * 100)}%` }}
+                />
+            </div>
+
+            {/* 功能按钮 */}
+            <div className="flex flex-wrap items-center gap-2">
+                {!isStrictMode && (
+                    <>
+                        <div className="flex items-center gap-1 bg-gray-800/50 rounded-lg p-1 border border-gray-700">
+                            <button
+                                onClick={togglePlayback}
+                                disabled={!content}
+                                className={`p-2 rounded-md transition-colors flex items-center gap-1.5 text-sm ${isSpeaking ? 'bg-green-500/20 text-green-400' : 'hover:bg-gray-700 text-gray-300'}`}
+                                title="播放音频"
+                            >
+                                {isSpeaking ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
+                                <span className="hidden sm:inline text-xs">朗读</span>
+                            </button>
+                            <button onClick={toggleSpeed} className="px-2 py-1 text-xs font-bold text-gray-400 hover:text-white hover:bg-gray-700 rounded">
+                                {playbackSpeed}x
+                            </button>
+                        </div>
+
+                        <div className="flex items-center gap-1 bg-gray-800/50 rounded-lg p-1 border border-gray-700">
+                            {!userAudioUrl ? (
+                                <button onClick={isRecording ? stopRecording : startRecording} className={`p-2 rounded-md flex items-center gap-1.5 text-sm ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'hover:bg-gray-700 text-gray-300'}`} title="录制你的声音">
+                                    {isRecording ? <Square size={16} fill="currentColor" /> : <Mic size={16} />}
+                                    <span className="hidden sm:inline text-xs">{isRecording ? '录音中' : '录音'}</span>
+                                </button>
+                            ) : (
+                                <>
+                                    <button onClick={playUserRecording} className={`p-2 rounded-md ${isPlayingUser ? 'text-secondary' : 'text-gray-300'}`}><Ear size={16} /></button>
+                                    <button
+                                        onClick={handleTranscribe}
+                                        disabled={isTranscribing}
+                                        className={`p-2 rounded-md ${isTranscribing ? 'text-secondary animate-pulse' : 'text-gray-300 hover:text-white'}`}
+                                        title="用 AI 识别你的发音"
+                                    >
+                                        {isTranscribing ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                                    </button>
+                                    <button onClick={deleteUserRecording} className="p-2 rounded-md text-gray-400 hover:text-red-400"><Trash2 size={16} /></button>
+                                </>
+                            )}
+                        </div>
+
+                        {userAudioUrl && userTranscript !== null && (
+                            <div className="text-sm text-gray-300 bg-gray-800/40 rounded-lg px-3 py-2 border border-gray-700">
+                                <span className="text-gray-500 mr-2">识别结果:</span>
+                                {userTranscript || "（无语音内容）"}
+                            </div>
+                        )}
+
+                        <button
+                            onClick={handleManualSave}
+                            disabled={savedToLibrary}
+                            className={`
+                                flex items-center gap-1.5 px-3 py-2 rounded-lg transition-colors border font-medium text-sm
+                                ${savedToLibrary 
+                                    ? 'bg-green-500/20 text-green-400 border-green-500/50 cursor-default' 
+                                    : 'bg-secondary/10 text-secondary border-secondary/30 hover:bg-secondary/20 hover:text-white'
+                                }
+                            `}
+                            title={savedToLibrary ? "内容已存入记忆库" : "保存到记忆库"}
+                        >
+                            {savedToLibrary ? <Check size={16} /> : <Bookmark size={16} />}
+                            <span className="hidden sm:inline">{savedToLibrary ? "已保存" : "保存"}</span>
+                        </button>
+
+                        {content?.phoneticGuide && (
+                            <button onClick={() => setShowPhonetic(!showPhonetic)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm ${showPhonetic ? 'bg-secondary/20 text-secondary' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'}`} title="切换发音指南"><Keyboard size={16} /><span className="hidden sm:inline">注音</span></button>
+                        )}
+                        <button onClick={() => setShowTranslation(!showTranslation)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm ${showTranslation ? 'bg-blue-500/20 text-blue-400' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'}`} title="切换译文"><Eye size={16} /><span className="hidden sm:inline">译文</span></button>
+                    </>
+                )}
+                
+                {isStrictMode && (
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-xs font-bold uppercase tracking-wider">
+                        <Lock size={12} /> 硬核模式
+                    </div>
+                )}
+            </div>
         </div>
       )}
 
@@ -831,16 +855,16 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
             </div>
         ) : (
           <div
-            className="bg-dark rounded-2xl p-8 md:p-12 border border-gray-800 shadow-2xl min-h-[300px] cursor-text relative"
+            className="bg-gradient-to-b from-gray-900 to-gray-950 rounded-2xl p-6 md:p-10 border border-gray-800/80 shadow-2xl min-h-[260px] cursor-text relative"
             onClick={() => inputRef.current?.focus()}
           >
             <div
               ref={textContainerRef}
-              className="max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar space-y-6"
+              className="max-h-[60vh] overflow-y-auto pr-3 pb-2 custom-scrollbar space-y-5"
             >
                 {/* Phonetic / Input Hint */}
                 {content.phoneticGuide && showPhonetic && !isStrictMode && (
-                    <div className="text-gray-500 font-mono text-sm md:text-base leading-loose tracking-wide opacity-70 select-none">
+                    <div className="text-gray-500 font-sans text-sm leading-relaxed select-none">
                         {content.phoneticGuide}
                     </div>
                 )}
@@ -850,8 +874,8 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
 
                 {/* Translation Overlay (if enabled) */}
                 {showTranslation && !isStrictMode && (
-                    <div className="pt-6 border-t border-gray-800 text-blue-300/80 italic text-lg animate-in fade-in">
-                        "{content.translation}"
+                    <div className="pt-5 border-t border-gray-800/60 text-blue-400/90 italic text-base md:text-lg animate-in fade-in">
+                        {content.translation}
                     </div>
                 )}
             </div>
