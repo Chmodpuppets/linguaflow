@@ -1,9 +1,9 @@
 
 import React, { useMemo, useState, useRef } from 'react';
 import { UserProfile, ActivityLog, Language, LanguageProgress, CEFRLevel, MentorPersona } from '../types';
-import { getLogs, ensureLanguageProgress, saveUser, getAIConfig, saveAIConfig, AIConfig } from '../services/storageService';
+import { getLogs, ensureLanguageProgress, saveUser, getAIConfig, saveAIConfig, clearAllLearningData, AIConfig } from '../services/storageService';
 import { testModelConnection, GLM_ENV_API_KEY } from '../services/aiService';
-import { Trophy, Flame, Calendar, Clock, PenTool, Type, Zap, TrendingUp, TrendingDown, Activity, Check, Globe, Settings, GraduationCap, ChevronDown, User, LogOut, Download, Upload, Database, Crown } from 'lucide-react';
+import { Trophy, Flame, Calendar, Clock, PenTool, Type, Zap, TrendingUp, TrendingDown, Activity, Check, Globe, Settings, GraduationCap, ChevronDown, User, LogOut, Download, Upload, Database, Crown, AlertTriangle } from 'lucide-react';
 import { SUPPORTED_LANGUAGES, MENTOR_PERSONAS, TOPIC_PACKAGES } from '../constants';
 import AssessmentView from './AssessmentView';
 
@@ -16,6 +16,8 @@ interface ProfileViewProps {
 const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'settings'>('overview');
   const [showAssessment, setShowAssessment] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [clearDataOnLogout, setClearDataOnLogout] = useState(false);
 
   // --- Runtime model switcher (Settings -> 模型设置) ---
   const [modelCfg, setModelCfg] = useState<AIConfig>(() => getAIConfig());
@@ -236,8 +238,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
 
         {/* Log Out Button */}
         <div className="absolute top-4 right-4 z-20">
-            <button 
-                onClick={onLogout}
+            <button
+                onClick={() => setShowLogoutModal(true)}
                 className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-xs font-bold transition-colors"
             >
                 <LogOut size={14} /> 退出登录
@@ -759,6 +761,59 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                   </div>
               )}
           </div>
+      )}
+
+      {/* Logout confirmation modal */}
+      {showLogoutModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-card border border-gray-700 rounded-2xl p-6 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-amber-500/15 flex items-center justify-center shrink-0">
+                <AlertTriangle size={20} className="text-amber-400" />
+              </div>
+              <h3 className="text-lg font-bold text-white">退出登录</h3>
+            </div>
+
+            <p className="text-sm text-gray-300 leading-relaxed mb-2">
+              退出只会回到登录页，<b className="text-white">本机练习数据仍会保留</b>。如果你换个昵称重新注册，新账号会沿用这些已有数据。
+            </p>
+            <p className="text-sm text-gray-400 leading-relaxed mb-5">
+              想彻底清空、重新开始，请勾选下方选项。
+            </p>
+
+            <label className="flex items-start gap-3 p-3 rounded-xl bg-dark border border-gray-700 cursor-pointer mb-6 hover:border-gray-500 transition-colors">
+              <input
+                type="checkbox"
+                checked={clearDataOnLogout}
+                onChange={(e) => setClearDataOnLogout(e.target.checked)}
+                className="mt-0.5 w-4 h-4 accent-red-500 cursor-pointer"
+              />
+              <span className="text-sm text-gray-300 leading-relaxed">
+                同时清除本机所有学习数据（写作树、词库、活动日志、词汇、字形进度）。
+                <span className="block text-xs text-gray-500 mt-1">AI 模型配置将保留，无需重新填写密钥。</span>
+              </span>
+            </label>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowLogoutModal(false); setClearDataOnLogout(false); }}
+                className="flex-1 py-2.5 rounded-xl bg-dark hover:bg-gray-800 text-gray-200 border border-gray-600 font-bold transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => {
+                  if (clearDataOnLogout) clearAllLearningData();
+                  setShowLogoutModal(false);
+                  onLogout();
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold transition-colors"
+              >
+                确认退出
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

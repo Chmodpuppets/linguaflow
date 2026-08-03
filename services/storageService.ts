@@ -99,6 +99,16 @@ export const logoutUser = () => {
     localStorage.removeItem(STORAGE_KEY_USER);
 };
 
+// 清除本机全部「学习数据」（不含 AI 配置，避免重新输入密钥）。
+// 用户退出时若勾选「清除所有数据」再调用，防止换昵称后串用旧数据。
+export const clearAllLearningData = () => {
+    localStorage.removeItem(STORAGE_KEY_LOGS);
+    localStorage.removeItem(STORAGE_KEY_LIBRARY);
+    localStorage.removeItem(STORAGE_KEY_TREE);
+    localStorage.removeItem(STORAGE_KEY_VOCAB);
+    localStorage.removeItem(STORAGE_KEY_SCRIPT);
+};
+
 export const registerUser = (username: string, nativeLanguage: Language, learningLanguage: Language, level: CEFRLevel): UserProfile => {
   const newUser: UserProfile = {
     username,
