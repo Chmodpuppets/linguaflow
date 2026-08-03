@@ -17,6 +17,37 @@ function generateId() {
     return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
 }
 
+// --- 记忆化单字符组件：每次按键只有光标位与刚输入的那一个会重渲染，
+//     其余命中缓存，避免长文本打字时全量重协调导致的卡顿 ---
+interface CharSpanProps {
+    char: string;
+    isTyped: boolean;
+    isCorrect: boolean;
+    isCurrent: boolean;
+    charRef?: React.Ref<HTMLSpanElement>;
+}
+const CharSpan = React.memo(({ char, isTyped, isCorrect, isCurrent, charRef }: CharSpanProps) => {
+    let colorClass = 'text-gray-500';
+    let bgClass = 'bg-transparent';
+    if (isTyped) {
+        if (isCorrect) {
+            colorClass = 'text-green-400';
+        } else {
+            colorClass = 'text-red-400';
+            bgClass = 'bg-red-900/30';
+        }
+    }
+    return (
+        <span
+            ref={charRef}
+            className={`relative ${colorClass} ${bgClass}`}
+        >
+            {isCurrent && <span className="absolute -left-[1px] -top-1 h-8 w-[2px] bg-secondary animate-pulse" />}
+            {char}
+        </span>
+    );
+});
+
 // --- Helper: Parse Notes for Context ---
 const parseNotes = (notes: string) => {
     const translationMatch = notes.match(/\[Translation\]\n([\s\S]*?)(?=\n\[|$)/);
@@ -113,21 +144,25 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
       }
   }, [content]);
 
-  // 打字时让当前光标始终保持在可视区域中央，避免页面整体下滚
+  // 打字时让当前光标保持在可视区域：仅在光标离开可视区时才滚动，
+  // 避免每次按键都触发 smooth 滚动造成的卡顿与抖动
   useEffect(() => {
       if (!content || finished) return;
       const container = textContainerRef.current;
       const char = currentCharRef.current;
       if (!container || !char) return;
 
-      // 下一帧等 DOM 更新后再滚动，避免闪动
-      requestAnimationFrame(() => {
-          const containerRect = container.getBoundingClientRect();
-          const charRect = char.getBoundingClientRect();
-          const relativeTop = charRect.top - containerRect.top + container.scrollTop;
-          const targetScroll = relativeTop - container.clientHeight / 2 + charRect.height / 2;
-          container.scrollTo({ top: Math.max(0, targetScroll), behavior: 'smooth' });
-      });
+      const containerRect = container.getBoundingClientRect();
+      const charRect = char.getBoundingClientRect();
+      const margin = 8;
+      const isVisible =
+          charRect.top >= containerRect.top + margin &&
+          charRect.bottom <= containerRect.bottom - margin;
+      if (isVisible) return; // 光标已在可视区，无需滚动
+
+      const relativeTop = charRect.top - containerRect.top + container.scrollTop;
+      const targetScroll = relativeTop - container.clientHeight / 2 + charRect.height / 2;
+      container.scrollTo({ top: Math.max(0, targetScroll), behavior: 'smooth' });
   }, [inputValue, content, finished]);
 
   // --- Audio Engine Logic (Web Speech API) ---
@@ -473,32 +508,19 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
 
   const renderText = () => {
     if (!content || !content.text) return null;
+    const len = inputValue.length;
     return (
       <div className="text-2xl md:text-3xl font-mono leading-relaxed break-words tracking-wide">
-        {content.text.split('').map((char, index) => {
-          let colorClass = 'text-gray-500';
-          let bgClass = 'bg-transparent';
-          const isCurrent = index === inputValue.length;
-
-          if (index < inputValue.length) {
-            if (inputValue[index] === char) {
-              colorClass = 'text-green-400';
-            } else {
-              colorClass = 'text-red-400';
-              bgClass = 'bg-red-900/30';
-            }
-          }
-          return (
-            <span
-              key={index}
-              ref={isCurrent ? currentCharRef : null}
-              className={`relative ${colorClass} ${bgClass} transition-colors duration-75`}
-            >
-              {isCurrent && <span className="absolute -left-[1px] -top-1 h-8 w-[2px] bg-secondary animate-pulse" />}
-              {char}
-            </span>
-          );
-        })}
+        {content.text.split('').map((char, index) => (
+          <CharSpan
+            key={index}
+            char={char}
+            isTyped={index < len}
+            isCorrect={inputValue[index] === char}
+            isCurrent={index === len}
+            charRef={index === len ? currentCharRef : undefined}
+          />
+        ))}
       </div>
     );
   };
