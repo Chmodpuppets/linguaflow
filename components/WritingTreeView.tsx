@@ -166,7 +166,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
     const children = nodes.filter((n) => n.parentId === parentId);
     if (children.length === 0) return null;
     return (
-      <div className={depth > 0 ? 'ml-3 border-l border-gray-700/50' : ''}>
+      <div className={depth > 0 ? 'ml-3 border-l border-line-strong/50' : ''}>
         {children.map((node) => {
           const isTask = node.type === 'task';
           const isComp = node.type === 'composition';
@@ -177,7 +177,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
               <div
                 onClick={() => (isLeaf ? selectNode(node.id) : toggleExpand(node.id))}
                 className={`group flex items-center gap-2 p-2 rounded-lg cursor-pointer text-sm mb-1 select-none transition-all border
-                  ${activeId === node.id ? 'bg-secondary/20 text-white border-secondary/30' : 'text-gray-400 hover:bg-gray-800 border-transparent'}
+                  ${activeId === node.id ? 'bg-secondary/20 text-white border-secondary/30' : 'text-muted hover:bg-surface-3 border-transparent'}
                   ${locked ? 'opacity-40 cursor-not-allowed' : ''}`}
               >
                 {!isLeaf && (
@@ -200,13 +200,18 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                 ) : node.completed ? (
                   <CheckCircle2 size={16} className="text-green-400 flex-shrink-0" />
                 ) : locked ? (
-                  <Lock size={14} className="text-gray-500 flex-shrink-0" />
+                  <Lock size={14} className="text-muted flex-shrink-0" />
                 ) : (
                   <FileText size={16} className="text-teal-400 flex-shrink-0" />
                 )}
-                <span className="truncate flex-1 font-medium">{node.title}</span>
+                <span className="relative flex-1 group/tooltip">
+                  <span className="truncate block font-medium">{node.title}</span>
+                  <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 hidden group-hover/tooltip:block z-50 px-2 py-1 rounded-md bg-gray-900 text-white text-xs whitespace-nowrap border border-gray-700 shadow-lg">
+                    {node.title}
+                  </span>
+                </span>
                 {isTask && node.cefrLevel && (
-                  <span className="text-[10px] text-gray-500 flex-shrink-0">{node.cefrLevel}</span>
+                  <span className="text-[10px] text-muted flex-shrink-0">{node.cefrLevel}</span>
                 )}
                 {isComp && (
                   <>
@@ -235,11 +240,11 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
     <WritingLanguageGate user={user} onUpdateUser={onUpdateUser} featureName="写作树">
     <div className="flex flex-col lg:flex-row h-[calc(100vh-140px)] gap-4">
       {/* 左：成长树 */}
-      <div className="w-full lg:w-1/3 bg-card border border-gray-700 rounded-xl flex flex-col overflow-hidden">
-        <div className="p-4 border-b border-gray-700 flex items-center gap-2 bg-gray-900/50">
+      <div className="w-full lg:w-1/3 bg-card border border-line-strong rounded-xl flex flex-col overflow-hidden">
+        <div className="p-4 border-b border-line-strong flex items-center gap-2 bg-surface/50">
           <PenLine size={18} className="text-secondary" />
           <span className="font-bold text-gray-300">写作成长树</span>
-          <span className="ml-auto text-xs text-gray-500">
+          <span className="ml-auto text-xs text-muted">
             {completedCount} / {totalCount} 完成
           </span>
         </div>
@@ -247,9 +252,9 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
       </div>
 
       {/* 右：编辑器 */}
-      <div className="flex-1 bg-card border border-gray-700 rounded-xl flex flex-col overflow-hidden">
+      <div className="flex-1 bg-card border border-line-strong rounded-xl flex flex-col overflow-hidden">
         {!active ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-gray-500">
+          <div className="flex-1 flex flex-col items-center justify-center text-muted">
             <PenLine size={64} className="mb-4 opacity-20" />
             <p className="text-lg">从左侧选择一个解锁的写作任务或作文</p>
             <p className="text-sm opacity-50 mt-1">完成当前任务，解锁同主题下一题</p>
@@ -265,7 +270,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
         ) : (
           <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
             <div className="mb-4">
-              <div className="text-xs text-gray-500">{active.cefrLevel ?? userLevel} · 写作任务{active.register ? ` · ${REGISTER_LABELS[active.register]}语气` : ''}</div>
+              <div className="text-xs text-muted">{active.cefrLevel ?? userLevel} · 写作任务{active.register ? ` · ${REGISTER_LABELS[active.register]}语气` : ''}</div>
               <h3 className="text-xl font-bold text-white mt-1">{active.title}</h3>
               {active.register && (
                 <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-500/15 border border-purple-500/30 text-xs text-purple-200">
@@ -277,8 +282,8 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
 
             {/* 脚手架模板 / 情境 */}
             {active.scaffold ? (
-              <div className="bg-dark/50 border border-gray-700 rounded-xl p-4 mb-4">
-                <div className="text-xs text-gray-500 mb-2">句型模板（＿＿＿ 处填你的内容）</div>
+              <div className="bg-dark/50 border border-line-strong rounded-xl p-4 mb-4">
+                <div className="text-xs text-muted mb-2">句型模板（＿＿＿ 处填你的内容）</div>
                 <div className="text-2xl font-bold text-white font-mono leading-relaxed">
                   {active.scaffold.split('___').map((part, i, arr) => (
                     <React.Fragment key={i}>
@@ -289,11 +294,11 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                     </React.Fragment>
                   ))}
                 </div>
-                <div className="text-sm text-gray-400 mt-2">提示：{active.scaffoldHint}</div>
+                <div className="text-sm text-muted mt-2">提示：{active.scaffoldHint}</div>
               </div>
             ) : (
-              <div className="bg-dark/50 border border-gray-700 rounded-xl p-4 mb-4">
-                <div className="text-xs text-gray-500 mb-1">情境</div>
+              <div className="bg-dark/50 border border-line-strong rounded-xl p-4 mb-4">
+                <div className="text-xs text-muted mb-1">情境</div>
                 <div className="text-sm text-gray-300">{active.scaffoldHint}</div>
               </div>
             )}
@@ -309,7 +314,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                       ? '用日语写……（可输入罗马字，自动转假名）'
                       : `用 ${user.learningLanguage} 写……`
                   }
-                  className="w-full bg-dark/50 border border-gray-700 rounded-xl p-4 text-lg text-gray-200 outline-none focus:ring-2 focus:ring-secondary resize-none"
+                  className="w-full bg-dark/50 border border-line-strong rounded-xl p-4 text-lg text-gray-200 outline-none focus:ring-2 focus:ring-secondary resize-none"
                   rows={3}
                   autoFocus
                 />
@@ -317,7 +322,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                   input.trim() &&
                   /^[\x00-\x7F\s]+$/.test(input) &&
                   normalizedInput && (
-                    <div className="text-xs text-gray-400 bg-dark/30 border border-gray-700 rounded-lg p-2">
+                    <div className="text-xs text-muted bg-dark/30 border border-line-strong rounded-lg p-2">
                       → 转为假名：<span className="text-secondary font-mono">{normalizedInput}</span>
                     </div>
                   )}
@@ -356,8 +361,8 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                   </div>
                 </div>
 
-                <div className="bg-dark/30 border border-gray-700 rounded-xl p-4">
-                  <div className="text-xs text-gray-500 mb-1 flex items-center gap-2">
+                <div className="bg-dark/30 border border-line-strong rounded-xl p-4">
+                  <div className="text-xs text-muted mb-1 flex items-center gap-2">
                     AI 改写
                     <button
                       onClick={() => speak(feedback.correctedText)}
@@ -373,13 +378,13 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                   <div className="space-y-2">
                     <h4 className="text-white font-semibold text-sm">具体问题</h4>
                     {feedback.issues.map((it, i) => (
-                      <div key={i} className="bg-dark/30 border border-gray-700 rounded-lg p-3 text-sm">
+                      <div key={i} className="bg-dark/30 border border-line-strong rounded-lg p-3 text-sm">
                         <div className="flex items-center gap-3">
                           <span className="text-red-300 line-through flex-1">{it.original}</span>
-                          <ArrowRight size={16} className="text-gray-500" />
+                          <ArrowRight size={16} className="text-muted" />
                           <span className="text-green-300 font-medium flex-1">{it.fix}</span>
                         </div>
-                        <p className="mt-2 text-xs text-gray-400 pl-1 border-l-2 border-gray-600">{it.reason}</p>
+                        <p className="mt-2 text-xs text-muted pl-1 border-l-2 border-line-strong">{it.reason}</p>
                       </div>
                     ))}
                   </div>
