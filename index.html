@@ -4,61 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LinguaFlow - AI Language Trainer</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              primary: '#6366f1',
-              secondary: '#a855f7',
-              dark: '#0f172a',
-              card: '#1e293b',
-            },
-            fontFamily: {
-              sans: ['Inter', 'sans-serif'],
-              mono: ['Fira Code', 'monospace'],
-            }
-          }
-        }
-      }
-    </script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
-    <style>
-      body {
-        background-color: #0f172a;
-        color: #e2e8f0;
-        font-family: 'Inter', sans-serif;
-      }
-      /* Custom Scrollbar */
-      ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-      }
-      ::-webkit-scrollbar-track {
-        background: #1e293b; 
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #475569; 
-        border-radius: 4px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #64748b; 
-      }
-      .cursor-blink {
-        animation: blink 1s step-end infinite;
-      }
-      @keyframes blink {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0; }
-      }
-      @keyframes pop {
-        0% { opacity: 0; transform: translate(-50%, 6px) scale(0.7); }
-        60% { opacity: 1; transform: translate(-50%, -2px) scale(1.08); }
-        100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
-      }
-    </style>
-</head>
+  </head>
   <body>
     <div id="root"></div>
   <script type="module" src="/index.tsx"></script>

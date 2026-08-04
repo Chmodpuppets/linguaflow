@@ -90,7 +90,7 @@ const HandwritePad: React.FC<HandwritePadProps> = ({ height = 220, disabled = fa
         type="button"
         onClick={clear}
         disabled={disabled}
-        className="absolute top-2 right-2 px-3 py-1 rounded-lg bg-gray-800/80 text-xs text-gray-300 border border-gray-600 hover:text-white disabled:opacity-40"
+        className="absolute top-2 right-2 px-3 py-1 rounded-lg bg-surface-2/80 text-xs text-gray-300 border border-line-strong hover:text-white disabled:opacity-40"
       >
         清除
       </button>

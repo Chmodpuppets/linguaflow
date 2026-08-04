@@ -47,7 +47,7 @@ const WritingLanguageGate: React.FC<WritingLanguageGateProps> = ({
             <PenLine size={32} className="text-purple-400" />
           </div>
           <h2 className="text-2xl font-bold text-white mb-2">{featureName} · 语言选择</h2>
-          <p className="text-gray-400 text-sm">
+          <p className="text-muted text-sm">
             {featureName}目前仅支持部分语言。你的学习语言是
             <span className="text-secondary font-semibold mx-1">
               {currentLang?.flag} {currentLang?.label}
@@ -57,8 +57,8 @@ const WritingLanguageGate: React.FC<WritingLanguageGateProps> = ({
         </div>
 
         {/* 已支持语言：切换入口 */}
-        <div className="bg-card border border-gray-700 rounded-xl p-4 mb-6">
-          <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+        <div className="bg-card border border-line-strong rounded-xl p-4 mb-6">
+          <div className="text-xs font-bold text-muted uppercase tracking-wider mb-3 flex items-center gap-2">
             <CheckCircle2 size={14} className="text-green-400" /> 已支持 · 点击切换
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -79,8 +79,8 @@ const WritingLanguageGate: React.FC<WritingLanguageGateProps> = ({
         </div>
 
         {/* 全部语言可用性概览 */}
-        <div className="bg-card border border-gray-700 rounded-xl p-4">
-          <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+        <div className="bg-card border border-line-strong rounded-xl p-4">
+          <div className="text-xs font-bold text-muted uppercase tracking-wider mb-3 flex items-center gap-2">
             <Globe size={14} /> 全部语言支持情况
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -93,7 +93,7 @@ const WritingLanguageGate: React.FC<WritingLanguageGateProps> = ({
                   className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition-all ${
                     supported
                       ? 'bg-green-900/10 border-green-700/30 text-green-300'
-                      : 'bg-gray-800/30 border-gray-700/50 text-gray-500'
+                      : 'bg-surface-2/30 border-line-strong/50 text-muted'
                   } ${isCurrent ? 'ring-1 ring-secondary' : ''}`}
                 >
                   <span className="text-lg">{lang.flag}</span>
@@ -101,7 +101,7 @@ const WritingLanguageGate: React.FC<WritingLanguageGateProps> = ({
                   {supported ? (
                     <CheckCircle2 size={16} className="text-green-400 flex-shrink-0" />
                   ) : (
-                    <span className="text-[10px] text-gray-600 flex items-center gap-0.5 flex-shrink-0">
+                    <span className="text-[10px] text-faint flex items-center gap-0.5 flex-shrink-0">
                       <Clock size={10} /> 待开发
                     </span>
                   )}
@@ -111,7 +111,7 @@ const WritingLanguageGate: React.FC<WritingLanguageGateProps> = ({
           </div>
         </div>
 
-        <p className="text-center text-xs text-gray-600 mt-4">
+        <p className="text-center text-xs text-faint mt-4">
           更多语言的写作内容正在开发中，敬请期待 🚀
         </p>
       </div>

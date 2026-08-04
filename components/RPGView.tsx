@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, RPGScenario, RPGMessage, ScenarioDef, CEFRLevel } from '../types';
 import { RPG_PACKS } from '../data/rpgScenarios';
-import { startRPGScenario, continueRPGTurn, generateSpeech, cancelSpeech, transcribeAudio, buildTutorSystemPrompt } from '../services/aiService';
+import { startRPGScenario, continueRPGTurn, playCachedSpeech, cancelSpeech, pauseSpeech, resumeSpeech, hasPausedSpeech, transcribeAudio, buildTutorSystemPrompt } from '../services/aiService';
 import { addActivity, saveVocabularyItem } from '../services/storageService';
 import { 
     Send, Mic, Volume2, User, Bot, CheckCircle2, 
@@ -171,25 +171,38 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
     }, []);
 
     // --- Audio Playback ---
+    // 三态：未激活（无面板）/ 播放中 / 已暂停（面板保留，可续播）。
+    // 关键：暂停只 pauseSpeech()，绝不清 activeMessageId——否则面板会被卸载。
     const onAudioButton = (msgId: string, text: string) => {
-        if (activeMessageId === msgId && isPlaying) {
-            cancelSpeech();
-            setIsPlaying(false);
-            setActiveMessageId(null);
+        // 同一条消息：播放中 → 暂停（保留面板）；已暂停 → 续播
+        if (activeMessageId === msgId) {
+            if (isPlaying) {
+                pauseSpeech();
+                setIsPlaying(false);
+            } else if (hasPausedSpeech()) {
+                resumeSpeech();
+                setIsPlaying(true);
+            } else {
+                // 已播完或音源已销毁 → 从头重播（缓存命中时零 API）
+                setIsPlaying(true);
+                playCachedSpeech(text, {
+                    lang: user.learningLanguage,
+                    onEnd: () => setIsPlaying(false),
+                });
+            }
             return;
         }
+        // 切到另一条消息：停掉旧的，从头播新的
         cancelSpeech();
         setActiveMessageId(msgId);
         setIsPlaying(true);
-        generateSpeech(text, {
+        playCachedSpeech(text, {
             lang: user.learningLanguage,
-            onEnd: () => {
-                setIsPlaying(false);
-                if (activeMessageId === msgId) setActiveMessageId(null);
-            },
+            onEnd: () => setIsPlaying(false),
         });
     };
 
+    /** 关闭播放面板（唯一会清 activeMessageId 的入口）。 */
     const onStopAudio = () => {
         cancelSpeech();
         setIsPlaying(false);
@@ -424,7 +437,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                     <h2 className="text-4xl font-bold text-white mb-4 flex items-center justify-center gap-3">
                         <Gamepad2 size={40} className="text-secondary" /> 剧情对话
                     </h2>
-                    <p className="text-gray-400 max-w-lg mx-auto text-lg">
+                    <p className="text-muted max-w-lg mx-auto text-lg">
                         沉浸式角色扮演场景。选择一个场景，化身角色，通过对话完成任务。
                     </p>
                 </div>
@@ -459,11 +472,11 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                                 <div className="flex items-center gap-2 mb-3">
                                     <Save size={18} className="text-primary" />
                                     <h3 className="text-white font-bold">我的自定义剧本</h3>
-                                    <span className="text-xs text-gray-500">（本机保存，可复用）</span>
+                                    <span className="text-xs text-muted">（本机保存，可复用）</span>
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                                     {myScenarios.map(sc => (
-                                        <div key={sc.id} className="group relative bg-card border border-gray-700 hover:border-primary p-4 rounded-xl transition-all">
+                                        <div key={sc.id} className="group relative bg-card border border-line-strong hover:border-primary p-4 rounded-xl transition-all">
                                             <button
                                                 onClick={() => handleStart(sc, '自定义剧情')}
                                                 className="text-left w-full"
@@ -474,15 +487,15 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                                                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 whitespace-nowrap">灵感</span>
                                                     )}
                                                 </div>
-                                                <p className="text-xs text-gray-500 mt-1 line-clamp-2">{sc.context}</p>
+                                                <p className="text-xs text-muted mt-1 line-clamp-2">{sc.context}</p>
                                                 <div className="flex flex-wrap gap-1 mt-2">
-                                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">你：{sc.userRole}</span>
-                                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">TA：{sc.aiRole}</span>
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-muted">你：{sc.userRole}</span>
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-muted">TA：{sc.aiRole}</span>
                                                 </div>
                                             </button>
                                             <button
                                                 onClick={() => removeCustom(sc.id)}
-                                                className="absolute top-2 right-2 p-1 rounded-full text-gray-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                                                className="absolute top-2 right-2 p-1 rounded-full text-faint hover:text-red-400 hover:bg-red-500/10 transition-colors"
                                                 title="删除"
                                             >
                                                 <Trash2 size={14} />
@@ -500,7 +513,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                                         <span className="text-2xl">{pack.icon}</span>
                                         <div>
                                             <h3 className="text-white font-bold">{pack.name}</h3>
-                                            <p className="text-xs text-gray-500">{pack.description}</p>
+                                            <p className="text-xs text-muted">{pack.description}</p>
                                         </div>
                                     </div>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -508,7 +521,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                                             <button
                                                 key={sc.id}
                                                 onClick={() => handleStart(sc, pack.name)}
-                                                className="text-left bg-card border border-gray-700 hover:border-secondary hover:bg-secondary/10 p-4 rounded-xl transition-all group"
+                                                className="text-left bg-card border border-line-strong hover:border-secondary hover:bg-secondary/10 p-4 rounded-xl transition-all group"
                                             >
                                                 <div className="flex items-center justify-between gap-2">
                                                     <span className="font-bold text-gray-200 group-hover:text-white">{sc.title}</span>
@@ -516,10 +529,10 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                                                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 whitespace-nowrap">影视</span>
                                                     )}
                                                 </div>
-                                                <p className="text-xs text-gray-500 mt-1 line-clamp-2">{sc.context}</p>
+                                                <p className="text-xs text-muted mt-1 line-clamp-2">{sc.context}</p>
                                                 <div className="flex flex-wrap gap-1 mt-2">
                                                     {sc.tags.map(t => (
-                                                        <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">{t}</span>
+                                                        <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-surface-2 text-muted">{t}</span>
                                                     ))}
                                                 </div>
                                             </button>
@@ -539,56 +552,56 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                                 <h3 className="text-xl font-bold text-white flex items-center gap-2">
                                     <Wand2 size={20} className="text-secondary" /> 创建自定义剧情
                                 </h3>
-                                <button onClick={() => setShowCustomForm(false)} className="text-gray-500 hover:text-white transition-colors"><X size={20} /></button>
+                                <button onClick={() => setShowCustomForm(false)} className="text-muted hover:text-white transition-colors"><X size={20} /></button>
                             </div>
 
                             <div className="space-y-4">
                                 <div>
-                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">剧情主题 *</label>
+                                    <label className="text-xs font-bold text-muted uppercase tracking-wider">剧情主题 *</label>
                                     <input
                                         value={customTitle}
                                         onChange={e => setCustomTitle(e.target.value)}
                                         placeholder="如：在赛博朋克城市当赏金猎人"
-                                        className="w-full mt-1 bg-dark border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-600 outline-none focus:ring-2 focus:ring-secondary"
+                                        className="w-full mt-1 bg-dark border border-line-strong rounded-lg px-3 py-2 text-white placeholder-muted outline-none focus:ring-2 focus:ring-secondary"
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">场景设定（可选）</label>
+                                    <label className="text-xs font-bold text-muted uppercase tracking-wider">场景设定（可选）</label>
                                     <textarea
                                         value={customContext}
                                         onChange={e => setCustomContext(e.target.value)}
                                         placeholder="补充时间、地点、世界观或背景故事"
                                         rows={2}
-                                        className="w-full mt-1 bg-dark border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-600 outline-none focus:ring-2 focus:ring-secondary resize-none"
+                                        className="w-full mt-1 bg-dark border border-line-strong rounded-lg px-3 py-2 text-white placeholder-muted outline-none focus:ring-2 focus:ring-secondary resize-none"
                                     />
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
-                                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">我的角色 *</label>
+                                        <label className="text-xs font-bold text-muted uppercase tracking-wider">我的角色 *</label>
                                         <input
                                             value={customUserRole}
                                             onChange={e => setCustomUserRole(e.target.value)}
                                             placeholder="如：新来的实习生"
-                                            className="w-full mt-1 bg-dark border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-600 outline-none focus:ring-2 focus:ring-secondary"
+                                            className="w-full mt-1 bg-dark border border-line-strong rounded-lg px-3 py-2 text-white placeholder-muted outline-none focus:ring-2 focus:ring-secondary"
                                         />
                                     </div>
                                     <div>
-                                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">对方角色（可选）</label>
+                                        <label className="text-xs font-bold text-muted uppercase tracking-wider">对方角色（可选）</label>
                                         <input
                                             value={customAiRole}
                                             onChange={e => setCustomAiRole(e.target.value)}
                                             placeholder="如：严厉的老板"
-                                            className="w-full mt-1 bg-dark border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-600 outline-none focus:ring-2 focus:ring-secondary"
+                                            className="w-full mt-1 bg-dark border border-line-strong rounded-lg px-3 py-2 text-white placeholder-muted outline-none focus:ring-2 focus:ring-secondary"
                                         />
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-3">
                                     <div>
-                                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">难度</label>
+                                        <label className="text-xs font-bold text-muted uppercase tracking-wider">难度</label>
                                         <select
                                             value={customLevel}
                                             onChange={e => setCustomLevel(e.target.value)}
-                                            className="w-full mt-1 bg-dark border border-gray-700 rounded-lg px-3 py-2 text-white outline-none focus:ring-2 focus:ring-secondary"
+                                            className="w-full mt-1 bg-dark border border-line-strong rounded-lg px-3 py-2 text-white outline-none focus:ring-2 focus:ring-secondary"
                                         >
                                             <option value="auto">跟随我的等级</option>
                                             <option value="A1">A1</option>
@@ -598,23 +611,23 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">灵感来源（可选）</label>
+                                        <label className="text-xs font-bold text-muted uppercase tracking-wider">灵感来源（可选）</label>
                                         <input
                                             value={customInspired}
                                             onChange={e => setCustomInspired(e.target.value)}
                                             placeholder="如：银翼杀手"
-                                            className="w-full mt-1 bg-dark border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-600 outline-none focus:ring-2 focus:ring-secondary"
+                                            className="w-full mt-1 bg-dark border border-line-strong rounded-lg px-3 py-2 text-white placeholder-muted outline-none focus:ring-2 focus:ring-secondary"
                                         />
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">任务目标（可选，每行一个）</label>
+                                    <label className="text-xs font-bold text-muted uppercase tracking-wider">任务目标（可选，每行一个）</label>
                                     <textarea
                                         value={customObjectives}
                                         onChange={e => setCustomObjectives(e.target.value)}
                                         placeholder={'不填则给一个通用目标\n可填：\n点一杯饮料\n问清价格'}
                                         rows={3}
-                                        className="w-full mt-1 bg-dark border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-600 outline-none focus:ring-2 focus:ring-secondary resize-none"
+                                        className="w-full mt-1 bg-dark border border-line-strong rounded-lg px-3 py-2 text-white placeholder-muted outline-none focus:ring-2 focus:ring-secondary resize-none"
                                     />
                                 </div>
                                 <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
@@ -631,7 +644,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                             <div className="flex justify-end gap-3 mt-6">
                                 <button
                                     onClick={() => setShowCustomForm(false)}
-                                    className="px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-colors font-medium text-sm"
+                                    className="px-4 py-2 text-gray-300 hover:text-white hover:bg-surface-3 rounded-lg transition-colors font-medium text-sm"
                                 >
                                     取消
                                 </button>
@@ -667,7 +680,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                         <div className="flex justify-end gap-3">
                             <button 
                                 onClick={() => setShowExitConfirm(false)}
-                                className="px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-colors font-medium text-sm"
+                                className="px-4 py-2 text-gray-300 hover:text-white hover:bg-surface-3 rounded-lg transition-colors font-medium text-sm"
                             >
                                 取消
                             </button>
@@ -689,7 +702,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                         {/* Close button for overlay */}
                         <button 
                             onClick={() => setShowVictoryModal(false)}
-                            className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors p-1"
+                            className="absolute top-4 right-4 text-muted hover:text-white transition-colors p-1"
                             title="关闭并查看对话"
                         >
                             <X size={20} />
@@ -701,13 +714,13 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                                 ? '完美通关！'
                                 : '任务完成！'}
                         </h2>
-                        <p className="text-gray-400 mb-6">
+                        <p className="text-muted mb-6">
                             {scenario && scenario.objectives.length > 0
                                 ? `你完成了 ${completedObjectives.size} / ${scenario.objectives.length} 个目标，获得了经验值。`
                                 : '你成功完成了场景，获得了经验值。'}
                         </p>
                         <div className="flex gap-3 justify-center">
-                            <button onClick={performExit} className="px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-xl font-bold">
+                            <button onClick={performExit} className="px-6 py-3 bg-surface-3 hover:bg-surface-3 text-white rounded-xl font-bold">
                                 退出
                             </button>
                             {currentDef && (
@@ -721,13 +734,13 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
             )}
 
             {/* Left Panel: Info & Objectives */}
-            <div className="w-full lg:w-1/4 bg-card border border-gray-700 rounded-2xl flex flex-col overflow-hidden">
-                <div className="p-4 bg-gray-900/50 border-b border-gray-700">
-                    <button onClick={handleExitClick} className="text-xs text-gray-500 hover:text-white flex items-center gap-1 mb-2">
+            <div className="w-full lg:w-1/4 bg-card border border-line-strong rounded-2xl flex flex-col overflow-hidden">
+                <div className="p-4 bg-surface/50 border-b border-line-strong">
+                    <button onClick={handleExitClick} className="text-xs text-muted hover:text-white flex items-center gap-1 mb-2">
                         <ArrowRight className="rotate-180" size={12} /> 退出任务
                     </button>
                     <h3 className="font-bold text-white text-lg leading-tight">{scenario.title}</h3>
-                    <p className="text-xs text-gray-400 mt-1">{scenario.context}</p>
+                    <p className="text-xs text-muted mt-1">{scenario.context}</p>
                     <div className="flex flex-wrap gap-1.5 mt-2">
                         {scenario.universe && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-secondary/10 text-secondary border border-secondary/30">
@@ -744,7 +757,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
 
                 <div className="flex-1 p-4 overflow-y-auto custom-scrollbar">
                     <div className="mb-6">
-                        <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">角色</h4>
+                        <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-3">角色</h4>
                         <div className="space-y-2">
                             <div className="flex items-center gap-2 text-sm text-gray-300">
                                 <User size={16} className="text-primary" /> 
@@ -760,19 +773,19 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                                 <div className="flex items-center gap-2 text-sm text-secondary font-bold mb-1">
                                     <Sparkles size={14} /> {scenario.character.name}
                                 </div>
-                                <p className="text-xs text-gray-400 leading-relaxed">{scenario.character.persona}</p>
+                                <p className="text-xs text-muted leading-relaxed">{scenario.character.persona}</p>
                             </div>
                         )}
                     </div>
 
                     <div>
-                        <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">任务目标</h4>
+                        <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-3">任务目标</h4>
                         <div className="space-y-3">
                             {scenario.objectives.map((obj, idx) => {
                                 const isDone = completedObjectives.has(obj);
                                 return (
-                                    <div key={idx} className={`flex items-start gap-2 text-sm p-2 rounded-lg transition-colors ${isDone ? 'bg-green-900/20 text-green-400' : 'bg-gray-800/50 text-gray-400'}`}>
-                                        <div className={`mt-0.5 ${isDone ? 'text-green-500' : 'text-gray-600'}`}>
+                                    <div key={idx} className={`flex items-start gap-2 text-sm p-2 rounded-lg transition-colors ${isDone ? 'bg-green-900/20 text-green-400' : 'bg-surface-2/50 text-muted'}`}>
+                                        <div className={`mt-0.5 ${isDone ? 'text-green-500' : 'text-faint'}`}>
                                             {isDone ? <CheckCircle2 size={16} /> : <div className="w-4 h-4 rounded-full border-2 border-current" />}
                                         </div>
                                         <span className={isDone ? 'line-through opacity-70' : ''}>{obj}</span>
@@ -784,12 +797,12 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                 </div>
                 
                 {/* Progress Bar based on objectives */}
-                <div className="p-4 border-t border-gray-700 bg-gray-900/30">
-                    <div className="flex justify-between text-xs text-gray-400 mb-1">
+                <div className="p-4 border-t border-line-strong bg-surface/30">
+                    <div className="flex justify-between text-xs text-muted mb-1">
                         <span>进度</span>
                         <span>{Math.round((completedObjectives.size / scenario.objectives.length) * 100)}%</span>
                     </div>
-                    <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                    <div className="h-2 bg-surface-3 rounded-full overflow-hidden">
                         <div 
                             className="h-full bg-secondary transition-all duration-500" 
                             style={{ width: `${(completedObjectives.size / scenario.objectives.length) * 100}%` }}
@@ -799,7 +812,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
             </div>
 
             {/* Right Panel: Chat Interface */}
-            <div className="flex-1 bg-card border border-gray-700 rounded-2xl flex flex-col overflow-hidden relative">
+            <div className="flex-1 bg-card border border-line-strong rounded-2xl flex flex-col overflow-hidden relative">
                 
                 {/* Chat Area */}
                 <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
@@ -809,7 +822,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
 
                         return (
                             <div key={msg.id} className={`flex ${isAi ? 'justify-start' : 'justify-end'}`}>
-                                <div className={`max-w-[85%] lg:max-w-[70%] rounded-2xl p-4 ${isAi ? 'bg-gray-800 rounded-tl-none' : 'bg-primary/20 border border-primary/30 rounded-tr-none'}`}>
+                                <div className={`max-w-[85%] lg:max-w-[70%] rounded-2xl p-4 ${isAi ? 'bg-surface-2 rounded-tl-none' : 'bg-primary/20 border border-primary/30 rounded-tr-none'}`}>
                                     {/* Header */}
                                     {isAi && (
                                         <div className="flex items-center justify-between mb-2">
@@ -818,7 +831,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                                             {!isAudioActive && (
                                                 <button 
                                                     onClick={() => onAudioButton(msg.id, msg.text)}
-                                                    className="p-1 rounded-full text-gray-500 hover:text-white transition-colors"
+                                                    className="p-1 rounded-full text-muted hover:text-white transition-colors"
                                                     title="听发音"
                                                 >
                                                     <Volume2 size={14} />
@@ -829,7 +842,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
 
                                     {/* Phonetic Guide (Optional) */}
                                     {isAi && showPhonetics && msg.phonetic && (
-                                        <p className="text-gray-500 text-sm mb-1 font-mono tracking-wide">
+                                        <p className="text-muted text-sm mb-1 font-mono tracking-wide">
                                             {msg.phonetic}
                                         </p>
                                     )}
@@ -841,14 +854,14 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                                     
                                     {/* Translation (for AI) */}
                                     {isAi && msg.translation && (
-                                        <p className="text-gray-500 text-sm mt-2 italic border-t border-gray-700/50 pt-2">
+                                        <p className="text-muted text-sm mt-2 italic border-t border-line-strong/50 pt-2">
                                             {msg.translation}
                                         </p>
                                     )}
 
                                     {/* Audio Player (simplified) */}
                                     {isAi && isAudioActive && (
-                                        <div className="mt-3 bg-gray-900/80 rounded-lg p-3 border border-gray-700">
+                                        <div className="mt-3 bg-surface/80 rounded-lg p-3 border border-line-strong">
                                             <div className="flex items-center gap-3">
                                                 <button
                                                     onClick={() => onAudioButton(msg.id, msg.text)}
@@ -856,10 +869,10 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                                                 >
                                                     {isPlaying ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
                                                 </button>
-                                                <span className="text-sm text-gray-400 flex-1">
-                                                    {isPlaying ? "播放中…" : "已暂停"}
+                                                <span className="text-sm text-muted flex-1">
+                                                    {isPlaying ? "播放中…" : "已暂停 · 点 ▶ 继续"}
                                                 </span>
-                                                <button onClick={onStopAudio} className="text-gray-500 hover:text-white">
+                                                <button onClick={onStopAudio} className="text-muted hover:text-white" title="关闭播放器">
                                                     <X size={14} />
                                                 </button>
                                             </div>
@@ -868,7 +881,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
 
                                     {/* Vocab Chips */}
                                     {isAi && msg.vocabularyHighlights && msg.vocabularyHighlights.length > 0 && (
-                                        <div className="mt-3 flex flex-wrap gap-2 pt-2 border-t border-gray-700/50">
+                                        <div className="mt-3 flex flex-wrap gap-2 pt-2 border-t border-line-strong/50">
                                             {msg.vocabularyHighlights.map((vocab, vIdx) => (
                                                 <button
                                                     key={vIdx}
@@ -889,7 +902,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                     
                     {isProcessing && (
                          <div className="flex justify-start">
-                             <div className="bg-gray-800 rounded-2xl rounded-tl-none p-4 flex items-center gap-2">
+                             <div className="bg-surface-2 rounded-2xl rounded-tl-none p-4 flex items-center gap-2">
                                  <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                                  <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                                  <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
@@ -914,7 +927,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                 )}
 
                 {/* Input Area */}
-                <div className="p-4 bg-gray-900 border-t border-gray-700">
+                <div className="p-4 bg-surface border-t border-line-strong">
                     
                     {/* Hint Display */}
                     {showHint && currentSuggestion && (
@@ -938,7 +951,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                     {/* Branching Choices */}
                     {currentChoices.length > 0 && !isProcessing && !isFinished && (
                         <div className="mb-3 animate-in slide-in-from-bottom-2">
-                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide block mb-2">剧情分支 · 选一个推进</span>
+                            <span className="text-[10px] font-bold text-muted uppercase tracking-wide block mb-2">剧情分支 · 选一个推进</span>
                             <div className="flex flex-wrap gap-2">
                                 {currentChoices.map((c, i) => (
                                     <button
@@ -958,7 +971,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                         <button 
                             onClick={() => setShowHint(!showHint)}
                             disabled={!currentSuggestion}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${showHint ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'bg-gray-800 text-gray-400 hover:bg-gray-700 disabled:opacity-30'}`}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${showHint ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'bg-surface-2 text-muted hover:bg-surface-3 disabled:opacity-30'}`}
                             title="显示建议回复"
                         >
                             <Lightbulb size={14} className={showHint ? "text-yellow-300 fill-yellow-300" : ""} /> Hint
@@ -966,7 +979,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                         
                         <button 
                             onClick={() => setShowPhonetics(!showPhonetics)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${showPhonetics ? 'bg-secondary text-white shadow-lg shadow-secondary/20' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${showPhonetics ? 'bg-secondary text-white shadow-lg shadow-secondary/20' : 'bg-surface-2 text-muted hover:bg-surface-3'}`}
                             title="切换发音指南（罗马音/拼音）"
                         >
                             <Languages size={14} /> 发音指南
@@ -976,7 +989,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                         <button
                             onClick={isRecording ? stopRecording : startRecording}
                             disabled={isProcessing || isFinished || isTranscribing}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-30 ${isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-30 ${isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-surface-2 text-muted hover:bg-surface-3'}`}
                             title={isRecording ? '停止录音并识别' : '语音输入（录音后自动转写）'}
                         >
                             {isRecording ? <Square size={14} fill="currentColor" /> : <Mic size={14} />}
@@ -992,7 +1005,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
                             placeholder={`以「${scenario.userRole}」的身份回复……`}
                             disabled={isProcessing || isFinished}
-                            className="w-full bg-dark border border-gray-700 rounded-xl pl-4 pr-12 py-4 text-white placeholder-gray-600 focus:ring-2 focus:ring-secondary focus:border-transparent outline-none disabled:opacity-50"
+                            className="w-full bg-dark border border-line-strong rounded-xl pl-4 pr-12 py-4 text-white placeholder-muted focus:ring-2 focus:ring-secondary focus:border-transparent outline-none disabled:opacity-50"
                         />
                         <button
                             onClick={handleSend}
@@ -1003,7 +1016,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                         </button>
                     </div>
                     <div className="text-center mt-2">
-                         <span className="text-[10px] text-gray-600 uppercase tracking-widest font-bold">打字或语音回复</span>
+                         <span className="text-[10px] text-faint uppercase tracking-widest font-bold">打字或语音回复</span>
                     </div>
                 </div>
             </div>

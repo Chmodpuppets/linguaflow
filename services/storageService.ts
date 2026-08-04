@@ -20,12 +20,15 @@ export interface AIConfig {
   active: AIProviderId;
   glm: { baseUrl: string; model: string; apiKey: string };
   custom: { baseUrl: string; model: string; apiKey: string };
+  /** Qwen TTS 音色 id（qwen3-tts-flash 的 voice 参数），见 aiService.TTS_VOICES */
+  ttsVoice: string;
 }
 
 export const defaultAIConfig = (): AIConfig => ({
   active: 'glm', // 默认推荐智谱 GLM 免费模型（见 README「模型切换」）
   glm: { baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'GLM-4.7-Flash', apiKey: '' },
   custom: { baseUrl: '', model: '', apiKey: '' },
+  ttsVoice: 'Cherry',
 });
 
 export const getAIConfig = (): AIConfig => {
@@ -38,6 +41,7 @@ export const getAIConfig = (): AIConfig => {
       active: (p.active as AIProviderId) || d.active,
       glm: { ...d.glm, ...(p.glm || {}) },
       custom: { ...d.custom, ...(p.custom || {}) },
+      ttsVoice: p.ttsVoice || d.ttsVoice,
     };
   } catch {
     return defaultAIConfig();

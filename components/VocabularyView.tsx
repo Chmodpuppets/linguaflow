@@ -133,19 +133,19 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser }) =
            <h2 className="text-2xl font-bold text-white flex items-center gap-2">
              <BookA className="text-secondary" /> 词汇库
            </h2>
-           <p className="text-gray-400 text-sm">为 {user.learningLanguage} 建立你的私人词典。</p>
+           <p className="text-muted text-sm">为 {user.learningLanguage} 建立你的私人词典。</p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex bg-gray-900/60 rounded-xl p-1 border border-gray-800">
+          <div className="flex bg-surface/60 rounded-xl p-1 border border-line">
             <button
               onClick={() => setViewMode('browse')}
-              className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${viewMode === 'browse' ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'}`}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${viewMode === 'browse' ? 'bg-primary text-white' : 'text-muted hover:text-white'}`}
             >
               <Layers size={16} className="inline mr-1 -mt-0.5" /> 词库
             </button>
             <button
               onClick={startReview}
-              className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${viewMode === 'review' ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'}`}
+              className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${viewMode === 'review' ? 'bg-primary text-white' : 'text-muted hover:text-white'}`}
             >
               <Repeat size={16} className="inline mr-1 -mt-0.5" /> 复习{dueCount > 0 ? ` (${dueCount})` : ''}
             </button>
@@ -163,10 +163,10 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser }) =
       {viewMode === 'review' && (
         <div className="max-w-2xl mx-auto w-full">
           {queue.length > 0 ? (
-            <div className="bg-card border border-gray-700 rounded-2xl p-8 text-center">
-              <div className="flex justify-between items-center mb-4 text-xs text-gray-500">
+            <div className="bg-card border border-line-strong rounded-2xl p-8 text-center">
+              <div className="flex justify-between items-center mb-4 text-xs text-muted">
                 <span>复习进度 {reviewDone}/{queue.length}</span>
-                <span className="px-2 py-0.5 rounded-full bg-gray-800 border border-gray-700">
+                <span className="px-2 py-0.5 rounded-full bg-surface-2 border border-line-strong">
                   Box {queue[reviewIdx]?.box ?? 1}
                 </span>
               </div>
@@ -185,17 +185,17 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser }) =
                   </button>
                   <button
                     onClick={() => generateSpeech(queue[reviewIdx]?.word || '', { lang: user.learningLanguage })}
-                    className="flex items-center justify-center gap-2 w-full py-2 text-gray-400 hover:text-secondary"
+                    className="flex items-center justify-center gap-2 w-full py-2 text-muted hover:text-secondary"
                   >
                     <Volume2 size={16} /> 听发音
                   </button>
                 </div>
               ) : (
                 <div className="space-y-5">
-                  <div className="p-4 bg-gray-800/40 rounded-xl text-left">
+                  <div className="p-4 bg-surface-2/40 rounded-xl text-left">
                     <p className="text-gray-200 text-sm mb-2">{queue[reviewIdx]?.definition}</p>
                     {queue[reviewIdx]?.exampleSentence && (
-                      <p className="text-gray-400 text-xs italic">"{queue[reviewIdx]?.exampleSentence}"</p>
+                      <p className="text-muted text-xs italic">"{queue[reviewIdx]?.exampleSentence}"</p>
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -216,10 +216,10 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser }) =
               )}
             </div>
           ) : (
-            <div className="bg-card border border-gray-700 rounded-2xl p-10 text-center">
+            <div className="bg-card border border-line-strong rounded-2xl p-10 text-center">
               <Repeat size={40} className="text-green-400 mx-auto mb-4" />
               <div className="text-xl font-bold text-white mb-1">本轮复习完成 🎉</div>
-              <p className="text-gray-400 text-sm mb-6">你刚刚复习了 {reviewDone} 个单词。间隔复习让记忆更牢。</p>
+              <p className="text-muted text-sm mb-6">你刚刚复习了 {reviewDone} 个单词。间隔复习让记忆更牢。</p>
               <button
                 onClick={() => setViewMode('browse')}
                 className="px-6 py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary/80"
@@ -233,39 +233,39 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser }) =
 
       {/* Search & List (browse) */}
       {viewMode === 'browse' && (
-      <div className="flex-1 bg-card border border-gray-700 rounded-xl overflow-hidden flex flex-col">
-          <div className="p-4 border-b border-gray-700 bg-gray-900/30">
+      <div className="flex-1 bg-card border border-line-strong rounded-xl overflow-hidden flex flex-col">
+          <div className="p-4 border-b border-line-strong bg-surface/30">
               <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={18} />
                   <input 
                     type="text" 
                     value={filter}
                     onChange={(e) => setFilter(e.target.value)}
                     placeholder="搜索你的单词…"
-                    className="w-full bg-dark border border-gray-600 rounded-lg pl-10 pr-4 py-3 text-white focus:ring-2 focus:ring-secondary focus:border-transparent outline-none"
+                    className="w-full bg-dark border border-line-strong rounded-lg pl-10 pr-4 py-3 text-white focus:ring-2 focus:ring-secondary focus:border-transparent outline-none"
                   />
               </div>
           </div>
 
           <div className="flex-1 overflow-y-auto custom-scrollbar p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 content-start">
               {items.length === 0 ? (
-                  <div className="col-span-full flex flex-col items-center justify-center h-64 text-gray-500">
+                  <div className="col-span-full flex flex-col items-center justify-center h-64 text-muted">
                       <BookA size={48} className="mb-4 opacity-30" />
                       <p>还没有保存单词。</p>
                       <button onClick={() => setIsAdding(true)} className="text-secondary hover:underline mt-2">添加第一个单词</button>
                   </div>
               ) : filteredItems.length === 0 ? (
-                  <div className="col-span-full text-center text-gray-500 py-12">没有找到匹配项。</div>
+                  <div className="col-span-full text-center text-muted py-12">没有找到匹配项。</div>
               ) : (
                   filteredItems.map(item => (
-                      <div key={item.id} className="bg-dark/50 border border-gray-700 rounded-xl p-4 hover:border-gray-500 transition-colors group relative">
+                      <div key={item.id} className="bg-dark/50 border border-line-strong rounded-xl p-4 hover:border-line-strong transition-colors group relative">
                           <div className="flex justify-between items-start mb-2">
                               <div>
                                   <div className="flex items-center gap-2">
                                       <h3 className="text-xl font-bold text-white">{item.word}</h3>
                                       <button
                                         onClick={() => generateSpeech(item.word, { lang: user.learningLanguage })}
-                                        className="text-gray-500 hover:text-secondary transition-colors"
+                                        className="text-muted hover:text-secondary transition-colors"
                                         title="朗读单词"
                                       >
                                         <Volume2 size={16} />
@@ -277,7 +277,7 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser }) =
                               </div>
                               <button 
                                 onClick={() => handleDelete(item.id)}
-                                className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                                className="text-faint hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity p-1"
                               >
                                   <Trash2 size={16} />
                               </button>
@@ -286,12 +286,12 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser }) =
                           <p className="text-gray-300 text-sm mb-3 font-medium">{item.definition}</p>
                           
                           {item.exampleSentence && (
-                              <div className="bg-gray-800/50 p-2 rounded-lg text-xs text-gray-400 italic border-l-2 border-gray-600">
+                              <div className="bg-surface-2/50 p-2 rounded-lg text-xs text-muted italic border-l-2 border-line-strong">
                                   "{item.exampleSentence}"
                               </div>
                           )}
                           
-                          <div className="mt-3 text-[10px] text-gray-600 flex justify-end">
+                          <div className="mt-3 text-[10px] text-faint flex justify-end">
                               添加于 {new Date(item.createdAt).toLocaleDateString()}
                           </div>
                       </div>
@@ -304,21 +304,21 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser }) =
       {/* Add Word Modal */}
       {isAdding && (
           <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-              <div className="bg-card border border-gray-600 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-                  <div className="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-900/50">
+              <div className="bg-card border border-line-strong rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                  <div className="p-4 border-b border-line-strong flex justify-between items-center bg-surface/50">
                       <h3 className="font-bold text-white">添加新单词</h3>
-                      <button onClick={resetForm} className="text-gray-400 hover:text-white"><X size={20} /></button>
+                      <button onClick={resetForm} className="text-muted hover:text-white"><X size={20} /></button>
                   </div>
                   
                   <div className="p-6 space-y-4 overflow-y-auto">
                       <div>
-                          <label className="block text-xs font-bold text-gray-400 uppercase mb-1">单词</label>
+                          <label className="block text-xs font-bold text-muted uppercase mb-1">单词</label>
                           <div className="flex gap-2">
                               <input 
                                   type="text" 
                                   value={newWord}
                                   onChange={(e) => setNewWord(e.target.value)}
-                                  className="flex-1 bg-dark border border-gray-600 rounded-lg px-4 py-2 text-white outline-none focus:border-secondary"
+                                  className="flex-1 bg-dark border border-line-strong rounded-lg px-4 py-2 text-white outline-none focus:border-secondary"
                                   placeholder="输入单词（如 Serendipity）"
                                   autoFocus
                               />
@@ -334,39 +334,39 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser }) =
                       </div>
 
                       <div>
-                          <label className="block text-xs font-bold text-gray-400 uppercase mb-1">词性</label>
+                          <label className="block text-xs font-bold text-muted uppercase mb-1">词性</label>
                           <input 
                               type="text" 
                               value={partOfSpeech}
                               onChange={(e) => setPartOfSpeech(e.target.value)}
-                              className="w-full bg-dark border border-gray-600 rounded-lg px-4 py-2 text-white outline-none focus:border-secondary"
+                              className="w-full bg-dark border border-line-strong rounded-lg px-4 py-2 text-white outline-none focus:border-secondary"
                               placeholder="例如：名词、动词"
                           />
                       </div>
 
                       <div>
-                          <label className="block text-xs font-bold text-gray-400 uppercase mb-1">释义（{user.nativeLanguage}）</label>
+                          <label className="block text-xs font-bold text-muted uppercase mb-1">释义（{user.nativeLanguage}）</label>
                           <textarea 
                               value={definition}
                               onChange={(e) => setDefinition(e.target.value)}
-                              className="w-full bg-dark border border-gray-600 rounded-lg px-4 py-2 text-white outline-none focus:border-secondary resize-none h-20"
+                              className="w-full bg-dark border border-line-strong rounded-lg px-4 py-2 text-white outline-none focus:border-secondary resize-none h-20"
                               placeholder="含义…"
                           />
                       </div>
 
                       <div>
-                          <label className="block text-xs font-bold text-gray-400 uppercase mb-1">例句（{user.learningLanguage}）</label>
+                          <label className="block text-xs font-bold text-muted uppercase mb-1">例句（{user.learningLanguage}）</label>
                           <textarea 
                               value={example}
                               onChange={(e) => setExample(e.target.value)}
-                              className="w-full bg-dark border border-gray-600 rounded-lg px-4 py-2 text-white outline-none focus:border-secondary resize-none h-20"
+                              className="w-full bg-dark border border-line-strong rounded-lg px-4 py-2 text-white outline-none focus:border-secondary resize-none h-20"
                               placeholder="用法示例…"
                           />
                       </div>
                   </div>
 
-                  <div className="p-4 border-t border-gray-700 bg-gray-900/30 flex justify-end gap-3">
-                      <button onClick={resetForm} className="px-4 py-2 text-gray-400 hover:text-white font-medium">取消</button>
+                  <div className="p-4 border-t border-line-strong bg-surface/30 flex justify-end gap-3">
+                      <button onClick={resetForm} className="px-4 py-2 text-muted hover:text-white font-medium">取消</button>
                       <button 
                           onClick={handleSave}
                           disabled={!newWord}

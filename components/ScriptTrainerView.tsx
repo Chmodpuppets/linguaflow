@@ -16,10 +16,10 @@ type SelfRate = null | 'correct' | 'wrong';
 
 // 生成性提示块：只给罗马字/意思 + 再听，绝不展示答案字形（铁律）
 const HintBlock: React.FC<{ prompt: string; onSpeak: () => void }> = ({ prompt, onSpeak }) => (
-  <div className="bg-dark/60 border border-gray-700 rounded-xl p-4">
-    <div className="text-xs text-gray-500 mb-1">提示（生成性脚手架，非答案字形）</div>
+  <div className="bg-dark/60 border border-line-strong rounded-xl p-4">
+    <div className="text-xs text-muted mb-1">提示（生成性脚手架，非答案字形）</div>
     <div className="text-xl font-bold text-gray-200 font-mono tracking-widest">{prompt}</div>
-    <button onClick={onSpeak} className="mt-2 flex items-center gap-1 mx-auto text-xs text-gray-400 hover:text-secondary">
+    <button onClick={onSpeak} className="mt-2 flex items-center gap-1 mx-auto text-xs text-muted hover:text-secondary">
       <Volume2 size={14} /> 再听一次
     </button>
   </div>
@@ -198,7 +198,7 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
               className={`px-4 py-2 rounded-xl text-sm font-bold border transition-colors ${
                 p.id === selectedPack.id
                   ? 'bg-primary text-white border-primary'
-                  : 'bg-card border-gray-700 text-gray-300 hover:border-secondary'
+                  : 'bg-card border-line-strong text-gray-300 hover:border-secondary'
               }`}
             >
               {p.name}
@@ -210,14 +210,14 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
           <h3 className="text-xl font-bold text-white flex items-center gap-2">
             <PenLine className="text-secondary" /> 选择要特训的分组
           </h3>
-          <p className="text-gray-400 text-sm mt-1">{selectedPack.description}</p>
+          <p className="text-muted text-sm mt-1">{selectedPack.description}</p>
         </div>
 
         {sessionDone && (
-          <div className="bg-card border border-gray-700 rounded-2xl p-8 text-center mb-6">
+          <div className="bg-card border border-line-strong rounded-2xl p-8 text-center mb-6">
             <div className="text-3xl mb-2">{stats.correct === stats.reviewed ? '🎉' : '💪'}</div>
             <div className="text-xl font-bold text-white mb-1">本轮完成</div>
-            <p className="text-gray-400 text-sm mb-4">
+            <p className="text-muted text-sm mb-4">
               共 {stats.reviewed} 个，答对 {stats.correct} 个。间隔复习让字形真正长进肌肉记忆。
             </p>
             <button
@@ -236,10 +236,10 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
               <button
                 key={g}
                 onClick={() => startGroup(g)}
-                className="bg-card border border-gray-700 hover:border-secondary rounded-2xl p-6 text-left transition-colors group"
+                className="bg-card border border-line-strong hover:border-secondary rounded-2xl p-6 text-left transition-colors group"
               >
                 <div className="text-lg font-bold text-white mb-1 group-hover:text-secondary transition-colors">{g}</div>
-                <div className="text-xs text-gray-500">{count} 个字形</div>
+                <div className="text-xs text-muted">{count} 个字形</div>
               </button>
             );
           })}
@@ -253,21 +253,21 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
     <div className="max-w-2xl mx-auto">
       {/* 进度条 + 模式切换 */}
       <div className="flex items-center justify-between mb-4 text-sm">
-        <button onClick={() => { setGroup(''); setSessionDone(false); }} className="text-gray-400 hover:text-white">
+        <button onClick={() => { setGroup(''); setSessionDone(false); }} className="text-muted hover:text-white">
           ← {selectedPack.name} · {group}
         </button>
         <div className="flex items-center gap-2">
           {/* 输入方式：键盘 / 手写（与听音模式正交） */}
-          <div className="flex rounded-lg border border-gray-600 overflow-hidden">
+          <div className="flex rounded-lg border border-line-strong overflow-hidden">
             <button
               onClick={() => setInputMode('keyboard')}
-              className={`px-2.5 py-1 text-xs ${inputMode === 'keyboard' ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'}`}
+              className={`px-2.5 py-1 text-xs ${inputMode === 'keyboard' ? 'bg-primary text-white' : 'text-muted hover:text-white'}`}
             >
               键盘
             </button>
             <button
               onClick={() => setInputMode('handwrite')}
-              className={`px-2.5 py-1 text-xs flex items-center gap-1 ${inputMode === 'handwrite' ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'}`}
+              className={`px-2.5 py-1 text-xs flex items-center gap-1 ${inputMode === 'handwrite' ? 'bg-primary text-white' : 'text-muted hover:text-white'}`}
             >
               <Hand size={13} /> 手写
             </button>
@@ -275,16 +275,16 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
           <button
             onClick={() => setListenMode((m) => !m)}
             title="开启后隐藏文字线索，仅靠听音写出字形"
-            className={`px-3 py-1 rounded-lg border transition-colors ${listenMode ? 'border-secondary text-secondary bg-secondary/10' : 'border-gray-600 text-gray-400 hover:text-white'}`}
+            className={`px-3 py-1 rounded-lg border transition-colors ${listenMode ? 'border-secondary text-secondary bg-secondary/10' : 'border-line-strong text-muted hover:text-white'}`}
           >
             {listenMode ? '🔊 听音' : '🔈 看字'}
           </button>
-          <span className="text-gray-500">{Math.min(idx + 1, queue.length)} / {queue.length}</span>
+          <span className="text-muted">{Math.min(idx + 1, queue.length)} / {queue.length}</span>
         </div>
       </div>
 
-      <div className="bg-card border border-gray-700 rounded-2xl p-8 text-center">
-        <div className="text-xs text-gray-500 mb-2">
+      <div className="bg-card border border-line-strong rounded-2xl p-8 text-center">
+        <div className="text-xs text-muted mb-2">
           {listenMode
             ? '听音写出对应字形（已隐藏文字线索）'
             : `根据提示写出对应字形${inputMode === 'handwrite' ? '（手写产出）' : hasTransliterate ? '（输入罗马字 / 拉丁字母）' : '（点按下方键盘）'}`}
@@ -309,7 +309,7 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
         {!listenMode && (
           <button
             onClick={() => speak(current.audioText || current.answer)}
-            className="flex items-center justify-center gap-2 mx-auto mb-6 text-gray-400 hover:text-secondary transition-colors"
+            className="flex items-center justify-center gap-2 mx-auto mb-6 text-muted hover:text-secondary transition-colors"
           >
             <Volume2 size={18} /> 听发音
           </button>
@@ -326,10 +326,10 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
                 onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
                 placeholder="输入罗马字 / 拉丁字母"
                 autoFocus
-                className="w-full bg-dark border border-gray-600 rounded-lg px-4 py-3 text-center text-2xl text-white font-mono outline-none focus:border-secondary"
+                className="w-full bg-dark border border-line-strong rounded-lg px-4 py-3 text-center text-2xl text-white font-mono outline-none focus:border-secondary"
               />
             ) : (
-              <div className="text-sm text-gray-500 py-2">该文字无简单拉丁映射，请用下方键盘点按字形。</div>
+              <div className="text-sm text-muted py-2">该文字无简单拉丁映射，请用下方键盘点按字形。</div>
             )}
             <div className="flex gap-3">
               <button
@@ -341,7 +341,7 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
               </button>
               <button
                 onClick={markStuck}
-                className="px-4 py-3 rounded-xl bg-gray-700/50 text-gray-300 border border-gray-600 font-bold hover:bg-gray-700 flex items-center justify-center gap-2"
+                className="px-4 py-3 rounded-xl bg-surface-3/50 text-gray-300 border border-line-strong font-bold hover:bg-surface-3 flex items-center justify-center gap-2"
               >
                 <HelpCircle size={18} /> 卡住了？
               </button>
@@ -395,7 +395,7 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
               <>
                 <button
                   onClick={() => setShowOverlay((s) => !s)}
-                  className="w-full py-3 rounded-xl bg-gray-700/50 text-gray-200 border border-gray-600 font-bold hover:bg-gray-700 flex items-center justify-center gap-2"
+                  className="w-full py-3 rounded-xl bg-surface-3/50 text-gray-200 border border-line-strong font-bold hover:bg-surface-3 flex items-center justify-center gap-2"
                 >
                   <Eye size={18} /> {showOverlay ? '隐藏标准字形' : '对照标准字形'}
                 </button>
@@ -425,7 +425,7 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
       {/* 虚拟键盘（键盘模式 + 未揭示 + 无 transliterate 时） */}
       {inputMode === 'keyboard' && !revealKind && !hasTransliterate && (
         <div className="mt-6">
-          <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
+          <div className="flex items-center gap-2 text-xs text-muted mb-2">
             <Keyboard size={14} /> 或直接点按字形
           </div>
           <div className="flex flex-wrap gap-2">
@@ -434,7 +434,7 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
                 key={k}
                 onClick={() => setInput(prev => prev + k)}
                 disabled={!!revealKind}
-                className="w-11 h-11 rounded-lg bg-dark border border-gray-700 text-lg text-white hover:border-secondary disabled:opacity-40 transition-colors"
+                className="w-11 h-11 rounded-lg bg-dark border border-line-strong text-lg text-white hover:border-secondary disabled:opacity-40 transition-colors"
               >
                 {k}
               </button>

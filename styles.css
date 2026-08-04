@@ -1,0 +1,96 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* 语义化设计 token（深色主题）
+     使用 RGB 通道格式，配合 tailwind.config 的 rgb(var(--x) / <alpha-value>)，
+     使 token 既能纯色使用（bg-surface-2），也能加透明度（bg-surface-3/50）。 */
+  --surface: 7 7 14;          /* #07070e 基底背景（Pathmora 近黑） */
+  --surface-2: 18 18 28;      /* #12121c 卡片 / 浮起面 */
+  --surface-3: 30 30 44;      /* #1e1e2c 悬停 / 更高浮起 */
+  --text-body: 226 232 240;   /* #e2e8f0 主文字 */
+  --text-muted: 148 163 184;  /* #94a3b8 次级文字（对比度达标，替代旧的 gray-500） */
+  --text-faint: 100 116 139;  /* #64748b 极弱文字（非必要信息） */
+  --line: 38 38 54;           /* #26263a 默认描边 */
+  --line-strong: 55 55 78;    /* #37374e 强描边 */
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background-color: #07070e;
+  color: #e2e8f0;
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* 自定义滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #12121c;
+}
+::-webkit-scrollbar-thumb {
+  background: #2e2e44;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a55;
+}
+
+/* 链接到组件内 .custom-scrollbar 的滚动条（与全局一致） */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #2e2e44;
+  border-radius: 4px;
+}
+
+.cursor-blink {
+  animation: blink 1s step-end infinite;
+}
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 6px) scale(0.7);
+  }
+  60% {
+    opacity: 1;
+    transform: translate(-50%, -2px) scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+/* 进入视图的轻微动效（配合 tailwindcss-animate 使用，提供统一微交互基调） */
+@layer utilities {
+  .elevate {
+    box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
+      0 8px 24px -12px rgba(0, 0, 0, 0.6);
+  }
+}

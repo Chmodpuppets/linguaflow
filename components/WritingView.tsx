@@ -28,15 +28,15 @@ const scoreColor100 = (n: number): string =>
 
 // 0-100 维度小卡（带进度条 + 反馈）
 const ExamBar: React.FC<{ label: string; val: number; feedback: string }> = ({ label, val, feedback }) => (
-  <div className="bg-dark/50 border border-gray-700 rounded-lg p-3">
+  <div className="bg-dark/50 border border-line-strong rounded-lg p-3">
     <div className="flex items-baseline justify-between">
-      <span className="text-xs text-gray-400">{label}</span>
+      <span className="text-xs text-muted">{label}</span>
       <span className={`text-xl font-bold ${scoreColor100(val)}`}>{val}</span>
     </div>
-    <div className="h-1.5 bg-gray-800 rounded-full mt-1 overflow-hidden">
+    <div className="h-1.5 bg-surface-2 rounded-full mt-1 overflow-hidden">
       <div className="h-full bg-secondary" style={{ width: `${Math.min(100, Math.max(0, val))}%` }} />
     </div>
-    <p className="text-xs text-gray-400 mt-1 leading-snug">{feedback}</p>
+    <p className="text-xs text-muted mt-1 leading-snug">{feedback}</p>
   </div>
 );
 
@@ -58,12 +58,12 @@ const renderExamPanel = (scores: ExamScores, exam: TargetExam, generalComment: s
           { key: 'lexicalResource', label: 'LR 词汇资源', val: s.lexicalResource },
           { key: 'grammaticalRange', label: 'GRA 语法多样', val: s.grammaticalRange },
         ] as { key: keyof IeltsBandScores['feedback']; label: string; val: number }[]).map((c) => (
-          <div key={c.key} className="bg-dark/50 border border-gray-700 rounded-lg p-3">
+          <div key={c.key} className="bg-dark/50 border border-line-strong rounded-lg p-3">
             <div className="flex items-baseline justify-between">
-              <span className="text-xs text-gray-400">{c.label}</span>
+              <span className="text-xs text-muted">{c.label}</span>
               <span className={`text-xl font-bold ${ieltsBandColor(c.val)}`}>{c.val.toFixed(1)}</span>
             </div>
-            <p className="text-xs text-gray-400 mt-1 leading-snug">{s.feedback[c.key]}</p>
+            <p className="text-xs text-muted mt-1 leading-snug">{s.feedback[c.key]}</p>
           </div>
         ))}
       </div>
@@ -105,7 +105,7 @@ const renderExamPanel = (scores: ExamScores, exam: TargetExam, generalComment: s
   } else if (exam === 'TOEFL') {
     const s = scores as ToeflScores;
     title = '托福写作评分 (TOEFL iBT)';
-    overallNode = <p className="text-4xl font-bold text-white mt-1">{s.scaled}<span className="text-base text-gray-400 font-normal"> / 30</span></p>;
+    overallNode = <p className="text-4xl font-bold text-white mt-1">{s.scaled}<span className="text-base text-muted font-normal"> / 30</span></p>;
     bars = (
       <div className="grid grid-cols-1 gap-3">
         {([
@@ -113,15 +113,15 @@ const renderExamPanel = (scores: ExamScores, exam: TargetExam, generalComment: s
           { key: 'organization', label: 'Organization 组织', val: s.organization },
           { key: 'languageUse', label: 'Language Use 语言运用', val: s.languageUse },
         ] as { key: keyof ToeflScores['feedback']; label: string; val: number }[]).map((c) => (
-          <div key={c.key} className="bg-dark/50 border border-gray-700 rounded-lg p-3">
+          <div key={c.key} className="bg-dark/50 border border-line-strong rounded-lg p-3">
             <div className="flex items-baseline justify-between">
-              <span className="text-xs text-gray-400">{c.label}</span>
-              <span className={`text-xl font-bold ${toeflBandColor(c.val)}`}>{c.val.toFixed(1)}<span className="text-xs text-gray-500 font-normal"> /5</span></span>
+              <span className="text-xs text-muted">{c.label}</span>
+              <span className={`text-xl font-bold ${toeflBandColor(c.val)}`}>{c.val.toFixed(1)}<span className="text-xs text-muted font-normal"> /5</span></span>
             </div>
-            <div className="h-1.5 bg-gray-800 rounded-full mt-1 overflow-hidden">
+            <div className="h-1.5 bg-surface-2 rounded-full mt-1 overflow-hidden">
               <div className="h-full bg-secondary" style={{ width: `${Math.min(100, Math.max(0, (c.val / 5) * 100))}%` }} />
             </div>
-            <p className="text-xs text-gray-400 mt-1 leading-snug">{s.feedback[c.key]}</p>
+            <p className="text-xs text-muted mt-1 leading-snug">{s.feedback[c.key]}</p>
           </div>
         ))}
       </div>
@@ -129,10 +129,10 @@ const renderExamPanel = (scores: ExamScores, exam: TargetExam, generalComment: s
   }
 
   return (
-    <div className="bg-card p-6 rounded-xl border border-gray-700 space-y-4">
+    <div className="bg-card p-6 rounded-xl border border-line-strong space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-gray-400 text-sm font-medium">{title}</h3>
+          <h3 className="text-muted text-sm font-medium">{title}</h3>
           {overallNode}
         </div>
         <div className="text-right max-w-[55%]">
@@ -140,7 +140,7 @@ const renderExamPanel = (scores: ExamScores, exam: TargetExam, generalComment: s
         </div>
       </div>
       {bars}
-      <p className="text-xs text-gray-500">CEFR 参考：{cefr}</p>
+      <p className="text-xs text-muted">CEFR 参考：{cefr}</p>
     </div>
   );
 };
@@ -245,13 +245,13 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
       <div className="flex gap-2 mb-4">
         <button
           onClick={() => setMode('free')}
-          className={`px-4 py-2 rounded-xl text-sm font-bold border transition-colors ${mode === 'free' ? 'bg-primary text-white border-primary' : 'bg-card border-gray-700 text-gray-300 hover:border-secondary'}`}
+          className={`px-4 py-2 rounded-xl text-sm font-bold border transition-colors ${mode === 'free' ? 'bg-primary text-white border-primary' : 'bg-card border-line-strong text-gray-300 hover:border-secondary'}`}
         >
           自由写作
         </button>
         <button
           onClick={() => setMode('guided')}
-          className={`px-4 py-2 rounded-xl text-sm font-bold border transition-colors ${mode === 'guided' ? 'bg-primary text-white border-primary' : 'bg-card border-gray-700 text-gray-300 hover:border-secondary'}`}
+          className={`px-4 py-2 rounded-xl text-sm font-bold border transition-colors ${mode === 'guided' ? 'bg-primary text-white border-primary' : 'bg-card border-line-strong text-gray-300 hover:border-secondary'}`}
         >
           引导练习（A1 友好）
         </button>
@@ -267,14 +267,14 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
       {/* Left Column: Input Area */}
       <div className="flex flex-col space-y-4 h-full">
         {/* Topic Suggestion Carousel */}
-        <div className="bg-card p-4 rounded-xl border border-gray-700">
-            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">写作题目（{userLevel} 级）</h3>
+        <div className="bg-card p-4 rounded-xl border border-line-strong">
+            <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3">写作题目（{userLevel} 级）</h3>
             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
                 {currentTopics.map((t, i) => (
                     <button 
                         key={i} 
                         onClick={() => useTopic(t)}
-                        className={`whitespace-nowrap px-3 py-1.5 rounded-full text-sm border transition-all ${activeTopic === t ? 'bg-secondary text-white border-secondary' : 'bg-dark border-gray-700 text-gray-400 hover:border-gray-500'}`}
+                        className={`whitespace-nowrap px-3 py-1.5 rounded-full text-sm border transition-all ${activeTopic === t ? 'bg-secondary text-white border-secondary' : 'bg-dark border-line-strong text-muted hover:border-line-strong'}`}
                     >
                         {t.text.slice(0, 22)}…
                     </button>
@@ -295,9 +295,9 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder={`用 ${user.learningLanguage} 写点什么……`}
-                className="flex-grow w-full bg-dark/50 border border-gray-700 rounded-xl p-6 text-lg leading-relaxed text-gray-200 focus:ring-2 focus:ring-secondary focus:border-transparent outline-none resize-none transition-all"
+                className="flex-grow w-full bg-dark/50 border border-line-strong rounded-xl p-6 text-lg leading-relaxed text-gray-200 focus:ring-2 focus:ring-secondary focus:border-transparent outline-none resize-none transition-all"
             />
-            <div className="absolute bottom-4 right-4 text-gray-500 text-sm font-mono">
+            <div className="absolute bottom-4 right-4 text-muted text-sm font-mono">
                 {text.length} 字
             </div>
         </div>
@@ -328,7 +328,7 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
             </div>
         )}
         {!feedback ? (
-            <div className="h-full flex flex-col items-center justify-center text-gray-600 border-2 border-dashed border-gray-800 rounded-xl bg-card/20">
+            <div className="h-full flex flex-col items-center justify-center text-faint border-2 border-dashed border-line rounded-xl bg-card/20">
                 <BookCheck size={48} className="mb-4 opacity-50" />
                 <p>提交你的作文，获取详细批改。</p>
             </div>
@@ -356,11 +356,11 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
                 {isRevising && (
                   <div className="bg-secondary/10 border border-secondary/30 p-4 rounded-xl flex items-center justify-between gap-3">
                     <p className="text-sm text-secondary">二稿模式：参考上方批改修改文字，再点「对比批改」。</p>
-                    <button onClick={() => { setIsRevising(false); setRevisionResult(null); }} className="text-xs underline text-gray-400 hover:text-white flex-shrink-0">退出</button>
+                    <button onClick={() => { setIsRevising(false); setRevisionResult(null); }} className="text-xs underline text-muted hover:text-white flex-shrink-0">退出</button>
                   </div>
                 )}
                 {revisionResult && (
-                  <div className="bg-card p-4 rounded-xl border border-gray-700 space-y-3">
+                  <div className="bg-card p-4 rounded-xl border border-line-strong space-y-3">
                     <div className="flex items-center gap-2">
                       <h4 className="font-bold text-white">二稿对比</h4>
                       <span className={`text-xs px-2 py-0.5 rounded-full ${revisionResult.improved ? 'bg-green-900/30 text-green-300' : 'bg-amber-900/30 text-amber-300'}`}>{revisionResult.improved ? '有进步' : '仍需努力'}</span>
@@ -378,7 +378,7 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
                       </div>
                     )}
                     {revisionResult.fixedIssues.length === 0 && revisionResult.remainingIssues.length === 0 && (
-                      <p className="text-sm text-gray-400">首稿问题已基本解决，保持！</p>
+                      <p className="text-sm text-muted">首稿问题已基本解决，保持！</p>
                     )}
                   </div>
                 )}
@@ -387,9 +387,9 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
                 {feedback.examScores && user.targetExam ? (
                   renderExamPanel(feedback.examScores, user.targetExam, feedback.generalComment, feedback.cefrEstimation)
                 ) : (
-                  <div className="bg-card p-6 rounded-xl border border-gray-700 flex items-center justify-between">
+                  <div className="bg-card p-6 rounded-xl border border-line-strong flex items-center justify-between">
                     <div>
-                        <h3 className="text-gray-400 text-sm font-medium">预估等级</h3>
+                        <h3 className="text-muted text-sm font-medium">预估等级</h3>
                         <p className="text-3xl font-bold text-white mt-1">{feedback.cefrEstimation}</p>
                     </div>
                     <div className="text-right max-w-[60%]">
@@ -406,8 +406,8 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
                 )}
 
                 {/* Corrections */}
-                <div className="bg-card rounded-xl border border-gray-700 overflow-hidden">
-                    <div className="p-4 bg-gray-800/50 border-b border-gray-700 font-semibold text-white flex items-center gap-2">
+                <div className="bg-card rounded-xl border border-line-strong overflow-hidden">
+                    <div className="p-4 bg-surface-2/50 border-b border-line-strong font-semibold text-white flex items-center gap-2">
                         <Sparkles size={16} className="text-yellow-400" />
                         AI 润色版
                     </div>
@@ -423,20 +423,20 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
                         具体改进建议
                     </h3>
                     {feedback.suggestions.length === 0 ? (
-                        <p className="text-gray-500 italic">没有发现具体错误，写得真好！</p>
+                        <p className="text-muted italic">没有发现具体错误，写得真好！</p>
                     ) : (
                         feedback.suggestions.map((item, idx) => (
-                            <div key={idx} className="bg-card p-4 rounded-xl border border-gray-700 hover:border-gray-600 transition-colors">
+                            <div key={idx} className="bg-card p-4 rounded-xl border border-line-strong hover:border-line-strong transition-colors">
                                 <div className="flex items-start gap-4">
                                     <div className="w-1/2 p-3 bg-red-900/10 border border-red-900/30 rounded-lg text-red-200 line-through decoration-red-500/50">
                                         {item.original}
                                     </div>
-                                    <ArrowRight className="text-gray-500 mt-3 flex-shrink-0" size={20} />
+                                    <ArrowRight className="text-muted mt-3 flex-shrink-0" size={20} />
                                     <div className="w-1/2 p-3 bg-green-900/10 border border-green-900/30 rounded-lg text-green-200 font-medium">
                                         {item.suggestion}
                                     </div>
                                 </div>
-                                <p className="mt-3 text-sm text-gray-400 pl-1 border-l-2 border-gray-600">
+                                <p className="mt-3 text-sm text-muted pl-1 border-l-2 border-line-strong">
                                     💡 {item.reason}
                                 </p>
                             </div>

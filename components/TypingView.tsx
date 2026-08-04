@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { TypingContent, UserProfile, UserContent, CEFRLevel, VocabularyItem } from '../types';
-import { generateTypingContent, generateSpeech, cancelSpeech, transcribeAudio } from '../services/aiService';
+import { generateTypingContent, generateSpeech, cancelSpeech, transcribeAudio, languageToSpeechLang } from '../services/aiService';
 import { addActivity, getLibrary, saveLibraryItem, saveVocabularyItem } from '../services/storageService';
 import { TYPING_STAGES, DRILL_TOPICS } from '../constants';
 import { RefreshCw, Play, Keyboard, Eye, EyeOff, BookOpen, Zap, Star, Sparkles, LayoutGrid, Book, Volume2, StopCircle, Loader2, Mic, Square, Trash2, Ear, Pause, X, Lock, CheckCircle2, Swords, Crown, ShieldAlert, Plus, Check, Bookmark } from 'lucide-react';
+import TtsAudioPlayer, { TtsAudioPlayerHandle } from './TtsAudioPlayer';
 
 interface TypingViewProps {
   user: UserProfile;
@@ -30,7 +31,7 @@ const RunSpan = React.memo(({ text, status }: RunSpanProps) => {
             ? 'text-emerald-400'
             : status === 'wrong'
             ? 'text-red-400 underline decoration-red-500/70 decoration-wavy underline-offset-4'
-            : 'text-gray-400';
+            : 'text-muted';
     return <span className={cls}>{text}</span>;
 });
 
@@ -72,6 +73,11 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
   // Audio State (AI TTS via Web Speech API)
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
+  // TTS 复读播放器 ref：toolbar 的「朗读」按钮通过它触发播放/暂停
+  const ttsPlayerRef = useRef<TtsAudioPlayerHandle | null>(null);
+  const [ttsPlayerVisible, setTtsPlayerVisible] = useState(false);
+  // 首次点击 toolbar「朗读」会先把面板拉起 + 自动开始播放
+  const ttsShouldAutoplayRef = useRef(false);
   
   // Recording State (User Voice)
   const [isRecording, setIsRecording] = useState(false);
@@ -105,6 +111,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
   useEffect(() => {
       return () => {
           cancelSpeech();
+          ttsPlayerRef.current?.stop();
           if (userAudioUrl) {
               URL.revokeObjectURL(userAudioUrl);
           }
@@ -115,6 +122,8 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
   useEffect(() => {
       cancelSpeech();
       setIsSpeaking(false);
+      ttsPlayerRef.current?.stop();
+      setTtsPlayerVisible(false);
       deleteUserRecording();
       setSavedToLibrary(false);
       setAddedVocabWords(new Set());
@@ -140,26 +149,40 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
       cursor.scrollIntoView({ block: 'nearest' });
   }, [inputValue, content, finished]);
 
-  // --- Audio Engine Logic (Web Speech API) ---
+  // --- Audio Engine Logic (delegated to TtsAudioPlayer) ---
+  // 工具栏的「朗读」按钮通过 ref 调用播放器；播放器自己管理 url / 进度 / AB / 循环。
+  // 这里只保留启停 + 显隐控制。
 
   const stopAudio = () => {
-      cancelSpeech();
+      ttsPlayerRef.current?.stop();
       setIsSpeaking(false);
   };
 
-  const togglePlayback = () => {
-      if (isSpeaking) {
-          stopAudio();
+  const togglePlayback = useCallback(async () => {
+      if (!content) return;
+      const handle = ttsPlayerRef.current;
+      // 第一次点击 → 拉起播放器（面板稍后由下一个 effect 自动开始播放）
+      if (!ttsPlayerVisible || !handle) {
+          setTtsPlayerVisible(true);
+          ttsShouldAutoplayRef.current = true;
           return;
       }
-      if (!content) return;
-      setIsSpeaking(true);
-      generateSpeech(content.text, {
-          lang: user.learningLanguage,
-          rate: playbackSpeed,
-          onEnd: () => setIsSpeaking(false),
-      });
-  };
+      if (handle.isPlaying()) {
+          handle.pause();
+          setIsSpeaking(false);
+      } else {
+          await handle.play();
+          setIsSpeaking(true);
+      }
+  }, [content, ttsPlayerVisible]);
+
+  // 面板挂载 + 标记 autoplay 时，自动触发首次播放
+  useEffect(() => {
+      if (ttsPlayerVisible && ttsShouldAutoplayRef.current && ttsPlayerRef.current) {
+          ttsShouldAutoplayRef.current = false;
+          ttsPlayerRef.current.play().then(() => setIsSpeaking(true)).catch(() => {});
+      }
+  }, [ttsPlayerVisible, content?.text]);
 
   const toggleSpeed = () => {
       const speeds = [0.75, 1.0, 1.25];
@@ -559,12 +582,12 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
       
       return (
           <div className="flex flex-col items-center pb-12">
-              <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700 mb-8 max-w-lg w-full text-center">
+              <div className="bg-surface-2/50 p-4 rounded-xl border border-line-strong mb-8 max-w-lg w-full text-center">
                   <div className="flex items-center justify-center gap-2 text-yellow-500 mb-2">
                       <ShieldAlert size={20} />
                       <span className="font-bold">硬核模式已开启</span>
                   </div>
-                  <p className="text-sm text-gray-400">
+                  <p className="text-sm text-muted">
                       在闯关模式下，所有提示（译文、音频、发音）都会关闭。
                       只能靠纯记忆和打字硬实力。
                   </p>
@@ -572,7 +595,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
 
               <div className="relative w-full max-w-lg space-y-8 mt-4">
                   {/* Vertical Line Connector */}
-                  <div className="absolute left-1/2 top-4 bottom-4 w-1 bg-gray-700 -translate-x-1/2 z-0 rounded-full"></div>
+                  <div className="absolute left-1/2 top-4 bottom-4 w-1 bg-surface-3 -translate-x-1/2 z-0 rounded-full"></div>
                   
                   {TYPING_STAGES.map((stage, index) => {
                       const isUnlocked = index <= unlockedStage;
@@ -595,7 +618,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                                           ? 'bg-green-500 border-green-700 text-white' 
                                           : isCurrent 
                                               ? 'bg-secondary border-purple-700 text-white animate-bounce-slight shadow-[0_0_20px_rgba(168,85,247,0.6)]' 
-                                              : 'bg-gray-700 border-gray-800 text-gray-500 cursor-not-allowed grayscale'
+                                              : 'bg-surface-3 border-line text-muted cursor-not-allowed grayscale'
                                       }
                                   `}
                               >
@@ -609,12 +632,12 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                                   
                                   {/* Tooltip Card */}
                                   <div className={`
-                                      absolute top-full mt-3 bg-gray-800 border border-gray-700 rounded-xl p-3 w-48 text-center shadow-xl opacity-0 scale-95 pointer-events-none transition-all
+                                      absolute top-full mt-3 bg-surface-2 border border-line-strong rounded-xl p-3 w-48 text-center shadow-xl opacity-0 scale-95 pointer-events-none transition-all
                                       group-hover:opacity-100 group-hover:scale-100 group-hover:z-50
                                   `}>
                                       <div className="font-bold text-white text-sm mb-1">{stage.title}</div>
-                                      <div className="text-xs text-gray-400 mb-2">{stage.description}</div>
-                                      <div className="flex justify-center gap-2 text-[10px] font-mono uppercase bg-gray-900/50 p-1 rounded">
+                                      <div className="text-xs text-muted mb-2">{stage.description}</div>
+                                      <div className="flex justify-center gap-2 text-[10px] font-mono uppercase bg-surface/50 p-1 rounded">
                                           <span className="text-secondary">{stage.cefr}</span>
                                           <span className="text-blue-400">{stage.minWpm} WPM</span>
                                       </div>
@@ -636,7 +659,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
       
       {/* HEADER CONTROLS (Only visible when drilling) */}
       {content && (
-        <div className="bg-card p-4 rounded-xl border border-gray-700 animate-in slide-in-from-top-4 space-y-4">
+        <div className="bg-card p-4 rounded-xl border border-line-strong animate-in slide-in-from-top-4 space-y-4">
             {/* 标题 / 等级 / 统计 / 退出 */}
             <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-3 min-w-0">
@@ -645,25 +668,25 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                     </span>
                     <div className="min-w-0">
                         <h2 className="text-sm md:text-base font-bold text-white truncate">{content.topic}</h2>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-muted">
                             {inputValue.length}/{content.text.length} 字符 · {Math.min(100, Math.round((inputValue.length / content.text.length) * 100))}%
                         </p>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-2 md:gap-3">
-                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-800/50 rounded-lg border border-gray-700">
-                        <span className="text-xs text-gray-500">WPM</span>
+                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-2/50 rounded-lg border border-line-strong">
+                        <span className="text-xs text-muted">WPM</span>
                         <span className="text-base md:text-lg font-bold text-white tabular-nums">{wpm}</span>
                     </div>
-                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-800/50 rounded-lg border border-gray-700">
-                        <span className="text-xs text-gray-500">准确率</span>
+                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-surface-2/50 rounded-lg border border-line-strong">
+                        <span className="text-xs text-muted">准确率</span>
                         <span className="text-base md:text-lg font-bold text-white tabular-nums">{accuracy}%</span>
                     </div>
                     <button
                         onClick={() => setContent(null)}
                         disabled={isLoading}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors text-sm font-medium"
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-3 hover:bg-surface-3 text-white rounded-lg transition-colors text-sm font-medium"
                     >
                         <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
                         退出
@@ -672,7 +695,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
             </div>
 
             {/* 进度条 */}
-            <div className="h-1.5 w-full bg-gray-800 rounded-full overflow-hidden">
+            <div className="h-1.5 w-full bg-surface-2 rounded-full overflow-hidden">
                 <div
                     className="h-full bg-secondary transition-all duration-200"
                     style={{ width: `${Math.min(100, (inputValue.length / content.text.length) * 100)}%` }}
@@ -683,24 +706,24 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
             <div className="flex flex-wrap items-center gap-2">
                 {!isStrictMode && (
                     <>
-                        <div className="flex items-center gap-1 bg-gray-800/50 rounded-lg p-1 border border-gray-700">
+                        <div className="flex items-center gap-1 bg-surface-2/50 rounded-lg p-1 border border-line-strong">
                             <button
                                 onClick={togglePlayback}
                                 disabled={!content}
-                                className={`p-2 rounded-md transition-colors flex items-center gap-1.5 text-sm ${isSpeaking ? 'bg-green-500/20 text-green-400' : 'hover:bg-gray-700 text-gray-300'}`}
+                                className={`p-2 rounded-md transition-colors flex items-center gap-1.5 text-sm ${isSpeaking ? 'bg-green-500/20 text-green-400' : 'hover:bg-surface-3 text-gray-300'}`}
                                 title="播放音频"
                             >
                                 {isSpeaking ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
                                 <span className="hidden sm:inline text-xs">朗读</span>
                             </button>
-                            <button onClick={toggleSpeed} className="px-2 py-1 text-xs font-bold text-gray-400 hover:text-white hover:bg-gray-700 rounded">
+                            <button onClick={toggleSpeed} className="px-2 py-1 text-xs font-bold text-muted hover:text-white hover:bg-surface-3 rounded">
                                 {playbackSpeed}x
                             </button>
                         </div>
 
-                        <div className="flex items-center gap-1 bg-gray-800/50 rounded-lg p-1 border border-gray-700">
+                        <div className="flex items-center gap-1 bg-surface-2/50 rounded-lg p-1 border border-line-strong">
                             {!userAudioUrl ? (
-                                <button onClick={isRecording ? stopRecording : startRecording} className={`p-2 rounded-md flex items-center gap-1.5 text-sm ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'hover:bg-gray-700 text-gray-300'}`} title="录制你的声音">
+                                <button onClick={isRecording ? stopRecording : startRecording} className={`p-2 rounded-md flex items-center gap-1.5 text-sm ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'hover:bg-surface-3 text-gray-300'}`} title="录制你的声音">
                                     {isRecording ? <Square size={16} fill="currentColor" /> : <Mic size={16} />}
                                     <span className="hidden sm:inline text-xs">{isRecording ? '录音中' : '录音'}</span>
                                 </button>
@@ -715,14 +738,14 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                                     >
                                         {isTranscribing ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
                                     </button>
-                                    <button onClick={deleteUserRecording} className="p-2 rounded-md text-gray-400 hover:text-red-400"><Trash2 size={16} /></button>
+                                    <button onClick={deleteUserRecording} className="p-2 rounded-md text-muted hover:text-red-400"><Trash2 size={16} /></button>
                                 </>
                             )}
                         </div>
 
                         {userAudioUrl && userTranscript !== null && (
-                            <div className="text-sm text-gray-300 bg-gray-800/40 rounded-lg px-3 py-2 border border-gray-700">
-                                <span className="text-gray-500 mr-2">识别结果:</span>
+                            <div className="text-sm text-gray-300 bg-surface-2/40 rounded-lg px-3 py-2 border border-line-strong">
+                                <span className="text-muted mr-2">识别结果:</span>
                                 {userTranscript || "（无语音内容）"}
                             </div>
                         )}
@@ -744,9 +767,9 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                         </button>
 
                         {content?.phoneticGuide && (
-                            <button onClick={() => setShowPhonetic(!showPhonetic)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm ${showPhonetic ? 'bg-secondary/20 text-secondary' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'}`} title="切换发音指南"><Keyboard size={16} /><span className="hidden sm:inline">注音</span></button>
+                            <button onClick={() => setShowPhonetic(!showPhonetic)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm ${showPhonetic ? 'bg-secondary/20 text-secondary' : 'text-muted hover:text-gray-200 hover:bg-surface-3'}`} title="切换发音指南"><Keyboard size={16} /><span className="hidden sm:inline">注音</span></button>
                         )}
-                        <button onClick={() => setShowTranslation(!showTranslation)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm ${showTranslation ? 'bg-blue-500/20 text-blue-400' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'}`} title="切换译文"><Eye size={16} /><span className="hidden sm:inline">译文</span></button>
+                        <button onClick={() => setShowTranslation(!showTranslation)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm ${showTranslation ? 'bg-blue-500/20 text-blue-400' : 'text-muted hover:text-gray-200 hover:bg-surface-3'}`} title="切换译文"><Eye size={16} /><span className="hidden sm:inline">译文</span></button>
                     </>
                 )}
                 
@@ -754,6 +777,18 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                     <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-xs font-bold uppercase tracking-wider">
                         <Lock size={12} /> 硬核模式
                     </div>
+                )}
+
+                {/* TTS 复读播放器：首次点击「朗读」按钮后出现。
+                   提供进度条 / A-B 区间循环 / 速度调节，自带按文本缓存。 */}
+                {ttsPlayerVisible && content && (
+                  <TtsAudioPlayer
+                    ref={ttsPlayerRef}
+                    text={content.text}
+                    speed={playbackSpeed}
+                    webSpeechLang={languageToSpeechLang(user.learningLanguage)}
+                    onPlayingChange={setIsSpeaking}
+                  />
                 )}
             </div>
         </div>
@@ -763,9 +798,9 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
       <div className="relative">
       
       {isLoading ? (
-          <div className="bg-dark rounded-2xl p-12 border border-gray-800 shadow-2xl min-h-[300px] flex items-center justify-center flex-col gap-4">
+          <div className="bg-dark rounded-2xl p-12 border border-line shadow-2xl min-h-[300px] flex items-center justify-center flex-col gap-4">
              <div className="w-12 h-12 border-4 border-secondary border-t-transparent rounded-full animate-spin"></div>
-             <p className="text-gray-400 animate-pulse">正在生成专属练习……</p>
+             <p className="text-muted animate-pulse">正在生成专属练习……</p>
              {errorMsg && (
                  <div className="mt-4 p-3 bg-red-900/20 border border-red-800 text-red-300 rounded-lg text-sm max-w-sm text-center">
                      {errorMsg}
@@ -775,29 +810,29 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
           </div>
         ) : !content ? (
             // Setup Screen
-            <div className="bg-dark rounded-2xl p-6 md:p-8 border border-gray-800 shadow-2xl min-h-[400px]">
+            <div className="bg-dark rounded-2xl p-6 md:p-8 border border-line shadow-2xl min-h-[400px]">
                  <div className="text-center mb-8">
                      <h3 className="text-2xl font-bold text-white mb-2">打字闯关</h3>
-                     <p className="text-gray-400">选择一种模式开始训练。</p>
+                     <p className="text-muted">选择一种模式开始训练。</p>
                  </div>
 
                  {/* Mode Tabs */}
                  <div className="flex flex-wrap justify-center gap-4 mb-8">
                      <button 
                         onClick={() => setActiveTab('campaign')}
-                        className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold transition-all ${activeTab === 'campaign' ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-105' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold transition-all ${activeTab === 'campaign' ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-105' : 'bg-surface-2 text-muted hover:bg-surface-3'}`}
                      >
                         <Swords size={18} /> 闯关 <span className="text-[10px] bg-black/30 px-1.5 py-0.5 rounded text-white/70">硬核</span>
                      </button>
                      <button 
                         onClick={() => setActiveTab('practice')}
-                        className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold transition-all ${activeTab === 'practice' ? 'bg-gray-700 text-white shadow-lg border border-gray-600' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold transition-all ${activeTab === 'practice' ? 'bg-surface-3 text-white shadow-lg border border-line-strong' : 'bg-surface-2 text-muted hover:bg-surface-3'}`}
                      >
                         <LayoutGrid size={18} /> AI 练习
                      </button>
                      <button 
                         onClick={() => setActiveTab('memory')}
-                        className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold transition-all ${activeTab === 'memory' ? 'bg-secondary text-white shadow-lg shadow-secondary/20' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold transition-all ${activeTab === 'memory' ? 'bg-secondary text-white shadow-lg shadow-secondary/20' : 'bg-surface-2 text-muted hover:bg-surface-3'}`}
                      >
                         <Book size={18} /> 记忆库
                      </button>
@@ -812,7 +847,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                              <button
                                 key={topic.id}
                                 onClick={() => fetchPracticeContent(topic.label)}
-                                className="flex flex-col items-center justify-center gap-2 p-4 bg-gray-800/50 hover:bg-gray-700 hover:scale-105 border border-gray-700 hover:border-primary/50 rounded-xl transition-all group"
+                                className="flex flex-col items-center justify-center gap-2 p-4 bg-surface-2/50 hover:bg-surface-3 hover:scale-105 border border-line-strong hover:border-primary/50 rounded-xl transition-all group"
                              >
                                  <span className="text-3xl grayscale group-hover:grayscale-0 transition-all">{topic.icon}</span>
                                  <span className="text-sm font-medium text-gray-300 group-hover:text-white">{topic.label}</span>
@@ -821,7 +856,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                          {/* Random Button */}
                          <button
                             onClick={() => fetchPracticeContent('random daily topic')}
-                            className="flex flex-col items-center justify-center gap-2 p-4 bg-gradient-to-br from-gray-800 to-gray-700 hover:brightness-110 border border-gray-700 hover:border-white/30 rounded-xl transition-all"
+                            className="flex flex-col items-center justify-center gap-2 p-4 bg-gradient-to-br from-surface-2 to-surface-3 hover:brightness-110 border border-line-strong hover:border-white/30 rounded-xl transition-all"
                          >
                              <Sparkles size={32} className="text-yellow-400" />
                              <span className="text-sm font-bold text-white">随机来一个</span>
@@ -832,9 +867,9 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                  {activeTab === 'memory' && (
                      <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
                          {libraryItems.length === 0 ? (
-                             <div className="text-center py-12 border-2 border-dashed border-gray-800 rounded-xl">
-                                 <p className="text-gray-500 mb-4">你的记忆库还是空的。</p>
-                                 <div className="text-sm text-gray-600">完成 AI 练习或添加自己的内容，就能在这里复习。</div>
+                             <div className="text-center py-12 border-2 border-dashed border-line rounded-xl">
+                                 <p className="text-muted mb-4">你的记忆库还是空的。</p>
+                                 <div className="text-sm text-faint">完成 AI 练习或添加自己的内容，就能在这里复习。</div>
                              </div>
                          ) : (
                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -842,10 +877,10 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                                      <button
                                         key={item.id}
                                         onClick={() => handleUseLibraryItem(item)}
-                                        className="text-left p-4 bg-gray-800/50 hover:bg-gray-700 border border-gray-700 hover:border-secondary/50 rounded-xl transition-all group"
+                                        className="text-left p-4 bg-surface-2/50 hover:bg-surface-3 border border-line-strong hover:border-secondary/50 rounded-xl transition-all group"
                                      >
                                          <h4 className="font-bold text-gray-200 group-hover:text-white mb-1 truncate">{item.title}</h4>
-                                         <p className="text-xs text-gray-500 truncate">{item.content}</p>
+                                         <p className="text-xs text-muted truncate">{item.content}</p>
                                      </button>
                                  ))}
                              </div>
@@ -855,7 +890,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
             </div>
         ) : (
           <div
-            className="bg-gradient-to-b from-gray-900 to-gray-950 rounded-2xl p-6 md:p-10 border border-gray-800/80 shadow-2xl min-h-[260px] cursor-text relative"
+            className="bg-gradient-to-b from-surface to-surface rounded-2xl p-6 md:p-10 border border-line/80 shadow-2xl min-h-[260px] cursor-text relative"
             onClick={() => inputRef.current?.focus()}
           >
             <div
@@ -864,7 +899,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
             >
                 {/* Phonetic / Input Hint */}
                 {content.phoneticGuide && showPhonetic && !isStrictMode && (
-                    <div className="text-gray-500 font-sans text-sm leading-relaxed select-none">
+                    <div className="text-muted font-sans text-sm leading-relaxed select-none">
                         {content.phoneticGuide}
                     </div>
                 )}
@@ -874,7 +909,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
 
                 {/* Translation Overlay (if enabled) */}
                 {showTranslation && !isStrictMode && (
-                    <div className="pt-5 border-t border-gray-800/60 text-blue-400/90 italic text-base md:text-lg animate-in fade-in">
+                    <div className="pt-5 border-t border-line/60 text-blue-400/90 italic text-base md:text-lg animate-in fade-in">
                         {content.translation}
                     </div>
                 )}
@@ -942,23 +977,23 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
       {!isLoading && content && content.keyVocabulary?.length > 0 && !isStrictMode && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
               {(content.keyVocabulary || []).map((item, idx) => (
-                  <div key={idx} className="bg-card/50 p-4 rounded-xl border border-gray-800 hover:border-gray-600 transition-colors group relative">
+                  <div key={idx} className="bg-card/50 p-4 rounded-xl border border-line hover:border-line-strong transition-colors group relative">
                       <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
                             <BookOpen size={14} className="text-secondary" />
-                            <span className="text-xs text-gray-500 uppercase font-semibold">{item.partOfSpeech}</span>
+                            <span className="text-xs text-muted uppercase font-semibold">{item.partOfSpeech}</span>
                           </div>
                           <button 
                              onClick={() => handleAddVocabulary(item)}
                              disabled={addedVocabWords.has(item.word)}
-                             className={`text-gray-500 hover:text-white transition-colors ${addedVocabWords.has(item.word) ? 'text-green-500 opacity-50 cursor-default' : ''}`}
+                             className={`text-muted hover:text-white transition-colors ${addedVocabWords.has(item.word) ? 'text-green-500 opacity-50 cursor-default' : ''}`}
                              title="加入词库"
                           >
                              {addedVocabWords.has(item.word) ? <Check size={16} /> : <Plus size={16} />}
                           </button>
                       </div>
                       <h4 className="text-lg font-bold text-white mb-1 group-hover:text-secondary transition-colors">{item.word}</h4>
-                      <p className="text-sm text-gray-400">{item.meaning}</p>
+                      <p className="text-sm text-muted">{item.meaning}</p>
                   </div>
               ))}
           </div>

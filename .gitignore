@@ -32,3 +32,7 @@ dist-ssr
 .workbuddy/
 ai/
 linguaflow-workbench.html
+
+# Local build/presentation artifacts (not project source)
+deck/
+opc-doc/

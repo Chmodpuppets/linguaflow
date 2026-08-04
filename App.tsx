@@ -21,6 +21,14 @@ import ErrorBookView from './components/ErrorBookView';
 import WritingProgressView from './components/WritingProgressView';
 import { GraduationCap, ChevronDown, Menu, Flame, Star } from 'lucide-react';
 
+// 侧边栏导航分组（信息架构：降低 15 个一级入口的视觉过载）
+const NAV_GROUPS: { label: string; items: string[] }[] = [
+  { label: '学习', items: ['daily', 'typing', 'writing', 'rpg'] },
+  { label: '精进', items: ['writing_tree', 'composition_studio', 'script_trainer', 'vocabulary', 'errorbook'] },
+  { label: '资源', items: ['library', 'import', 'trend', 'portfolio'] },
+  { label: '社区', items: ['social', 'profile'] },
+];
+
 const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [mode, setMode] = useState<AppMode>(AppMode.Daily);
@@ -35,6 +43,28 @@ const App: React.FC = () => {
       setUser(refreshed);
     }
   }, []);
+
+  // HOOK 必须在 early return 之前无条件调用，否则登录前后 hook 数量不一致
+  // → React 报 "Rendered more hooks than during the previous render"
+  const prevLevelRef = useRef<number | null>(null);
+  const [levelUpFlash, setLevelUpFlash] = useState<number | null>(null);
+
+  // 升级检测：等级跨 500 边界跃升时闪光；ref 用 lazy 守卫避免首登后立即触发
+  useEffect(() => {
+    if (!user) return;
+    const cur = user.progress[user.learningLanguage]?.level ?? 1;
+    if (prevLevelRef.current === null) {
+      prevLevelRef.current = cur;
+      return;
+    }
+    if (cur > prevLevelRef.current) {
+      setLevelUpFlash(cur);
+      const t = setTimeout(() => setLevelUpFlash(null), 2600);
+      prevLevelRef.current = cur;
+      return () => clearTimeout(t);
+    }
+    prevLevelRef.current = cur;
+  }, [user]);
 
   // Update user wrapper to force re-render on storage change
   const handleUserUpdate = (updatedUser: UserProfile) => {
@@ -73,19 +103,7 @@ const App: React.FC = () => {
   // 等级与进度条统一从单一计算源取，消除多处公式漂移
   const levelInfo = getLevelInfo(currentProgress.xp);
 
-  // 升级检测：等级跨 500 边界跃升时，用闪光把"掉条"重框为"升级奖励"，消除"经验没加"错觉
-  const prevLevelRef = useRef(currentProgress.level);
-  const [levelUpFlash, setLevelUpFlash] = useState<number | null>(null);
-  useEffect(() => {
-    const prev = prevLevelRef.current;
-    if (currentProgress.level > prev) {
-      setLevelUpFlash(currentProgress.level);
-      const t = setTimeout(() => setLevelUpFlash(null), 2600);
-      prevLevelRef.current = currentProgress.level;
-      return () => clearTimeout(t);
-    }
-    prevLevelRef.current = currentProgress.level;
-  }, [currentProgress.level]);
+  // hooks 已统一上移到 early return 之前，避免登录前后 hook 数量漂移
 
   const renderContent = () => {
     switch (mode) {
@@ -195,29 +213,29 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-dark text-gray-200 flex flex-col md:flex-row font-sans selection:bg-secondary/30 selection:text-white">
+    <div className="min-h-screen bg-dark text-body flex flex-col md:flex-row font-sans selection:bg-secondary/30 selection:text-white">
       
       {/* Sidebar / Mobile Menu */}
-      <aside className={`fixed md:relative z-50 bg-card border-r border-gray-800 h-full w-64 transform ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 transition-transform duration-300 ease-in-out flex flex-col`}>
-        <div className="p-6 border-b border-gray-800 flex items-center gap-3">
+      <aside className={`fixed md:relative z-50 bg-surface-2 border-r border-line h-full w-64 transform ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 transition-transform duration-300 ease-in-out flex flex-col`}>
+        <div className="p-6 border-b border-line flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-primary to-secondary rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg">
                 L
             </div>
             <div>
                 <h1 className="font-bold text-white tracking-tight">LinguaFlow</h1>
-                <p className="text-xs text-gray-500">以输出练就流利</p>
+                <p className="text-xs text-muted">以输出练就流利</p>
             </div>
         </div>
 
         {/* Mini User Profile in Sidebar */}
-        <div className="p-4 bg-gray-900/50 border-b border-gray-800">
+        <div className="p-4 bg-surface-3/50 border-b border-line">
             <div className="flex items-center gap-3 mb-2">
-                <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center border border-gray-600 shadow-sm">
+                <div className="w-8 h-8 rounded-full bg-surface-3 flex items-center justify-center border border-line-strong shadow-sm">
                     {currentFlag}
                 </div>
                 <div className="flex-1 min-w-0">
                     <div className="font-bold text-sm truncate text-white">{user.username}</div>
-                    <div className="text-xs text-gray-500">等级 {currentProgress.level} • {currentProgress.cefrLevel}</div>
+                    <div className="text-xs text-muted">等级 {currentProgress.level} • {currentProgress.cefrLevel}</div>
                 </div>
                 <div className="flex flex-col items-center">
                     <Flame size={14} className="text-orange-500" />
@@ -231,47 +249,57 @@ const App: React.FC = () => {
                   🎉 升级！Level {levelUpFlash}
                 </div>
               )}
-              <div className="w-full h-1.5 bg-gray-700 rounded-full overflow-hidden">
+              <div className="w-full h-1.5 bg-line rounded-full overflow-hidden">
                 <div className="h-full bg-secondary" style={{ width: `${levelInfo.pct}%` }}></div>
               </div>
             </div>
-            <div className="flex justify-between text-[10px] text-gray-500 mt-1">
+            <div className="flex justify-between text-[11px] text-muted mt-1">
                  <span>{currentProgress.xp} 经验</span>
                  <span>距下一级还需 {levelInfo.xpToNext}</span>
             </div>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2">
-            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">菜单</div>
-            {NAV_ITEMS.map((item) => {
-                const dueBadge = item.id === 'errorbook' && dueErrorCount > 0 ? dueErrorCount : 0;
-                return (
-                <button
-                    key={item.id}
-                    onClick={() => handleModeChange(item.id as AppMode)}
-                    className={`
-                        w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold outline-none
-                        ${mode === item.id 
-                            ? 'bg-primary text-white shadow-lg shadow-primary/25' 
-                            : 'text-gray-400 hover:text-white hover:bg-gray-800 transition-colors duration-200'
-                        }
-                    `}
-                >
-                    {item.icon}
-                    {item.label}
-                    {dueBadge > 0 && (
-                        <span className="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">{dueBadge}</span>
-                    )}
-                </button>
-                );
-            })}
+        <nav className="flex-1 p-4 space-y-5 overflow-y-auto custom-scrollbar">
+            {NAV_GROUPS.map((group) => (
+                <div key={group.label}>
+                    <div className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-2 px-2">{group.label}</div>
+                    <div className="space-y-1">
+                        {group.items.map((id) => {
+                            const item = NAV_ITEMS.find((n) => n.id === id);
+                            if (!item) return null;
+                            const dueBadge = id === 'errorbook' && dueErrorCount > 0 ? dueErrorCount : 0;
+                            const active = mode === id;
+                            return (
+                                <button
+                                    key={id}
+                                    onClick={() => handleModeChange(id as AppMode)}
+                                    className={`
+                                        relative w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold outline-none transition-colors duration-200
+                                        ${active
+                                            ? 'bg-primary/15 text-white shadow-glow-sm'
+                                            : 'text-muted hover:text-white hover:bg-surface-3'
+                                        }
+                                    `}
+                                >
+                                    {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r-full bg-primary" />}
+                                    {item.icon}
+                                    {item.label}
+                                    {dueBadge > 0 && (
+                                        <span className="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">{dueBadge}</span>
+                                    )}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            ))}
         </nav>
       </aside>
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* Mobile Header */}
-        <header className="md:hidden flex items-center justify-between p-4 border-b border-gray-800 bg-card">
+        <header className="md:hidden flex items-center justify-between p-4 border-b border-line bg-surface-2">
             <div className="flex items-center gap-2">
                  <div className="w-8 h-8 bg-gradient-to-br from-primary to-secondary rounded-lg flex items-center justify-center text-white font-bold text-sm">L</div>
                  <span className="font-bold text-white">LinguaFlow</span>
@@ -287,7 +315,7 @@ const App: React.FC = () => {
             {/* Context Badge */}
             <div className="absolute top-4 right-4 md:top-8 md:right-8 flex items-center gap-2 opacity-50 pointer-events-none">
                 <span className="text-4xl">{currentFlag}</span>
-                <span className="text-6xl font-black text-gray-800 select-none uppercase -ml-4 z-[-1] tracking-tighter">{user.learningLanguage}</span>
+                <span className="text-6xl font-black text-line select-none uppercase -ml-4 z-[-1] tracking-tighter">{user.learningLanguage}</span>
             </div>
 
             <div className="max-w-6xl mx-auto h-full flex flex-col">
@@ -295,7 +323,7 @@ const App: React.FC = () => {
                     <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                         {NAV_ITEMS.find(n => n.id === mode)?.label}
                     </h2>
-                    <p className="text-gray-500 text-sm">
+                    <p className="text-muted text-sm">
                         {currentProgress.cefrLevel} 级 • 共 {currentProgress.xp} 经验
                     </p>
                 </div>

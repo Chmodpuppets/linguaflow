@@ -99,28 +99,28 @@ const CompositionStudioView: React.FC<Props> = ({ user, onUpdateUser }) => {
   return (
     <div className="flex flex-col lg:flex-row h-[calc(100vh-180px)] gap-4">
       {/* 左：筛选 + 作文列表 */}
-      <div className="w-full lg:w-1/3 bg-card border border-gray-700 rounded-xl flex flex-col overflow-hidden">
-        <div className="p-4 border-b border-gray-700 bg-gray-900/50">
+      <div className="w-full lg:w-1/3 bg-card border border-line-strong rounded-xl flex flex-col overflow-hidden">
+        <div className="p-4 border-b border-line-strong bg-surface/50">
           <div className="flex items-center gap-2">
             <Layers size={18} className="text-secondary" />
             <span className="font-bold text-gray-300">作文流水线</span>
-            <span className="ml-auto text-xs text-gray-500">{flag} {lang} · {doneComps}/{totalComps}</span>
+            <span className="ml-auto text-xs text-muted">{flag} {lang} · {doneComps}/{totalComps}</span>
           </div>
           {/* 筛选器 */}
           <div className="mt-3 space-y-2">
-            <div className="flex items-center gap-1.5 text-xs text-gray-500">
+            <div className="flex items-center gap-1.5 text-xs text-muted">
               <Filter size={12} /> 体裁
             </div>
             <div className="flex flex-wrap gap-1.5">
               <button
                 onClick={() => setGenreFilter('all')}
-                className={`text-[11px] px-2 py-1 rounded-full border ${genreFilter === 'all' ? 'bg-secondary/20 border-secondary/40 text-white' : 'border-gray-700 text-gray-400 hover:text-white'}`}
+                className={`text-[11px] px-2 py-1 rounded-full border ${genreFilter === 'all' ? 'bg-secondary/20 border-secondary/40 text-white' : 'border-line-strong text-muted hover:text-white'}`}
               >全部</button>
               {(Object.keys(GENRE_LABELS) as CompositionGenre[]).map((g) => (
                 <button
                   key={g}
                   onClick={() => setGenreFilter(g)}
-                  className={`text-[11px] px-2 py-1 rounded-full border ${genreFilter === g ? 'bg-secondary/20 border-secondary/40 text-white' : 'border-gray-700 text-gray-400 hover:text-white'}`}
+                  className={`text-[11px] px-2 py-1 rounded-full border ${genreFilter === g ? 'bg-secondary/20 border-secondary/40 text-white' : 'border-line-strong text-muted hover:text-white'}`}
                 >{GENRE_LABELS[g]}</button>
               ))}
             </div>
@@ -129,7 +129,7 @@ const CompositionStudioView: React.FC<Props> = ({ user, onUpdateUser }) => {
                 <button
                   key={s}
                   onClick={() => setStatusFilter(s)}
-                  className={`text-[11px] px-2 py-1 rounded-full border ${statusFilter === s ? 'bg-primary/20 border-primary/40 text-white' : 'border-gray-700 text-gray-400 hover:text-white'}`}
+                  className={`text-[11px] px-2 py-1 rounded-full border ${statusFilter === s ? 'bg-primary/20 border-primary/40 text-white' : 'border-line-strong text-muted hover:text-white'}`}
                 >{s === 'all' ? '全部状态' : s === 'available' ? '可写' : s === 'completed' ? '已完成' : '未解锁'}</button>
               ))}
             </div>
@@ -138,11 +138,11 @@ const CompositionStudioView: React.FC<Props> = ({ user, onUpdateUser }) => {
 
         <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-3">
           {grouped.length === 0 && (
-            <p className="text-center text-gray-500 text-sm py-10">没有符合条件的作文</p>
+            <p className="text-center text-muted text-sm py-10">没有符合条件的作文</p>
           )}
           {grouped.map(({ theme, comps }) => (
             <div key={theme.id}>
-              <div className="text-xs text-gray-500 font-semibold px-1 mb-1 flex items-center gap-1">
+              <div className="text-xs text-muted font-semibold px-1 mb-1 flex items-center gap-1">
                 <BookOpen size={12} /> {theme.title}
               </div>
               {comps.map((c) => {
@@ -153,25 +153,25 @@ const CompositionStudioView: React.FC<Props> = ({ user, onUpdateUser }) => {
                     disabled={locked}
                     onClick={() => setActiveId(c.id)}
                     className={`w-full text-left p-2.5 rounded-lg mb-1 border transition-all flex items-center gap-2
-                      ${activeId === c.id ? 'bg-secondary/20 border-secondary/40' : 'border-transparent hover:bg-gray-800'}
+                      ${activeId === c.id ? 'bg-secondary/20 border-secondary/40' : 'border-transparent hover:bg-surface-3'}
                       ${locked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
                   >
                     {c.completed ? (
                       <CheckCircle2 size={15} className="text-green-400 flex-shrink-0" />
                     ) : locked ? (
-                      <Lock size={14} className="text-gray-500 flex-shrink-0" />
+                      <Lock size={14} className="text-muted flex-shrink-0" />
                     ) : (
                       <PenLine size={15} className="text-amber-400 flex-shrink-0" />
                     )}
                     <span className="flex-1 min-w-0">
                       <span className="block text-sm text-gray-200 truncate">{c.title.replace(/\s*·\s*主题作文$/, '')}</span>
-                      <span className="block text-[10px] text-gray-500">
+                      <span className="block text-[10px] text-muted">
                         {c.genre ? GENRE_LABELS[c.genre] : '作文'}
                         {c.register ? ` · ${REGISTER_LABELS[c.register]}` : ''}
                         {c.wordCount ? ` · ${c.wordCount}词` : ''}
                       </span>
                     </span>
-                    <ChevronRight size={14} className="text-gray-600 flex-shrink-0" />
+                    <ChevronRight size={14} className="text-faint flex-shrink-0" />
                   </button>
                 );
               })}
@@ -181,9 +181,9 @@ const CompositionStudioView: React.FC<Props> = ({ user, onUpdateUser }) => {
       </div>
 
       {/* 右：作文编辑器 */}
-      <div className="flex-1 bg-card border border-gray-700 rounded-xl flex flex-col overflow-hidden">
+      <div className="flex-1 bg-card border border-line-strong rounded-xl flex flex-col overflow-hidden">
         {!active ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-gray-500">
+          <div className="flex-1 flex flex-col items-center justify-center text-muted">
             <Layers size={64} className="mb-4 opacity-20" />
             <p className="text-lg">从左侧选择一篇作文开始写</p>
             <p className="text-sm opacity-50 mt-1">可按体裁 / 状态筛选，切换体裁会改变提纲骨架</p>

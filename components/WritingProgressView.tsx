@@ -50,7 +50,7 @@ const LineChart: React.FC<{
 
   if (n === 0) {
     return (
-      <div className="h-[200px] flex items-center justify-center text-gray-500 text-sm border-2 border-dashed border-gray-800 rounded-xl">
+      <div className="h-[200px] flex items-center justify-center text-muted text-sm border-2 border-dashed border-line rounded-xl">
         暂无数据
       </div>
     );
@@ -92,10 +92,10 @@ const LineChart: React.FC<{
 };
 
 const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: string; accent?: string }> = ({ icon, label, value, accent }) => (
-  <div className="bg-card p-4 rounded-xl border border-gray-700 flex items-center gap-3">
+  <div className="bg-card p-4 rounded-xl border border-line-strong flex items-center gap-3">
     <div className={`p-2 rounded-lg bg-dark ${accent ?? 'text-secondary'}`}>{icon}</div>
     <div>
-      <p className="text-xs text-gray-400">{label}</p>
+      <p className="text-xs text-muted">{label}</p>
       <p className="text-xl font-bold text-white">{value}</p>
     </div>
   </div>
@@ -141,15 +141,15 @@ const WritingProgressView: React.FC<WritingProgressViewProps> = ({ user }) => {
         <div className="p-2 rounded-xl bg-secondary/10 text-secondary"><TrendingUp size={24} /></div>
         <div>
           <h2 className="text-2xl font-bold text-white">写作趋势</h2>
-          <p className="text-sm text-gray-400">语言：{lang} · 共 {count} 次批改记录</p>
+          <p className="text-sm text-muted">语言：{lang} · 共 {count} 次批改记录</p>
         </div>
       </div>
 
       {count === 0 ? (
-        <div className="bg-card border border-gray-700 rounded-2xl p-12 flex flex-col items-center justify-center text-center">
-          <Activity size={40} className="text-gray-600 mb-3" />
+        <div className="bg-card border border-line-strong rounded-2xl p-12 flex flex-col items-center justify-center text-center">
+          <Activity size={40} className="text-faint mb-3" />
           <p className="text-gray-300 font-medium">还没有写作记录</p>
-          <p className="text-sm text-gray-500 mt-1">去「写作」页完成几次 AI 批改，这里就会画出你的进步曲线。</p>
+          <p className="text-sm text-muted mt-1">去「写作」页完成几次 AI 批改，这里就会画出你的进步曲线。</p>
         </div>
       ) : (
         <>
@@ -167,10 +167,10 @@ const WritingProgressView: React.FC<WritingProgressViewProps> = ({ user }) => {
           </div>
 
           {/* CEFR 等级趋势（通用，所有语言） */}
-          <div className="bg-card p-6 rounded-xl border border-gray-700">
+          <div className="bg-card p-6 rounded-xl border border-line-strong">
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-bold text-white">CEFR 等级趋势</h3>
-              <span className="text-xs text-gray-400">{firstCefr} → {lastCefr}</span>
+              <span className="text-xs text-muted">{firstCefr} → {lastCefr}</span>
             </div>
             <LineChart
               values={cefrValues}
@@ -183,10 +183,10 @@ const WritingProgressView: React.FC<WritingProgressViewProps> = ({ user }) => {
 
           {/* 考试总分趋势（仅当启用考试评分且存在记录） */}
           {examValues.length > 0 ? (
-            <div className="bg-card p-6 rounded-xl border border-gray-700">
+            <div className="bg-card p-6 rounded-xl border border-line-strong">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-bold text-white">{examLabel(targetExam)}</h3>
-                <span className="text-xs text-gray-400">仅含启用考试目标后的记录</span>
+                <span className="text-xs text-muted">仅含启用考试目标后的记录</span>
               </div>
               <LineChart
                 values={examValues}
@@ -202,14 +202,14 @@ const WritingProgressView: React.FC<WritingProgressViewProps> = ({ user }) => {
             </div>
           ) : (
             targetExam !== 'none' && (
-              <div className="bg-dark/40 border border-gray-800 rounded-xl p-4 text-sm text-gray-500">
+              <div className="bg-dark/40 border border-line rounded-xl p-4 text-sm text-muted">
                 尚未累积「{examLabel(targetExam)}」的评分记录（需要带考试目标进行写作批改后才会显示）。
               </div>
             )
           )}
 
           {/* 连续写作提示 */}
-          <p className="text-xs text-gray-500 text-center">
+          <p className="text-xs text-muted text-center">
             最长连续写作：{longestStreak} 天 · 坚持每天一篇，曲线会更稳。
           </p>
         </>

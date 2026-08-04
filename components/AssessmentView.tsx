@@ -34,17 +34,17 @@ const AssessmentView: React.FC<AssessmentViewProps> = ({ language, onLevelSet })
 
   return (
     <div className="max-w-3xl mx-auto space-y-8">
-      <div className="bg-card p-6 rounded-2xl border border-gray-700/50">
+      <div className="bg-card p-6 rounded-2xl border border-line-strong/50">
         <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
           <span className="text-secondary">AI</span> 水平测试
         </h2>
-        <p className="text-gray-400 mb-6">
+        <p className="text-muted mb-6">
           用{language}写一小段关于你自己、爱好或日常的文字（30–100 词）。
           AI 会分析你的词汇和语法，给出 CEFR 等级。
         </p>
 
         <textarea
-          className="w-full h-48 bg-dark/50 border border-gray-700 rounded-xl p-4 text-gray-200 focus:ring-2 focus:ring-secondary focus:border-transparent outline-none resize-none transition-all"
+          className="w-full h-48 bg-dark/50 border border-line-strong rounded-xl p-4 text-gray-200 focus:ring-2 focus:ring-secondary focus:border-transparent outline-none resize-none transition-all"
           placeholder={`在这里用 ${language} 写点什么……`}
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
@@ -70,13 +70,13 @@ const AssessmentView: React.FC<AssessmentViewProps> = ({ language, onLevelSet })
       </div>
 
       {result && (
-        <div className="bg-gradient-to-br from-gray-800 to-gray-900 p-8 rounded-2xl border border-gray-700 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="bg-gradient-to-br from-surface-2 to-surface p-8 rounded-2xl border border-line-strong animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="flex flex-col md:flex-row gap-8 items-center md:items-start">
             <div className="flex-shrink-0 text-center">
               <div className="w-32 h-32 rounded-full border-4 border-secondary flex items-center justify-center bg-secondary/10 shadow-[0_0_30px_rgba(168,85,247,0.3)]">
                 <span className="text-5xl font-bold text-white">{result.level}</span>
               </div>
-              <p className="mt-3 text-sm text-gray-400 font-medium tracking-wider uppercase">CEFR 等级</p>
+              <p className="mt-3 text-sm text-muted font-medium tracking-wider uppercase">CEFR 等级</p>
             </div>
 
             <div className="flex-grow space-y-4">
@@ -84,21 +84,21 @@ const AssessmentView: React.FC<AssessmentViewProps> = ({ language, onLevelSet })
               <p className="text-gray-300 leading-relaxed">{result.reasoning}</p>
               
               <div className="grid grid-cols-2 gap-4 mt-4">
-                <div className="bg-dark/40 p-3 rounded-lg border border-gray-700/50">
+                <div className="bg-dark/40 p-3 rounded-lg border border-line-strong/50">
                     <div className="flex justify-between items-end mb-1">
-                        <span className="text-xs text-gray-400">词汇</span>
+                        <span className="text-xs text-muted">词汇</span>
                         <span className="text-secondary font-bold">{result.vocabularyScore}%</span>
                     </div>
-                    <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                    <div className="h-2 bg-surface-3 rounded-full overflow-hidden">
                         <div className="h-full bg-secondary transition-all duration-1000" style={{ width: `${result.vocabularyScore}%` }}></div>
                     </div>
                 </div>
-                <div className="bg-dark/40 p-3 rounded-lg border border-gray-700/50">
+                <div className="bg-dark/40 p-3 rounded-lg border border-line-strong/50">
                     <div className="flex justify-between items-end mb-1">
-                        <span className="text-xs text-gray-400">语法</span>
+                        <span className="text-xs text-muted">语法</span>
                         <span className="text-blue-500 font-bold">{result.grammarScore}%</span>
                     </div>
-                    <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                    <div className="h-2 bg-surface-3 rounded-full overflow-hidden">
                         <div className="h-full bg-blue-500 transition-all duration-1000" style={{ width: `${result.grammarScore}%` }}></div>
                     </div>
                 </div>

@@ -56,7 +56,7 @@ const SocialView: React.FC<SocialViewProps> = ({ user }) => {
         <h1 className="text-2xl font-bold text-white flex items-center gap-2">
           <Users size={22} className="text-primary" /> 学习搭子
         </h1>
-        <p className="text-gray-400 text-sm mt-1">
+        <p className="text-muted text-sm mt-1">
           语言学习最怕一个人放弃。找个水平相近的搭子，互相打卡、共闯任务，坚持率翻倍。
         </p>
       </div>
@@ -69,29 +69,29 @@ const SocialView: React.FC<SocialViewProps> = ({ user }) => {
       </div>
 
       {/* 学习卡片 */}
-      <div className="rounded-2xl border border-gray-800 bg-gradient-to-br from-primary/20 to-secondary/10 p-6">
+      <div className="rounded-2xl border border-line bg-gradient-to-br from-primary/20 to-secondary/10 p-6">
         <div className="flex items-center justify-between">
           <div>
             <div className="text-xl font-bold text-white">{user.username}</div>
-            <div className="text-xs text-gray-400">LinguaFlow · {user.learningLanguage}</div>
+            <div className="text-xs text-muted">LinguaFlow · {user.learningLanguage}</div>
           </div>
           <div className="flex items-center gap-1 text-orange-400">
             <Flame size={18} /> <span className="text-lg font-bold">{user.currentStreak}</span>
-            <span className="text-xs text-gray-400">天连击</span>
+            <span className="text-xs text-muted">天连击</span>
           </div>
         </div>
         <div className="grid grid-cols-3 gap-3 mt-5 text-center">
-          <div className="bg-gray-900/50 rounded-xl py-3">
+          <div className="bg-surface/50 rounded-xl py-3">
             <div className="text-2xl font-bold text-white">Lv.{progress?.level}</div>
-            <div className="text-[10px] text-gray-500 uppercase">等级</div>
+            <div className="text-[10px] text-muted uppercase">等级</div>
           </div>
-          <div className="bg-gray-900/50 rounded-xl py-3">
+          <div className="bg-surface/50 rounded-xl py-3">
             <div className="text-2xl font-bold text-white">{weeklyOutput}</div>
-            <div className="text-[10px] text-gray-500 uppercase">本周输出</div>
+            <div className="text-[10px] text-muted uppercase">本周输出</div>
           </div>
-          <div className="bg-gray-900/50 rounded-xl py-3">
+          <div className="bg-surface/50 rounded-xl py-3">
             <div className="text-2xl font-bold text-white">{user.maxStreak}</div>
-            <div className="text-[10px] text-gray-500 uppercase">最长连击</div>
+            <div className="text-[10px] text-muted uppercase">最长连击</div>
           </div>
         </div>
         <button
@@ -103,14 +103,14 @@ const SocialView: React.FC<SocialViewProps> = ({ user }) => {
       </div>
 
       {/* 搭子码 */}
-      <div className="p-4 rounded-xl border border-gray-800 bg-card">
+      <div className="p-4 rounded-xl border border-line bg-card">
         <div className="flex items-center gap-2 mb-2">
           <Copy size={16} className="text-secondary" />
           <span className="text-sm font-bold text-white">我的搭子码</span>
         </div>
-        <p className="text-xs text-gray-500 mb-2">把这段代码发给朋友，对方在「导入搭子码」即可建立本地搭档关系（演示）。</p>
+        <p className="text-xs text-muted mb-2">把这段代码发给朋友，对方在「导入搭子码」即可建立本地搭档关系（演示）。</p>
         <div className="flex gap-2">
-          <code className="flex-1 text-[11px] text-gray-400 bg-gray-900/70 rounded p-2 break-all max-h-20 overflow-auto">
+          <code className="flex-1 text-[11px] text-muted bg-surface/70 rounded p-2 break-all max-h-20 overflow-auto">
             {buddyCode}
           </code>
           <button
@@ -123,7 +123,7 @@ const SocialView: React.FC<SocialViewProps> = ({ user }) => {
       </div>
 
       {/* 个人最佳 */}
-      <div className="p-4 rounded-xl border border-gray-800 bg-card">
+      <div className="p-4 rounded-xl border border-line bg-card">
         <div className="flex items-center gap-2 mb-3">
           <Trophy size={16} className="text-yellow-400" />
           <span className="text-sm font-bold text-white">个人最佳（本地）</span>
@@ -131,20 +131,20 @@ const SocialView: React.FC<SocialViewProps> = ({ user }) => {
         <div className="grid grid-cols-3 gap-3 text-center">
           <div>
             <div className="text-lg font-bold text-white">{totalOutput}</div>
-            <div className="text-[10px] text-gray-500">累计输出字数</div>
+            <div className="text-[10px] text-muted">累计输出字数</div>
           </div>
           <div>
             <div className="text-lg font-bold text-white">{activeDays}</div>
-            <div className="text-[10px] text-gray-500">活跃天数</div>
+            <div className="text-[10px] text-muted">活跃天数</div>
           </div>
           <div>
             <div className="text-lg font-bold text-white">{user.joinedDate ? Math.max(1, Math.floor((Date.now() - user.joinedDate) / 86400000)) : 1}</div>
-            <div className="text-[10px] text-gray-500">加入天数</div>
+            <div className="text-[10px] text-muted">加入天数</div>
           </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-2 text-xs text-green-400/80 border-t border-gray-800 pt-3">
+      <div className="flex items-center gap-2 text-xs text-green-400/80 border-t border-line pt-3">
         <CheckCircle2 size={14} /> 想让我把真实社交做出来？需要搭建后端（账号 + 匹配 + 实时对话）。可以下一步单独排期。
       </div>
     </div>

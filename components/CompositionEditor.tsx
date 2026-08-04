@@ -158,7 +158,7 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
       <div className="mb-4">
-        <div className="text-xs text-gray-500">
+        <div className="text-xs text-muted">
           {node.cefrLevel} · 主题作文 · {GENRE_LABELS[genre]}
           {node.register ? ` · ${REGISTER_LABELS[node.register]}语气` : ''} · 目标 {totalTarget} 词（已写 {totalWords}）
         </div>
@@ -178,17 +178,17 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
         )}
         {/* 体裁切换 */}
         <div className="mt-3 flex items-center gap-2">
-          <span className="text-xs text-gray-500">体裁</span>
+          <span className="text-xs text-muted">体裁</span>
           <select
             value={genre}
             onChange={(e) => handleGenreChange(e.target.value as CompositionGenre)}
-            className="bg-dark/50 border border-gray-700 rounded-lg px-2 py-1 text-sm text-gray-200 outline-none focus:ring-2 focus:ring-secondary"
+            className="bg-dark/50 border border-line-strong rounded-lg px-2 py-1 text-sm text-gray-200 outline-none focus:ring-2 focus:ring-secondary"
           >
             {(Object.keys(GENRE_LABELS) as CompositionGenre[]).map((g) => (
               <option key={g} value={g}>{GENRE_LABELS[g]}</option>
             ))}
           </select>
-          <span className="text-[10px] text-gray-600">切换会改变提纲骨架</span>
+          <span className="text-[10px] text-faint">切换会改变提纲骨架</span>
         </div>
       </div>
 
@@ -196,7 +196,7 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
       <div className="mb-4">
         <button
           onClick={() => setShowOutline((v) => !v)}
-          className="text-xs text-gray-400 hover:text-secondary inline-flex items-center gap-1"
+          className="text-xs text-muted hover:text-secondary inline-flex items-center gap-1"
         >
           <BookOpen size={14} /> {showOutline ? '收起提纲' : '查看提纲骨架'}
         </button>
@@ -206,10 +206,10 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
               const w = countWords(s.content, user.learningLanguage);
               const pct = Math.min(100, Math.round((w / s.targetWords) * 100));
               return (
-                <div key={s.id} className="bg-dark/40 border border-gray-700 rounded-lg p-2 text-center">
+                <div key={s.id} className="bg-dark/40 border border-line-strong rounded-lg p-2 text-center">
                   <div className="text-xs text-gray-300 truncate">{s.title}</div>
-                  <div className="text-[10px] text-gray-500 mt-1">{w}/{s.targetWords} 词</div>
-                  <div className="h-1.5 bg-gray-700 rounded-full mt-1 overflow-hidden">
+                  <div className="text-[10px] text-muted mt-1">{w}/{s.targetWords} 词</div>
+                  <div className="h-1.5 bg-surface-3 rounded-full mt-1 overflow-hidden">
                     <div className="h-full bg-secondary" style={{ width: `${pct}%` }} />
                   </div>
                 </div>
@@ -225,13 +225,13 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
           <div key={s.id}>
             <div className="flex items-center justify-between mb-1">
               <span className="text-sm text-gray-300 font-medium">{s.title}</span>
-              <span className="text-[10px] text-gray-500">目标 {s.targetWords} 词</span>
+              <span className="text-[10px] text-muted">目标 {s.targetWords} 词</span>
             </div>
             <textarea
               value={s.content}
               onChange={(e) => setSectionContent(i, e.target.value)}
               placeholder={`用 ${user.learningLanguage} 写这一段……`}
-              className="w-full bg-dark/50 border border-gray-700 rounded-xl p-3 text-base text-gray-200 outline-none focus:ring-2 focus:ring-secondary resize-none"
+              className="w-full bg-dark/50 border border-line-strong rounded-xl p-3 text-base text-gray-200 outline-none focus:ring-2 focus:ring-secondary resize-none"
               rows={4}
             />
           </div>
@@ -255,7 +255,7 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
         </button>
         <button
           onClick={handleSave}
-          className="px-4 py-3 rounded-xl bg-gray-700/50 text-gray-300 border border-gray-600 font-bold hover:bg-gray-700 flex items-center gap-2"
+          className="px-4 py-3 rounded-xl bg-surface-3/50 text-gray-300 border border-line-strong font-bold hover:bg-surface-3 flex items-center gap-2"
         >
           保存草稿
         </button>
@@ -285,7 +285,7 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
           </div>
           {reference.outline.length > 0 && (
             <div className="mb-3">
-              <div className="text-xs text-gray-500 mb-1">提纲要点（母语）</div>
+              <div className="text-xs text-muted mb-1">提纲要点（母语）</div>
               <ul className="list-disc list-inside text-sm text-gray-300 space-y-1">
                 {reference.outline.map((o, i) => (
                   <li key={i}>{o}</li>
@@ -294,7 +294,7 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
             </div>
           )}
           <div>
-            <div className="text-xs text-gray-500 mb-1">参考范文全文（{user.learningLanguage}）</div>
+            <div className="text-xs text-muted mb-1">参考范文全文（{user.learningLanguage}）</div>
             <div className="text-gray-200 leading-relaxed whitespace-pre-wrap font-mono text-sm">{reference.essay}</div>
           </div>
         </div>
@@ -304,20 +304,20 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
       {feedback && (
         <div className="space-y-4 mt-6 animate-in slide-in-from-bottom-2">
           {structCfg && structVal !== undefined && (
-            <div className="bg-dark/30 border border-gray-700 rounded-xl p-4">
+            <div className="bg-dark/30 border border-line-strong rounded-xl p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-gray-300 font-medium">{structCfg.label}</span>
                 <span className="text-sm text-secondary font-bold">{structVal} / {structCfg.max}</span>
               </div>
-              <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+              <div className="h-2 bg-surface-3 rounded-full overflow-hidden">
                 <div className="h-full bg-secondary" style={{ width: `${Math.min(100, Math.round((structVal / structCfg.max) * 100))}%` }} />
               </div>
-              {structFb && <p className="text-xs text-gray-400 mt-2">{structFb}</p>}
+              {structFb && <p className="text-xs text-muted mt-2">{structFb}</p>}
             </div>
           )}
 
-          <div className="bg-dark/30 border border-gray-700 rounded-xl p-4">
-            <div className="text-xs text-gray-500 mb-1 flex items-center gap-2">
+          <div className="bg-dark/30 border border-line-strong rounded-xl p-4">
+            <div className="text-xs text-muted mb-1 flex items-center gap-2">
               AI 改写 / 参考
               <button onClick={() => speak(feedback.correctedText)} className="text-secondary hover:underline inline-flex items-center gap-1">
                 <Volume2 size={14} /> 听发音
@@ -330,13 +330,13 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
             <div className="space-y-2">
               <h4 className="text-white font-semibold text-sm">具体问题</h4>
               {feedback.suggestions.map((it, i) => (
-                <div key={i} className="bg-dark/30 border border-gray-700 rounded-lg p-3 text-sm">
+                <div key={i} className="bg-dark/30 border border-line-strong rounded-lg p-3 text-sm">
                   <div className="flex items-center gap-3">
                     <span className="text-red-300 line-through flex-1">{it.original}</span>
-                    <ArrowRight size={16} className="text-gray-500" />
+                    <ArrowRight size={16} className="text-muted" />
                     <span className="text-green-300 font-medium flex-1">{it.suggestion}</span>
                   </div>
-                  <p className="mt-2 text-xs text-gray-400 pl-1 border-l-2 border-gray-600">{it.reason}</p>
+                  <p className="mt-2 text-xs text-muted pl-1 border-l-2 border-line-strong">{it.reason}</p>
                 </div>
               ))}
             </div>

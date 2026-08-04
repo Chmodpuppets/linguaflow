@@ -117,7 +117,7 @@ const ImportView: React.FC<ImportViewProps> = ({ user }) => {
         <h1 className="text-2xl font-bold text-white flex items-center gap-2">
           <Upload size={22} className="text-primary" /> 导入你的内容
         </h1>
-        <p className="text-gray-400 text-sm mt-1">
+        <p className="text-muted text-sm mt-1">
           学你<b className="text-white">自己</b>感兴趣的材料——追的剧、读的文章、工作的文档。粘进来就能变成打字、词汇和记忆练习。
         </p>
       </div>
@@ -129,7 +129,7 @@ const ImportView: React.FC<ImportViewProps> = ({ user }) => {
               ? 'border-green-700/40 bg-green-900/10 text-green-300'
               : status.type === 'warn'
               ? 'border-yellow-700/40 bg-yellow-900/10 text-yellow-200'
-              : 'border-gray-700 bg-gray-900/60 text-gray-300'
+              : 'border-line-strong bg-surface/60 text-gray-300'
           }`}
         >
           <div className="flex items-start gap-2">
@@ -141,13 +141,13 @@ const ImportView: React.FC<ImportViewProps> = ({ user }) => {
 
       {/* URL fetch */}
       <div className="flex gap-2">
-        <div className="flex-1 flex items-center gap-2 bg-card border border-gray-800 rounded-lg px-3">
-          <LinkIcon size={16} className="text-gray-500" />
+        <div className="flex-1 flex items-center gap-2 bg-card border border-line rounded-lg px-3">
+          <LinkIcon size={16} className="text-muted" />
           <input
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="粘贴文章/网页网址（受 CORS 限制时请用下方粘贴）"
-            className="flex-1 bg-transparent py-2.5 outline-none text-sm text-white placeholder:text-gray-600"
+            className="flex-1 bg-transparent py-2.5 outline-none text-sm text-white placeholder:text-faint"
           />
         </div>
         <button
@@ -163,14 +163,14 @@ const ImportView: React.FC<ImportViewProps> = ({ user }) => {
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="给这段内容起个标题（可选）"
-        className="w-full bg-card border border-gray-800 rounded-lg px-3 py-2.5 outline-none text-sm text-white placeholder:text-gray-600"
+        className="w-full bg-card border border-line rounded-lg px-3 py-2.5 outline-none text-sm text-white placeholder:text-faint"
       />
 
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="在此粘贴文本（YouTube 字幕、新闻、文档……）。本地解析，不上传第三方。"
-        className="w-full h-56 bg-card border border-gray-800 rounded-lg p-3 outline-none text-sm text-white placeholder:text-gray-600 resize-none custom-scrollbar"
+        className="w-full h-56 bg-card border border-line rounded-lg p-3 outline-none text-sm text-white placeholder:text-faint resize-none custom-scrollbar"
       />
 
       <div className="flex flex-wrap gap-3">
@@ -187,12 +187,12 @@ const ImportView: React.FC<ImportViewProps> = ({ user }) => {
         >
           <Scissors size={16} /> 提取词汇进词库
         </button>
-        <span className="flex items-center gap-1 text-xs text-gray-500 self-center">
+        <span className="flex items-center gap-1 text-xs text-muted self-center">
           <Sparkles size={14} /> 高频词自动去重，释义由 AI 补充
         </span>
       </div>
 
-      <div className="text-xs text-gray-600 border-t border-gray-800 pt-3">
+      <div className="text-xs text-faint border-t border-line pt-3">
         隐私说明：内容仅保存在你本地浏览器（localStorage），不会上传到任何服务器。通过网址抓取在浏览器端可能因跨域（CORS）失败，此时请手动复制文字粘贴。
       </div>
     </div>

@@ -140,16 +140,16 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
               className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-colors ${
                 mode === m
                   ? 'bg-primary text-white border-primary'
-                  : 'bg-card border-gray-700 text-gray-300 hover:border-secondary disabled:opacity-40 disabled:cursor-not-allowed'
+                  : 'bg-card border-line-strong text-gray-300 hover:border-secondary disabled:opacity-40 disabled:cursor-not-allowed'
               }`}
             >
               {MODE_INFO[m].name}
             </button>
           ))}
         </div>
-        <span className="text-xs text-gray-500">本轮 {stats.total} 题 · 答对 {stats.correct}</span>
+        <span className="text-xs text-muted">本轮 {stats.total} 题 · 答对 {stats.correct}</span>
       </div>
-      <p className="text-xs text-gray-500 -mt-2">{MODE_INFO[mode].desc}</p>
+      <p className="text-xs text-muted -mt-2">{MODE_INFO[mode].desc}</p>
       {currentRegister && (
         <div className="mt-2">
           <span className="inline-block bg-primary/15 text-primary text-xs font-bold px-2.5 py-1 rounded-full border border-primary/30">
@@ -159,11 +159,11 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
       )}
 
       {/* 题目卡 */}
-      <div className="bg-card border border-gray-700 rounded-2xl p-6">
+      <div className="bg-card border border-line-strong rounded-2xl p-6">
         {mode === 'scaffold' && (
           template ? (
             <div className="text-center">
-              <div className="text-xs text-gray-500 mb-2">按模板写出完整句（＿＿＿ 处填你的内容）</div>
+              <div className="text-xs text-muted mb-2">按模板写出完整句（＿＿＿ 处填你的内容）</div>
               <div className="text-3xl font-bold text-white font-mono tracking-wide my-4">
                 {template.template.split('___').map((part, i, arr) => (
                   <React.Fragment key={i}>
@@ -172,32 +172,32 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
                   </React.Fragment>
                 ))}
               </div>
-              <div className="text-sm text-gray-400">提示：{template.hint}</div>
+              <div className="text-sm text-muted">提示：{template.hint}</div>
             </div>
           ) : (
-            <div className="text-center text-gray-500 py-4">该语言暂无句型模板，试试「看词造句」或「情境一句」。</div>
+            <div className="text-center text-muted py-4">该语言暂无句型模板，试试「看词造句」或「情境一句」。</div>
           )
         )}
 
         {mode === 'wordchain' && (
           <div className="text-center">
-            <div className="text-xs text-gray-500 mb-3">用下面 3 个词造一句话（可加其他词，但要都用上）</div>
+            <div className="text-xs text-muted mb-3">用下面 3 个词造一句话（可加其他词，但要都用上）</div>
             {loadingWords ? (
-              <div className="text-gray-400 py-4 flex items-center justify-center gap-2">
+              <div className="text-muted py-4 flex items-center justify-center gap-2">
                 <Sparkles size={16} className="animate-spin" /> 生成词语中…
               </div>
             ) : (
               <div className="flex flex-wrap justify-center gap-3">
                 {words.map((w, i) => (
-                  <div key={i} className="bg-dark/50 border border-gray-600 rounded-xl px-4 py-3">
+                  <div key={i} className="bg-dark/50 border border-line-strong rounded-xl px-4 py-3">
                     <div className="text-xl font-bold text-white font-mono">{w.word}</div>
-                    <div className="text-xs text-gray-400 mt-1">{w.meaning}</div>
+                    <div className="text-xs text-muted mt-1">{w.meaning}</div>
                   </div>
                 ))}
               </div>
             )}
             {!loadingWords && words.length > 0 && (
-              <button onClick={loadWords} className="mt-4 text-xs text-gray-400 hover:text-secondary inline-flex items-center gap-1">
+              <button onClick={loadWords} className="mt-4 text-xs text-muted hover:text-secondary inline-flex items-center gap-1">
                 <RefreshCw size={12} /> 换一组词
               </button>
             )}
@@ -206,7 +206,7 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
 
         {mode === 'prompt' && (
           <div className="text-center">
-            <div className="text-xs text-gray-500 mb-2">情境（用目标语言写 1-3 句）</div>
+            <div className="text-xs text-muted mb-2">情境（用目标语言写 1-3 句）</div>
             <div className="text-lg text-white font-medium bg-dark/50 p-4 rounded-lg border-l-4 border-secondary">
               {situation}
             </div>
@@ -221,12 +221,12 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={user.learningLanguage === Language.Japanese ? '用日语写……（可输入罗马字，自动转假名）' : `用 ${user.learningLanguage} 写……`}
-            className="w-full bg-dark/50 border border-gray-700 rounded-xl p-4 text-lg text-gray-200 outline-none focus:ring-2 focus:ring-secondary resize-none"
+            className="w-full bg-dark/50 border border-line-strong rounded-xl p-4 text-lg text-gray-200 outline-none focus:ring-2 focus:ring-secondary resize-none"
             rows={3}
             autoFocus
           />
           {user.learningLanguage === Language.Japanese && input.trim() && /^[\x00-\x7F\s]+$/.test(input) && normalizedInput && (
-            <div className="text-xs text-gray-400 bg-dark/30 border border-gray-700 rounded-lg p-2">
+            <div className="text-xs text-muted bg-dark/30 border border-line-strong rounded-lg p-2">
               → 转为假名：<span className="text-secondary font-mono">{normalizedInput}</span>
             </div>
           )}
@@ -246,7 +246,7 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
             </button>
             <button
               onClick={next}
-              className="px-4 py-3 rounded-xl bg-gray-700/50 text-gray-300 border border-gray-600 font-bold hover:bg-gray-700 flex items-center gap-2"
+              className="px-4 py-3 rounded-xl bg-surface-3/50 text-gray-300 border border-line-strong font-bold hover:bg-surface-3 flex items-center gap-2"
             >
               <RefreshCw size={16} /> 换题
             </button>
@@ -265,8 +265,8 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
             </div>
           </div>
 
-          <div className="bg-card rounded-xl border border-gray-700 overflow-hidden">
-            <div className="p-3 bg-gray-800/50 border-b border-gray-700 text-xs font-bold text-gray-400 flex items-center gap-2">
+          <div className="bg-card rounded-xl border border-line-strong overflow-hidden">
+            <div className="p-3 bg-surface-2/50 border-b border-line-strong text-xs font-bold text-muted flex items-center gap-2">
               <Sparkles size={14} className="text-yellow-400" /> AI 改写
               <button onClick={() => speak(feedback.correctedText)} className="ml-auto text-secondary hover:underline inline-flex items-center gap-1">
                 <Volume2 size={14} /> 听发音
@@ -279,13 +279,13 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
             <div className="space-y-2">
               <h4 className="text-white font-semibold text-sm">具体问题</h4>
               {feedback.issues.map((it, i) => (
-                <div key={i} className="bg-card p-3 rounded-xl border border-gray-700 text-sm">
+                <div key={i} className="bg-card p-3 rounded-xl border border-line-strong text-sm">
                   <div className="flex items-center gap-3">
                     <span className="text-red-300 line-through flex-1">{it.original}</span>
-                    <ArrowRight size={16} className="text-gray-500" />
+                    <ArrowRight size={16} className="text-muted" />
                     <span className="text-green-300 font-medium flex-1">{it.fix}</span>
                   </div>
-                  <p className="mt-2 text-xs text-gray-400 pl-1 border-l-2 border-gray-600">{it.reason}</p>
+                  <p className="mt-2 text-xs text-muted pl-1 border-l-2 border-line-strong">{it.reason}</p>
                 </div>
               ))}
             </div>

@@ -879,8 +879,55 @@ export const cancelSpeech = (): void => {
 };
 
 /**
+ * 暂停当前朗读（保留音频位置，可 resumeSpeech 续播）。
+ * 与 cancelSpeech 的区别：cancel 会丢弃 audio 元素，只能从头重播。
+ * 返回 true 表示确实暂停了某个音源。
+ */
+export const pauseSpeech = (): boolean => {
+  if (currentQwenAudio && !currentQwenAudio.paused) {
+    currentQwenAudio.pause();
+    return true;
+  }
+  if (typeof window !== "undefined" && "speechSynthesis" in window) {
+    const synth = window.speechSynthesis;
+    if (synth.speaking && !synth.paused) {
+      synth.pause();
+      return true;
+    }
+  }
+  return false;
+};
+
+/** 从暂停位置续播。返回 true 表示确实恢复了某个音源。 */
+export const resumeSpeech = (): boolean => {
+  if (currentQwenAudio && currentQwenAudio.paused) {
+    currentQwenAudio.play().catch(() => { /* autoplay 限制等，忽略 */ });
+    return true;
+  }
+  if (typeof window !== "undefined" && "speechSynthesis" in window) {
+    const synth = window.speechSynthesis;
+    if (synth.paused) {
+      synth.resume();
+      return true;
+    }
+  }
+  return false;
+};
+
+/** 当前是否有「已暂停但尚未销毁」的音源（用于决定按钮是续播还是重播）。 */
+export const hasPausedSpeech = (): boolean => {
+  if (currentQwenAudio && currentQwenAudio.paused && currentQwenAudio.currentTime > 0) return true;
+  if (typeof window !== "undefined" && "speechSynthesis" in window) {
+    return window.speechSynthesis.paused;
+  }
+  return false;
+};
+
+/**
  * 调用 Qwen3-TTS（multimodal-generation 端点）。
  * 关键点：模型名 + voice 都在 input 里，端点不是老的 /SpeechSynthesizer。
+ * 返回的 URL 是 DashScope OSS 上的预签名 URL（24h 内有效），可重复播放直到过期。
+ * 错误抛异常；调用方负责缓存与回退。
  */
 async function fetchQwenTtsUrl(text: string, voice: string): Promise<string> {
   const res = await fetch(`${QWEN_HOST}/api/v1/services/aigc/multimodal-generation/generation`, {
@@ -917,6 +964,26 @@ export const previewVoice = (voice: string, text: string): Promise<void> => {
   return fetchQwenTtsUrl(text, voice).then((url) => {
     playQwenAudio(url);
   });
+};
+
+/**
+ * 暴露给上层组件（如 TtsAudioPlayer）以便自己控制 <audio> 元素的播放器。
+ * - 若有 Qwen key 且 TTS 返回成功 → 返回 CDN 上的 mp3 URL（24h 内可重复播放，无需再次调用接口）；
+ * - 否则返回 null（调用方可降级到 Web Speech / 错误提示）。
+ *
+ * @param text 待合成文本
+ * @param voice 指定音色；留空则用用户设置里的 ttsVoice
+ */
+export const fetchSpeechUrl = async (text: string, voice?: string): Promise<string | null> => {
+  const t = (text || "").trim();
+  if (!t) return null;
+  if (!QWEN_API_KEY) return null;
+  try {
+    return await fetchQwenTtsUrl(t, voice || currentTtsVoice());
+  } catch (e) {
+    console.warn("Qwen TTS (fetchSpeechUrl) failed:", e);
+    return null;
+  }
 };
 
 function playQwenAudio(url: string, opts?: { rate?: number; onStart?: () => void; onEnd?: () => void }): void {
@@ -996,6 +1063,52 @@ export const generateSpeech = (
         console.warn("Qwen TTS failed, falling back to Web Speech:", e);
         playWebSpeech(text, { ...opts, lang: contentLang });
       });
+};
+
+/**
+ * 带缓存的语音播放：同一段文本第二次点播放 → 0 API 调用，秒播。
+ *
+ * 与 generateSpeech 区别：generateSpeech 每次都打 Qwen；playCachedSpeech 按
+ * (text, voice) 命中本地缓存 → 直返 CDN URL。命中失败/Qwen 不可用 → Web Speech 兜底。
+ */
+export const playCachedSpeech = async (
+  text: string,
+  opts?: { lang?: Language; rate?: number; voice?: string; onStart?: () => void; onEnd?: () => void }
+): Promise<void> => {
+  if (!text || !text.trim()) {
+    opts?.onEnd?.();
+    return;
+  }
+  cancelSpeech();
+
+  // 查缓存（动态 import 避免循环依赖加载顺序问题；运行时就是同步拿函数）
+  const cacheMod = await import("./ttsCache");
+  const hit = cacheMod.getCachedTtsUrl(text, opts?.voice);
+  if (hit) {
+    playQwenAudio(hit, opts);
+    return;
+  }
+
+  const contentLang = detectContentLanguage(text) ?? opts?.lang ?? Language.English;
+
+  if (!QWEN_API_KEY) {
+    playWebSpeech(text, { ...opts, lang: contentLang });
+    return;
+  }
+
+  fetchQwenTtsUrl(text, opts?.voice || currentTtsVoice())
+    .then((url) => {
+      if (!url) {
+        playWebSpeech(text, { ...opts, lang: contentLang });
+        return;
+      }
+      cacheMod.setCachedTtsUrl(text, opts?.voice, url);
+      playQwenAudio(url, opts);
+    })
+    .catch((e) => {
+      console.warn("Qwen TTS (cached) failed, falling back to Web Speech:", e);
+      playWebSpeech(text, { ...opts, lang: contentLang });
+    });
 };
 
 // --- Speech-to-Text (Qwen paraformer-v2) ---
