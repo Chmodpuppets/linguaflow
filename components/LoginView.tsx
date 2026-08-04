@@ -51,22 +51,22 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
           {step === 1 && (
             <div className="space-y-6 animate-in slide-in-from-right duration-300">
               <div>
-                <label className="block text-sm font-medium text-muted mb-2">我们该怎么称呼你？</label>
+                <label className="block text-sm font-medium text-body mb-2">我们该怎么称呼你？</label>
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="输入你的昵称"
-                  className="w-full bg-dark border border-line-strong rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none transition-all"
+                  className="w-full bg-dark border border-line-strong rounded-xl px-4 py-3 text-body placeholder:text-muted focus:ring-2 focus:ring-primary outline-none transition-all"
                   autoFocus
                 />
               </div>
               <div>
-                 <label className="block text-sm font-medium text-muted mb-2">母语</label>
+                 <label className="block text-sm font-medium text-body mb-2">母语</label>
                  <select
                     value={nativeLang}
                     onChange={(e) => setNativeLang(e.target.value as Language)}
-                    className="w-full bg-dark border border-line-strong rounded-xl px-4 py-3 outline-none"
+                    className="w-full bg-dark border border-line-strong rounded-xl px-4 py-3 text-body outline-none"
                  >
                     {SUPPORTED_LANGUAGES.map(l => (
                         <option key={l.id} value={l.id}>{l.flag} {l.label}</option>
@@ -86,11 +86,11 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
           {step === 2 && (
             <div className="space-y-6 animate-in slide-in-from-right duration-300">
                <div>
-                 <label className="block text-sm font-medium text-muted mb-2">想学的语言</label>
+                 <label className="block text-sm font-medium text-body mb-2">想学的语言</label>
                  <select
                     value={learningLang}
                     onChange={(e) => setLearningLang(e.target.value as Language)}
-                    className="w-full bg-dark border border-line-strong rounded-xl px-4 py-3 outline-none"
+                    className="w-full bg-dark border border-line-strong rounded-xl px-4 py-3 text-body outline-none"
                  >
                     {SUPPORTED_LANGUAGES.map(l => (
                         <option key={l.id} value={l.id}>{l.flag} {l.label}</option>
@@ -98,7 +98,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                  </select>
               </div>
               <div>
-                 <label className="block text-sm font-medium text-muted mb-2">当前水平（估算）</label>
+                 <label className="block text-sm font-medium text-body mb-2">当前水平（估算）</label>
                  <div className="grid grid-cols-3 gap-2">
                     {Object.values(CEFRLevel).map(l => (
                         <button
@@ -126,7 +126,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
           {step === 3 && (
             <div className="space-y-6 animate-in slide-in-from-right duration-300">
               <div>
-                <label className="block text-sm font-medium text-muted mb-2">选择你的 AI 导师风格</label>
+                <label className="block text-sm font-medium text-body mb-2">选择你的 AI 导师风格</label>
                 <div className="grid grid-cols-2 gap-2">
                   {MENTOR_PERSONAS.map((m) => (
                     <button
@@ -141,7 +141,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-muted mb-2">你对什么感兴趣？（可多选，用来定制练习内容）</label>
+                <label className="block text-sm font-medium text-body mb-2">你对什么感兴趣？（可多选，用来定制练习内容）</label>
                 <div className="flex flex-wrap gap-2">
                   {TOPIC_PACKAGES.map((t) => (
                     <button
