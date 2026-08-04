@@ -36,13 +36,30 @@ const GLM_BASE_URL = import.meta.env.VITE_GLM_BASE_URL || "https://open.bigmodel
 const GLM_MODEL = import.meta.env.VITE_GLM_MODEL || "GLM-4.7-Flash";
 
 // Speech models (DashScope). Override via .env.
-// TTS: any Qwen voice you have enabled, e.g. sambert-zhide-v1 (Chinese),
-//   sambert-eva-v1 (English), cosyvoice-v1, qwen-audio-3.0-tts-flash.
+// TTS: qwen3-tts-flash —— Qwen3-TTS 系列，一个模型覆盖中/英/日/韩/俄等多语种，
+//   必须走 multimodal-generation 端点并在 input 里传 voice（音色 id）。
+//   ⚠️ 旧的 sambert-* / cosyvoice-* 走 /SpeechSynthesizer 同步端点，实测普通账号
+//   会返回 "current user api does not support http call"（仅支持 WebSocket），
+//   浏览器端无法直接用，故全部弃用。
 // STT: any Paraformer ASR model id, e.g. paraformer-v2, paraformer-realtime-v2.
-// NOTE: swapping to a non-DashScope provider (e.g. Azure) requires changing the
-// endpoint/format logic below, not just the model name.
-const QWEN_TTS_MODEL = process.env.QWEN_TTS_MODEL || "sambert-zhide-v1";
+const QWEN_TTS_MODEL = process.env.QWEN_TTS_MODEL || "qwen3-tts-flash";
 const QWEN_STT_MODEL = process.env.QWEN_STT_MODEL || "paraformer-v2";
+
+/** qwen3-tts-flash 可选音色（已实测全部可用；任一音色都能朗读多语种）。 */
+export const TTS_VOICES: { id: string; label: string; desc: string }[] = [
+  { id: "Cherry", label: "芊悦 Cherry", desc: "阳光积极女声・通用推荐" },
+  { id: "Ethan", label: "晨煦 Ethan", desc: "温暖清亮男声" },
+  { id: "Jennifer", label: "詹妮弗 Jennifer", desc: "品牌级英音女声・练英语首选" },
+  { id: "Ryan", label: "甜茶 Ryan", desc: "节奏感强男声" },
+  { id: "Elias", label: "墨讲师 Elias", desc: "慢速讲解男声・适合跟读" },
+  { id: "Katerina", label: "卡捷琳娜 Katerina", desc: "俄语系女声" },
+  { id: "Nofish", label: "不吃鱼 Nofish", desc: "松弛口语男声" },
+  { id: "Jada", label: "阿珍 Jada", desc: "上海腔女声" },
+  { id: "Dylan", label: "晓东 Dylan", desc: "北京腔男声" },
+  { id: "Sunny", label: "晴儿 Sunny", desc: "四川话女声" },
+  { id: "Kiki", label: "阿清 Kiki", desc: "粤语女声" },
+  { id: "Rocky", label: "阿强 Rocky", desc: "粤语男声" },
+];
 
 interface LLMProvider {
   name: string;
@@ -83,7 +100,7 @@ console.info(
   `${OPENROUTER_API_KEY ? `  |  openrouter → ${OPENROUTER_LLM_MODEL}` : ""}` +
   `; 运行时模型可在 Settings -> 模型设置 切换（GLM / 自定义）`
 );
-console.info(`[LinguaFlow] Speech models — TTS: ${QWEN_TTS_MODEL}  |  STT: ${QWEN_STT_MODEL}`);
+console.info(`[LinguaFlow] Speech models — TTS: ${QWEN_TTS_MODEL} (multilingual)  |  STT: ${QWEN_STT_MODEL}`);
 
 // Build a tutor system prompt that makes the AI "remember" the user (Phase 3)
 export const buildTutorSystemPrompt = (user: UserProfile): string => {
@@ -231,32 +248,79 @@ export const assessUserLevel = async (text: string, language: Language): Promise
   }
 };
 
+// --- 轻量脚本检测：用于纠正常见的 text/translation 字段反向问题 ---
+const SCRIPT_PATTERNS: Partial<Record<Language, RegExp>> = {
+  [Language.Chinese]: /[\u4e00-\u9fff]/,
+  [Language.Japanese]: /[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9fff]/,
+  [Language.Korean]: /[\uac00-\ud7af]/,
+  [Language.Russian]: /[\u0400-\u04ff]/,
+  [Language.Greek]: /[\u0370-\u03ff]/,
+  [Language.Arabic]: /[\u0600-\u06ff]/,
+};
+
+function scriptLikely(text: string, lang: Language): boolean {
+  const re = SCRIPT_PATTERNS[lang];
+  if (!re) {
+    // 拉丁字母类目标语言：判断文本里是否出现明显拉丁字母
+    return /[a-zA-Z]/.test(text);
+  }
+  return re.test(text);
+}
+
+/**
+ * 兜底校正：如果模型把 text/translation 写反了（例如目标语言是中文，
+ * 但 text 是英文、translation 是中文），自动交换两者，避免用户练错内容。
+ * keyVocabulary 保持原样（模型通常已经把 word=目标语言、meaning=母语写对）。
+ */
+function normalizeTypingContent(
+  content: TypingContent,
+  targetLang: Language
+): TypingContent {
+  const textMatchesTarget = scriptLikely(content.text, targetLang);
+  const translationMatchesTarget = scriptLikely(content.translation, targetLang);
+
+  if (!textMatchesTarget && translationMatchesTarget && content.translation.trim()) {
+    return {
+      ...content,
+      text: content.translation,
+      translation: content.text,
+      // phoneticGuide 原本就是目标语言文本的注音，交换后仍然对应新的 text
+      phoneticGuide: content.phoneticGuide,
+    };
+  }
+  return content;
+}
+
 export const generateTypingContent = async (targetLang: Language, nativeLang: Language, level: CEFRLevel, topic?: string, instructions?: string): Promise<TypingContent> => {
   const safeTopic = topic || "a random interesting daily life topic";
   const extraInstructions = instructions || "";
-  
+
+  const system = `You generate short typing-practice passages for language learners. Follow these rules absolutely:
+1. The "text" field MUST be written ONLY in ${targetLang} — this is the passage the student will type.
+2. The "translation" field MUST be the ${nativeLang} translation of "text" — this is the student's native language reference.
+3. For Chinese (Hanzi), Japanese (Kanji/Kana), or Korean (Hangul): "phoneticGuide" MUST be the full Pinyin/Romaji/Romanization of "text".
+4. Each "keyVocabulary.word" MUST be in ${targetLang}; "keyVocabulary.meaning" MUST be in ${nativeLang}.
+5. Return ONLY valid JSON. No Markdown. No code blocks. No extra commentary.`;
+
   const prompt = `
-    Generate a short practice text (approx 50-80 words) for typing practice in ${targetLang} at CEFR level ${level}.
-    The topic is: ${safeTopic}.
-    ${extraInstructions}
-    
-    For languages like Japanese (Kanji), Chinese (Hanzi), or Korean, provide a phonetic guide (Romaji/Pinyin/Romanization) for the ENTIRE text.
-    
-    Return ONLY valid JSON. No Markdown. No code blocks.
-    Structure:
-    {
-      "text": "The practice text itself",
-      "topic": "A 2-3 word title",
-      "phoneticGuide": "The full phonetic transliteration (or empty string if not applicable)",
-      "translation": "${nativeLang} translation of the text",
-      "keyVocabulary": [
-         { "word": "string", "meaning": "string", "partOfSpeech": "string" }
-      ]
-    }
+Generate a short practice text (approx 50-80 words) for typing practice at CEFR level ${level}.
+The topic is: ${safeTopic}.
+${extraInstructions}
+
+Return ONLY valid JSON with this exact structure:
+{
+  "text": "The practice passage in ${targetLang} ONLY",
+  "topic": "A 2-3 word title in ${targetLang}",
+  "phoneticGuide": "Full phonetic transliteration of 'text' (Pinyin/Romaji/Romanization), or empty string if not applicable",
+  "translation": "The ${nativeLang} translation of 'text'",
+  "keyVocabulary": [
+     { "word": "a key word in ${targetLang}", "meaning": "its meaning in ${nativeLang}", "partOfSpeech": "noun/verb/adjective/etc" }
+  ]
+}
   `;
 
   try {
-    const responseText = await chatCompletion(prompt);
+    const responseText = await chatCompletionWithSystem(system, prompt, 0.5);
 
     const parsed = parseAIJSON<TypingContent>(responseText, {
         text: "Error generating content. Please try again.",
@@ -269,8 +333,8 @@ export const generateTypingContent = async (targetLang: Language, nativeLang: La
     // Robust defaults
     if (!parsed.keyVocabulary) parsed.keyVocabulary = [];
     if (!parsed.text) parsed.text = "Error generating content.";
-    
-    return parsed;
+
+    return normalizeTypingContent(parsed, targetLang);
   } catch (error) {
     console.error("Content generation error:", error);
     throw new Error("Failed to generate typing content.");
@@ -814,24 +878,46 @@ export const cancelSpeech = (): void => {
   }
 };
 
-async function fetchQwenTtsUrl(text: string): Promise<string> {
-  const res = await fetch(`${QWEN_HOST}/api/v1/services/audio/tts/SpeechSynthesizer`, {
+/**
+ * 调用 Qwen3-TTS（multimodal-generation 端点）。
+ * 关键点：模型名 + voice 都在 input 里，端点不是老的 /SpeechSynthesizer。
+ */
+async function fetchQwenTtsUrl(text: string, voice: string): Promise<string> {
+  const res = await fetch(`${QWEN_HOST}/api/v1/services/aigc/multimodal-generation/generation`, {
     method: "POST",
     headers: { Authorization: `Bearer ${QWEN_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: QWEN_TTS_MODEL,
-      input: { text },
-      parameters: { format: "wav", sample_rate: 48000 },
+      input: { text, voice },
     }),
   });
-  if (!res.ok) throw new Error(`Qwen TTS failed (${res.status})`);
-  const data = await res.json();
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new Error(`Qwen TTS failed (${res.status}): ${data?.message || ""}`);
+  }
   const url = data?.output?.audio?.url;
   const b64 = data?.output?.audio?.data;
   if (url) return url;
   if (b64) return `data:audio/wav;base64,${b64}`;
-  throw new Error("No audio returned from Qwen TTS");
+  throw new Error(`No audio returned from Qwen TTS: ${data?.message || "unknown"}`);
 }
+
+/** 当前生效音色：用户在「模型设置」里选的，回落到 .env，再回落到 Cherry。 */
+function currentTtsVoice(): string {
+  try {
+    return getAIConfig().ttsVoice || process.env.QWEN_TTS_VOICE || "Cherry";
+  } catch {
+    return process.env.QWEN_TTS_VOICE || "Cherry";
+  }
+}
+
+/** 供设置页试听用：直接指定音色朗读一段样例。 */
+export const previewVoice = (voice: string, text: string): Promise<void> => {
+  cancelSpeech();
+  return fetchQwenTtsUrl(text, voice).then((url) => {
+    playQwenAudio(url);
+  });
+};
 
 function playQwenAudio(url: string, opts?: { rate?: number; onStart?: () => void; onEnd?: () => void }): void {
   const audio = new Audio();
@@ -842,6 +928,31 @@ function playQwenAudio(url: string, opts?: { rate?: number; onStart?: () => void
   audio.onerror = () => { currentQwenAudio = null; opts?.onEnd?.(); };
   audio.src = url;
   audio.play().catch(() => { currentQwenAudio = null; opts?.onEnd?.(); });
+}
+
+// 按文本内容判定语言（而非依赖用户「学习语言」）。
+// 这样学中文却练英文材料、或导入英文文章时，也能正确走 Qwen 英文 TTS。
+function detectContentLanguage(text: string): Language | null {
+  const s = text.trim();
+  if (!s) return null;
+  let latin = 0, han = 0, kana = 0, hangul = 0, cyrillic = 0, arabic = 0;
+  for (const ch of s) {
+    const cp = ch.codePointAt(0)!;
+    if ((cp >= 65 && cp <= 90) || (cp >= 97 && cp <= 122)) latin++;
+    else if (cp >= 0x4e00 && cp <= 0x9fff) han++;        // CJK 统一表意（汉字）
+    else if (cp >= 0x3040 && cp <= 0x30ff) kana++;          // 平假名 + 片假名
+    else if (cp >= 0xac00 && cp <= 0xd7a3) hangul++;        // 谚文
+    else if (cp >= 0x0400 && cp <= 0x04ff) cyrillic++;      // 西里尔
+    else if (cp >= 0x0600 && cp <= 0x06ff) arabic++;        // 阿拉伯
+  }
+  // 优先按「出现的脚本」判定；混合文本取最强信号
+  if (kana > 0) return Language.Japanese;
+  if (hangul > 0) return Language.Korean;
+  if (han > 0) return Language.Chinese;
+  if (latin > 0) return Language.English;
+  if (cyrillic > 0) return Language.Russian;
+  if (arabic > 0) return Language.Arabic;
+  return null;
 }
 
 function playWebSpeech(text: string, opts?: { lang?: Language; rate?: number; onStart?: () => void; onEnd?: () => void }): void {
@@ -870,19 +981,21 @@ export const generateSpeech = (
     }
     cancelSpeech();
 
-    // sambert-zhide-v1 is a Chinese voice by default; use Qwen TTS for Chinese content.
-    // (For multilingual Qwen voices like qwen-audio-3.0-tts-flash, set QWEN_TTS_MODEL
-    // and adjust routing here later.)
-    if (opts?.lang === Language.Chinese) {
-      fetchQwenTtsUrl(text)
-        .then((url) => playQwenAudio(url, opts))
-        .catch((e) => {
-          console.warn("Qwen TTS failed, falling back to Web Speech:", e);
-          playWebSpeech(text, opts);
-        });
+    // qwen3-tts-flash 一个模型覆盖中/英/日/韩/俄等多语种，无需按语言换模型。
+    // 语种检测仅用于：Qwen 不可用时，给浏览器 Web Speech 兜底选对音色语言。
+    const contentLang = detectContentLanguage(text) ?? opts?.lang ?? Language.English;
+
+    if (!QWEN_API_KEY) {
+      playWebSpeech(text, { ...opts, lang: contentLang });
       return;
     }
-    playWebSpeech(text, opts);
+
+    fetchQwenTtsUrl(text, currentTtsVoice())
+      .then((url) => playQwenAudio(url, opts))
+      .catch((e) => {
+        console.warn("Qwen TTS failed, falling back to Web Speech:", e);
+        playWebSpeech(text, { ...opts, lang: contentLang });
+      });
 };
 
 // --- Speech-to-Text (Qwen paraformer-v2) ---
