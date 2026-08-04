@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { UserProfile, WritingFeedback, WritingRevisionFeedback, CEFRLevel, ExamScores, TargetExam, IeltsBandScores, JlptScores, TopikScores, DeleScores } from '../types';
+import { UserProfile, WritingFeedback, WritingRevisionFeedback, CEFRLevel, ExamScores, TargetExam, IeltsBandScores, JlptScores, TopikScores, DeleScores, ToeflScores } from '../types';
 import { analyzeWriting, analyzeWritingRevision } from '../services/aiService';
 import { addActivity } from '../services/storageService';
 import { countWords } from '../services/textUtils';
@@ -59,6 +59,10 @@ const TOPICS_BY_LEVEL: Record<CEFRLevel, string[]> = {
 // 雅思 band 颜色（>=7 绿 / >=6 黄 / >=5 橙 / 其余红）
 const ieltsBandColor = (b: number): string =>
   b >= 7 ? 'text-green-400' : b >= 6 ? 'text-yellow-400' : b >= 5 ? 'text-orange-400' : 'text-red-400';
+
+// 托福 0–5 量规颜色（>=4 绿 / >=3 黄 / >=2 橙 / 其余红）
+const toeflBandColor = (b: number): string =>
+  b >= 4 ? 'text-green-400' : b >= 3 ? 'text-yellow-400' : b >= 2 ? 'text-orange-400' : 'text-red-400';
 
 // 0-100 通用分颜色（>=80 绿 / >=60 黄 / >=40 橙 / 其余红）
 const scoreColor100 = (n: number): string =>
@@ -138,6 +142,30 @@ const renderExamPanel = (scores: ExamScores, exam: TargetExam, generalComment: s
         <ExamBar label="léxico 词汇" val={s.vocabulary} feedback={s.feedback.vocabulary} />
         <ExamBar label="coherencia 连贯" val={s.coherence} feedback={s.feedback.coherence} />
         <ExamBar label="adecuación 语域得体" val={s.taskAdequacy} feedback={s.feedback.taskAdequacy} />
+      </div>
+    );
+  } else if (exam === 'TOEFL') {
+    const s = scores as ToeflScores;
+    title = '托福写作评分 (TOEFL iBT)';
+    overallNode = <p className="text-4xl font-bold text-white mt-1">{s.scaled}<span className="text-base text-gray-400 font-normal"> / 30</span></p>;
+    bars = (
+      <div className="grid grid-cols-1 gap-3">
+        {([
+          { key: 'development', label: 'Development 展开度', val: s.development },
+          { key: 'organization', label: 'Organization 组织', val: s.organization },
+          { key: 'languageUse', label: 'Language Use 语言运用', val: s.languageUse },
+        ] as { key: keyof ToeflScores['feedback']; label: string; val: number }[]).map((c) => (
+          <div key={c.key} className="bg-dark/50 border border-gray-700 rounded-lg p-3">
+            <div className="flex items-baseline justify-between">
+              <span className="text-xs text-gray-400">{c.label}</span>
+              <span className={`text-xl font-bold ${toeflBandColor(c.val)}`}>{c.val.toFixed(1)}<span className="text-xs text-gray-500 font-normal"> /5</span></span>
+            </div>
+            <div className="h-1.5 bg-gray-800 rounded-full mt-1 overflow-hidden">
+              <div className="h-full bg-secondary" style={{ width: `${Math.min(100, Math.max(0, (c.val / 5) * 100))}%` }} />
+            </div>
+            <p className="text-xs text-gray-400 mt-1 leading-snug">{s.feedback[c.key]}</p>
+          </div>
+        ))}
       </div>
     );
   }
@@ -369,7 +397,7 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
                 )}
 
                 {/* Score Card — 考试评分（按考试类型渲染面板）或通用 CEFR */}
-                {feedback.examScores && user.targetExam && user.targetExam !== 'TOEFL' ? (
+                {feedback.examScores && user.targetExam ? (
                   renderExamPanel(feedback.examScores, user.targetExam, feedback.generalComment, feedback.cefrEstimation)
                 ) : (
                   <div className="bg-card p-6 rounded-xl border border-gray-700 flex items-center justify-between">

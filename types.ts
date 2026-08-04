@@ -24,7 +24,7 @@ export enum CEFRLevel {
 
 // 考试目标框架（写作批改可按其输出对应评分体系）。
 // 各考试与语言一一对应、严格门控：IELTS/TOEFL→英语；JLPT→日语；TOPIK→韩语；DELE→西语。
-// 不匹配或尚未实现的考试一律回落到通用 CEFR 反馈（examScores = null）。
+// 不匹配语言或非考试目标（none）一律回落通用 CEFR 反馈（examScores = null）。
 export type TargetExam = 'none' | 'IELTS' | 'TOEFL' | 'JLPT' | 'TOPIK' | 'DELE';
 
 // 雅思写作四项评分（0–9，可含 .5）。仅当 learningLanguage === English 且目标 = IELTS 时由 AI 输出。
@@ -84,8 +84,22 @@ export interface DeleScores {
   };
 }
 
+// 托福 TOEFL iBT 写作评分（0–5 三维 + 0–30 换算总分）。仅当目标 = TOEFL 且学习语言 = 英语 时由 AI 输出。
+// 注：TOEFL 写作含综合写作与学术讨论两项，官方量规每项 0–5；此处按该量规估算单篇写作质量。
+export interface ToeflScores {
+  development: number;       // 展开度（观点充实、有例证/解释，任务回应充分）
+  organization: number;      // 组织（统一、连贯、推进）
+  languageUse: number;       // 语言运用（语法、词汇、准确与得体）
+  scaled: number;            // 换算总分（0–30，由三维估算）
+  feedback: {
+    development: string;
+    organization: string;
+    languageUse: string;
+  };
+}
+
 // 写作考试评分联合类型
-export type ExamScores = IeltsBandScores | JlptScores | TopikScores | DeleScores;
+export type ExamScores = IeltsBandScores | JlptScores | TopikScores | DeleScores | ToeflScores;
 
 export enum AppMode {
   Assessment = 'assessment',
@@ -140,7 +154,7 @@ export interface WritingFeedback {
   }>;
   generalComment: string;
   cefrEstimation: CEFRLevel;
-  // 仅当目标考试与该学习语言匹配且已实现对由 AI 填充；其余情况为 null。
+  // 仅当目标考试与该学习语言匹配且已实现时由 AI 填充；否则为 null（含 none 或语言不匹配）。
   examScores?: ExamScores | null;
 }
 
@@ -387,7 +401,7 @@ export interface UserProfile {
 
   // 考试目标（写作批改评分体系门控）。默认 'none' = 通用 CEFR 反馈。
   // 各考试与语言一一对应：IELTS/TOEFL→英语、JLPT→日语、TOPIK→韩语、DELE→西语；
-  // 不匹配或尚未实现的考试（如 TOEFL）回落到通用反馈。
+  // 不匹配语言或非考试目标回落到通用反馈。
   targetExam?: TargetExam;
 
   // Monetization placeholder (Phase 3)

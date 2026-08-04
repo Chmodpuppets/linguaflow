@@ -26,7 +26,7 @@ const EXAM_LANGUAGE_MAP: Record<TargetExam, Language | null> = {
 const EXAM_OPTIONS: { value: TargetExam; label: string; lang: Language | null }[] = [
   { value: 'none', label: '无（通用 CEFR 反馈）', lang: null },
   { value: 'IELTS', label: '雅思 IELTS（英语）', lang: Language.English },
-  { value: 'TOEFL', label: '托福 TOEFL（英语·暂未评分）', lang: Language.English },
+  { value: 'TOEFL', label: '托福 TOEFL（英语）', lang: Language.English },
   { value: 'JLPT', label: '日语 JLPT', lang: Language.Japanese },
   { value: 'TOPIK', label: '韩语 TOPIK', lang: Language.Korean },
   { value: 'DELE', label: '西语 DELE', lang: Language.Spanish },
@@ -573,7 +573,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                             </select>
                             <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={20} />
                         </div>
-                        <p className="text-xs text-gray-500 mt-2">考试评分与学习语言一一对应：IELTS→英语、JLPT→日语、TOPIK→韩语、DELE→西语；选错语言会自动回落到通用 CEFR 反馈。TOEFL 暂未实现。</p>
+                        <p className="text-xs text-gray-500 mt-2">考试评分与学习语言一一对应：IELTS/TOEFL→英语、JLPT→日语、TOPIK→韩语、DELE→西语；选错语言会自动回落到通用 CEFR 反馈。</p>
                       </div>
 
                       {/* AI Assessment Trigger */}

@@ -286,10 +286,9 @@ const EXAM_LANGUAGE: Partial<Record<TargetExam, Language>> = {
   DELE: Language.Spanish,
 };
 
-// 该考试是否对当前学习语言启用评分（TOEFL 暂未实现 → false）
+// 该考试是否对当前学习语言启用评分
 const isExamApplicable = (exam: TargetExam | undefined, lang: Language): boolean => {
   if (!exam || exam === 'none') return false;
-  if (exam === 'TOEFL') return false;
   return EXAM_LANGUAGE[exam] === lang;
 };
 
@@ -406,6 +405,31 @@ const buildExamScoring = (
           "vocabulary": "string (in ${nativeLanguage})",
           "coherence": "string (in ${nativeLanguage})",
           "taskAdequacy": "string (in ${nativeLanguage})"
+        }
+      }`,
+      };
+    case 'TOEFL':
+      return {
+        applies: true,
+        block: `
+    IMPORTANT — TOEFL iBT Writing scoring (English):
+    The student is preparing for the TOEFL iBT Writing section. Score this essay using the official TOEFL writing rubric. Each criterion is scored 0-5:
+    - "development": Development — ideas are elaborated with appropriate detail, examples, and explanation; the task is addressed fully.
+    - "organization": Organization — unity, logical progression, and coherence of ideas; clear structure.
+    - "languageUse": Language Use — grammar, vocabulary range, and mechanics (accuracy and appropriacy).
+    - "scaled": estimate the overall TOEFL Writing scaled score (0-30), derived from the three 0-5 criteria above (approx. (development+organization+languageUse)/15 * 30).
+    In "feedback", give a SHORT (1 sentence) comment per criterion, in ${nativeLanguage}.
+    `,
+        json: `,
+      "examScores": {
+        "development": number (0-5),
+        "organization": number (0-5),
+        "languageUse": number (0-5),
+        "scaled": number (0-30, estimated overall),
+        "feedback": {
+          "development": "string (in ${nativeLanguage})",
+          "organization": "string (in ${nativeLanguage})",
+          "languageUse": "string (in ${nativeLanguage})"
         }
       }`,
       };
