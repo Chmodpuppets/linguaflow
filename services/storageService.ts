@@ -1,5 +1,5 @@
 
-import { UserProfile, ActivityLog, Language, CEFRLevel, UserContent, LanguageProgress, WritingNode, VocabularyItem, DailyQuest, QuestKind, MentorPersona, AIMemory, ScriptItem, ScriptCardProgress, ErrorCard } from '../types';
+import { UserProfile, ActivityLog, Language, CEFRLevel, UserContent, LanguageProgress, WritingNode, VocabularyItem, DailyQuest, QuestKind, MentorPersona, AIMemory, ScriptItem, ScriptCardProgress, ErrorCard, WritingScoreRecord } from '../types';
 import { createDefaultGrowthTree } from '../data/growthTree';
 
 const STORAGE_KEY_USER = 'linguaflow_user';
@@ -10,6 +10,7 @@ const STORAGE_KEY_VOCAB = 'linguaflow_vocabulary';
 const STORAGE_KEY_AI = 'linguaflow_ai_config';
 const STORAGE_KEY_SCRIPT = 'linguaflow_script_progress';
 const STORAGE_KEY_ERRORBOOK = 'linguaflow_errorbook';
+const STORAGE_KEY_WRITING_HISTORY = 'linguaflow_writing_history';
 
 // --- Runtime AI model configuration (switcher in Settings -> 模型设置) ---
 // Keys are stored ONLY in localStorage (browser), never committed to source.
@@ -109,6 +110,7 @@ export const clearAllLearningData = () => {
     localStorage.removeItem(STORAGE_KEY_VOCAB);
     localStorage.removeItem(STORAGE_KEY_SCRIPT);
     localStorage.removeItem(STORAGE_KEY_ERRORBOOK);
+    localStorage.removeItem(STORAGE_KEY_WRITING_HISTORY);
 };
 
 export const registerUser = (username: string, nativeLanguage: Language, learningLanguage: Language, level: CEFRLevel): UserProfile => {
@@ -585,4 +587,24 @@ export const getDueErrorCards = (): ErrorCard[] => {
     return getErrorBook()
         .filter((i) => (i.dueDate ?? 0) <= now)
         .sort((a, b) => (a.dueDate ?? 0) - (b.dueDate ?? 0));
+};
+
+// --- Writing Score History (趋势曲线数据源) ---
+// 与错题本平行：按 language 隔离，存每次批改的结构化评分，供 WritingProgressView 聚合趋势。
+export const addWritingScore = (record: WritingScoreRecord): void => {
+    const records = getWritingHistory();
+    const updated = [record, ...records].slice(0, 500); // 保留最近 500 条
+    localStorage.setItem(STORAGE_KEY_WRITING_HISTORY, JSON.stringify(updated));
+};
+
+export const getWritingHistory = (): WritingScoreRecord[] => {
+    const data = localStorage.getItem(STORAGE_KEY_WRITING_HISTORY);
+    return data ? JSON.parse(data) : [];
+};
+
+// 按当前学习语言过滤（多语言隔离），并按时间正序返回（趋势曲线从左到右递增）
+export const getWritingHistoryByLang = (lang: Language): WritingScoreRecord[] => {
+    return getWritingHistory()
+        .filter((r) => r.language === lang)
+        .sort((a, b) => a.timestamp - b.timestamp);
 };

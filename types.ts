@@ -114,7 +114,8 @@ export enum AppMode {
   Import = 'import',
   Social = 'social',
   ScriptTrainer = 'script_trainer',
-  ErrorBook = 'errorbook'
+  ErrorBook = 'errorbook',
+  Trend = 'trend'
 }
 
 // --- Personalization (Phase 2/3) ---
@@ -132,6 +133,19 @@ export interface AssessmentResult {
   reasoning: string;
   vocabularyScore: number; // 0-100
   grammarScore: number; // 0-100
+}
+
+// 写作纵向趋势：每次批改（首稿/二稿）沉淀一条结构化评分记录，供趋势曲线聚合。
+// 考试分数为原始 ExamScores（含各考试量纲），绘制时按考试类型分别归一化。
+export interface WritingScoreRecord {
+  id: string;
+  timestamp: number;
+  date: string;            // YYYY-MM-DD
+  language: Language;
+  isRevision: boolean;     // true = 二稿对比批改；false = 首稿
+  cefrEstimation: CEFRLevel;
+  examScores?: ExamScores | null;  // 仅当本次写作目标考试与语言匹配时存在
+  wordCount: number;
 }
 
 export interface TypingContent {

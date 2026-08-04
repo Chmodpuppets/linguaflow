@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { UserProfile, WritingFeedback, WritingRevisionFeedback, CEFRLevel, ExamScores, TargetExam, IeltsBandScores, JlptScores, TopikScores, DeleScores, ToeflScores } from '../types';
 import { analyzeWriting, analyzeWritingRevision } from '../services/aiService';
-import { addActivity, addErrorCards } from '../services/storageService';
+import { addActivity, addErrorCards, addWritingScore } from '../services/storageService';
 import { countWords } from '../services/textUtils';
 import GuidedWritingView from './GuidedWritingView';
 import { Sparkles, ArrowRight, BookCheck, Wand2, Star, AlertCircle } from 'lucide-react';
@@ -252,6 +252,19 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
               feedback: result.generalComment
           }
       );
+
+      // 沉淀写作评分历史（趋势曲线数据源）：每次首稿/二稿的结构化评分落库
+      addWritingScore({
+          id: crypto.randomUUID(),
+          timestamp: Date.now(),
+          date: new Date().toISOString().split('T')[0],
+          language: user.learningLanguage,
+          isRevision: isRevision,
+          cefrEstimation: result.cefrEstimation,
+          examScores: result.examScores ?? null,
+          wordCount: wordCount,
+      });
+
       onComplete(updatedUser);
 
     } catch (err) {

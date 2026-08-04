@@ -16,6 +16,7 @@ import ImportView from './components/ImportView';
 import SocialView from './components/SocialView';
 import ScriptTrainerView from './components/ScriptTrainerView';
 import ErrorBookView from './components/ErrorBookView';
+import WritingProgressView from './components/WritingProgressView';
 import { GraduationCap, ChevronDown, Menu, Flame, Star } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -115,6 +116,12 @@ const App: React.FC = () => {
             <ErrorBookView
                 user={user}
                 onUpdateUser={handleUserUpdate}
+            />
+        );
+      case AppMode.Trend:
+        return (
+            <WritingProgressView
+                user={user}
             />
         );
       case AppMode.ScriptTrainer:
