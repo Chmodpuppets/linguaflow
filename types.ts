@@ -22,8 +22,9 @@ export enum CEFRLevel {
   C2 = 'C2'
 }
 
-// 考试目标框架（写作批改可按其输出对应评分体系）。目前仅 IELTS 实现细节；
-// 其他框架仅占位，回落到通用 CEFR 反馈。注意：雅思只适用于英语。
+// 考试目标框架（写作批改可按其输出对应评分体系）。
+// 各考试与语言一一对应、严格门控：IELTS/TOEFL→英语；JLPT→日语；TOPIK→韩语；DELE→西语。
+// 不匹配或尚未实现的考试一律回落到通用 CEFR 反馈（examScores = null）。
 export type TargetExam = 'none' | 'IELTS' | 'TOEFL' | 'JLPT' | 'TOPIK' | 'DELE';
 
 // 雅思写作四项评分（0–9，可含 .5）。仅当 learningLanguage === English 且目标 = IELTS 时由 AI 输出。
@@ -40,6 +41,51 @@ export interface IeltsBandScores {
     grammaticalRange: string;
   };
 }
+
+// 日语 JLPT 写作能力映射（0–100，三维）。仅当目标 = JLPT 且学习语言 = 日语 时由 AI 输出。
+// 注：JLPT 官方为选择题考试，此处将"写作"能力映射到 N 级量表作为估算。
+export interface JlptScores {
+  estimatedLevel: 'N5' | 'N4' | 'N3' | 'N2' | 'N1';  // 估算 N 级（N5 最容易 → N1 最难）
+  vocabularyKanji: number;     // 文字・語彙（汉字读音/写法、词汇）
+  grammar: number;             // 文法（助词/活用/句型/敬体）
+  composition: number;         // 構成・表現（组织/连贯/语体）
+  feedback: {
+    vocabularyKanji: string;
+    grammar: string;
+    composition: string;
+  };
+}
+
+// 韩语 TOPIK 写作评分（0–100，三维）。仅当目标 = TOPIK 且学习语言 = 韩语 时由 AI 输出。
+export interface TopikScores {
+  estimatedLevel: number;      // 估算 TOPIK 等级 1–6（I=1-2，II=3-6）
+  vocabGrammar: number;        // 어휘・문법
+  contentOrganization: number; // 내용 구성
+  expression: number;          // 표현
+  feedback: {
+    vocabGrammar: string;
+    contentOrganization: string;
+    expression: string;
+  };
+}
+
+// 西语 DELE 写作评分（0–100，四维，CEFR 对齐）。仅当目标 = DELE 且学习语言 = 西语 时由 AI 输出。
+export interface DeleScores {
+  estimatedLevel: CEFRLevel;   // 估算 CEFR 等级
+  grammar: number;             // gramática
+  vocabulary: number;          // léxico
+  coherence: number;           // coherencia y cohesión
+  taskAdequacy: number;        // adecuación a la tarea
+  feedback: {
+    grammar: string;
+    vocabulary: string;
+    coherence: string;
+    taskAdequacy: string;
+  };
+}
+
+// 写作考试评分联合类型
+export type ExamScores = IeltsBandScores | JlptScores | TopikScores | DeleScores;
 
 export enum AppMode {
   Assessment = 'assessment',
@@ -94,8 +140,8 @@ export interface WritingFeedback {
   }>;
   generalComment: string;
   cefrEstimation: CEFRLevel;
-  // 仅当 learningLanguage === English 且目标 = IELTS 时由 AI 填充；其余情况为 null。
-  examScores?: IeltsBandScores | null;
+  // 仅当目标考试与该学习语言匹配且已实现对由 AI 填充；其余情况为 null。
+  examScores?: ExamScores | null;
 }
 
 // 二稿改写闭环：在首稿批改基础上，对比二稿是否修复了问题。
@@ -340,7 +386,8 @@ export interface UserProfile {
   aiMemory: AIMemory;
 
   // 考试目标（写作批改评分体系门控）。默认 'none' = 通用 CEFR 反馈。
-  // 仅当 learningLanguage === English 且本字段 = 'IELTS' 时启用雅思四项评分。
+  // 各考试与语言一一对应：IELTS/TOEFL→英语、JLPT→日语、TOPIK→韩语、DELE→西语；
+  // 不匹配或尚未实现的考试（如 TOEFL）回落到通用反馈。
   targetExam?: TargetExam;
 
   // Monetization placeholder (Phase 3)

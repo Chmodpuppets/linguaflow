@@ -13,6 +13,25 @@ interface ProfileViewProps {
   onLogout: () => void;
 }
 
+// 考试目标 ↔ 语言 映射（用于下拉筛选与切换语言时自动回落）
+const EXAM_LANGUAGE_MAP: Record<TargetExam, Language | null> = {
+  none: null,
+  IELTS: Language.English,
+  TOEFL: Language.English,
+  JLPT: Language.Japanese,
+  TOPIK: Language.Korean,
+  DELE: Language.Spanish,
+};
+
+const EXAM_OPTIONS: { value: TargetExam; label: string; lang: Language | null }[] = [
+  { value: 'none', label: '无（通用 CEFR 反馈）', lang: null },
+  { value: 'IELTS', label: '雅思 IELTS（英语）', lang: Language.English },
+  { value: 'TOEFL', label: '托福 TOEFL（英语·暂未评分）', lang: Language.English },
+  { value: 'JLPT', label: '日语 JLPT', lang: Language.Japanese },
+  { value: 'TOPIK', label: '韩语 TOPIK', lang: Language.Korean },
+  { value: 'DELE', label: '西语 DELE', lang: Language.Spanish },
+];
+
 const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'settings'>('overview');
   const [showAssessment, setShowAssessment] = useState(false);
@@ -44,6 +63,17 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
 
   const logs = getLogs();
   const currentProgress = user.progress[user.learningLanguage];
+
+  // 考试下拉：仅显示与当前学习语言匹配的考试（保留已选但暂不匹配的项）
+  const selectedExam = user.targetExam ?? 'none';
+  const examOptions = useMemo(() => {
+    const list = EXAM_OPTIONS.filter(o => o.lang === null || o.lang === user.learningLanguage);
+    if (!list.some(o => o.value === selectedExam)) {
+      const extra = EXAM_OPTIONS.find(o => o.value === selectedExam);
+      if (extra) list.push(extra);
+    }
+    return list;
+  }, [user.learningLanguage, selectedExam]);
   
   // --- Analytics & Calculations ---
   const analytics = useMemo(() => {
@@ -130,6 +160,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
   const handleLanguageSwitch = (lang: Language) => {
     let updatedUser = { ...user, learningLanguage: lang };
     updatedUser = ensureLanguageProgress(updatedUser, lang);
+    // 考试目标与该语言不匹配时回落到通用 CEFR，避免无效组合
+    const examLang = EXAM_LANGUAGE_MAP[updatedUser.targetExam ?? 'none'];
+    if (examLang && examLang !== lang) updatedUser.targetExam = 'none';
     onUpdateUser(updatedUser);
   };
 
@@ -534,16 +567,13 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                                 onChange={(e) => handleTargetExamChange(e.target.value as TargetExam)}
                                 className="w-full appearance-none bg-dark border border-gray-700 text-white rounded-xl py-3 pl-4 pr-10 focus:ring-2 focus:ring-secondary focus:border-transparent outline-none cursor-pointer text-lg"
                             >
-                                <option value="none">无（通用 CEFR 反馈）</option>
-                                <option value="IELTS">雅思 IELTS（英语）</option>
-                                <option value="TOEFL">托福 TOEFL</option>
-                                <option value="JLPT">日语 JLPT</option>
-                                <option value="TOPIK">韩语 TOPIK</option>
-                                <option value="DELE">西/法语 DELE</option>
+                                {examOptions.map(o => (
+                                    <option key={o.value} value={o.value}>{o.label}</option>
+                                ))}
                             </select>
                             <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" size={20} />
                         </div>
-                        <p className="text-xs text-gray-500 mt-2">目前仅「雅思 IELTS」会输出 TR/CC/LR/GRA 四项评分，且仅对英语学习生效；其他框架仍回落到通用反馈。</p>
+                        <p className="text-xs text-gray-500 mt-2">考试评分与学习语言一一对应：IELTS→英语、JLPT→日语、TOPIK→韩语、DELE→西语；选错语言会自动回落到通用 CEFR 反馈。TOEFL 暂未实现。</p>
                       </div>
 
                       {/* AI Assessment Trigger */}

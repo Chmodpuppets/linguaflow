@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { UserProfile, WritingFeedback, WritingRevisionFeedback, CEFRLevel, IeltsBandScores } from '../types';
+import { UserProfile, WritingFeedback, WritingRevisionFeedback, CEFRLevel, ExamScores, TargetExam, IeltsBandScores, JlptScores, TopikScores, DeleScores } from '../types';
 import { analyzeWriting, analyzeWritingRevision } from '../services/aiService';
 import { addActivity } from '../services/storageService';
 import { countWords } from '../services/textUtils';
@@ -59,6 +59,105 @@ const TOPICS_BY_LEVEL: Record<CEFRLevel, string[]> = {
 // 雅思 band 颜色（>=7 绿 / >=6 黄 / >=5 橙 / 其余红）
 const ieltsBandColor = (b: number): string =>
   b >= 7 ? 'text-green-400' : b >= 6 ? 'text-yellow-400' : b >= 5 ? 'text-orange-400' : 'text-red-400';
+
+// 0-100 通用分颜色（>=80 绿 / >=60 黄 / >=40 橙 / 其余红）
+const scoreColor100 = (n: number): string =>
+  n >= 80 ? 'text-green-400' : n >= 60 ? 'text-yellow-400' : n >= 40 ? 'text-orange-400' : 'text-red-400';
+
+// 0-100 维度小卡（带进度条 + 反馈）
+const ExamBar: React.FC<{ label: string; val: number; feedback: string }> = ({ label, val, feedback }) => (
+  <div className="bg-dark/50 border border-gray-700 rounded-lg p-3">
+    <div className="flex items-baseline justify-between">
+      <span className="text-xs text-gray-400">{label}</span>
+      <span className={`text-xl font-bold ${scoreColor100(val)}`}>{val}</span>
+    </div>
+    <div className="h-1.5 bg-gray-800 rounded-full mt-1 overflow-hidden">
+      <div className="h-full bg-secondary" style={{ width: `${Math.min(100, Math.max(0, val))}%` }} />
+    </div>
+    <p className="text-xs text-gray-400 mt-1 leading-snug">{feedback}</p>
+  </div>
+);
+
+// 按考试类型渲染对应评分面板（雅思四项 / JLPT / TOPIK / DELE）
+const renderExamPanel = (scores: ExamScores, exam: TargetExam, generalComment: string, cefr: CEFRLevel) => {
+  let title = '考试评分';
+  let overallNode: React.ReactNode = null;
+  let bars: React.ReactNode = null;
+
+  if (exam === 'IELTS') {
+    const s = scores as IeltsBandScores;
+    title = '雅思写作总分 (IELTS)';
+    overallNode = <p className="text-4xl font-bold text-white mt-1">{s.overall.toFixed(1)}</p>;
+    bars = (
+      <div className="grid grid-cols-2 gap-3">
+        {([
+          { key: 'taskResponse', label: 'TR 任务回应', val: s.taskResponse },
+          { key: 'coherenceCohesion', label: 'CC 连贯衔接', val: s.coherenceCohesion },
+          { key: 'lexicalResource', label: 'LR 词汇资源', val: s.lexicalResource },
+          { key: 'grammaticalRange', label: 'GRA 语法多样', val: s.grammaticalRange },
+        ] as { key: keyof IeltsBandScores['feedback']; label: string; val: number }[]).map((c) => (
+          <div key={c.key} className="bg-dark/50 border border-gray-700 rounded-lg p-3">
+            <div className="flex items-baseline justify-between">
+              <span className="text-xs text-gray-400">{c.label}</span>
+              <span className={`text-xl font-bold ${ieltsBandColor(c.val)}`}>{c.val.toFixed(1)}</span>
+            </div>
+            <p className="text-xs text-gray-400 mt-1 leading-snug">{s.feedback[c.key]}</p>
+          </div>
+        ))}
+      </div>
+    );
+  } else if (exam === 'JLPT') {
+    const s = scores as JlptScores;
+    title = '日语 JLPT 写作评估';
+    overallNode = <p className="text-4xl font-bold text-white mt-1">{s.estimatedLevel}</p>;
+    bars = (
+      <div className="grid grid-cols-1 gap-3">
+        <ExamBar label="文字・語彙" val={s.vocabularyKanji} feedback={s.feedback.vocabularyKanji} />
+        <ExamBar label="文法" val={s.grammar} feedback={s.feedback.grammar} />
+        <ExamBar label="構成・表現" val={s.composition} feedback={s.feedback.composition} />
+      </div>
+    );
+  } else if (exam === 'TOPIK') {
+    const s = scores as TopikScores;
+    title = '韩语 TOPIK 写作评估';
+    overallNode = <p className="text-4xl font-bold text-white mt-1">Lv {s.estimatedLevel}</p>;
+    bars = (
+      <div className="grid grid-cols-1 gap-3">
+        <ExamBar label="어휘・문법 词汇语法" val={s.vocabGrammar} feedback={s.feedback.vocabGrammar} />
+        <ExamBar label="내용 구성 内容组织" val={s.contentOrganization} feedback={s.feedback.contentOrganization} />
+        <ExamBar label="표현 表达" val={s.expression} feedback={s.feedback.expression} />
+      </div>
+    );
+  } else if (exam === 'DELE') {
+    const s = scores as DeleScores;
+    title = '西语 DELE 写作评估';
+    overallNode = <p className="text-4xl font-bold text-white mt-1">{s.estimatedLevel}</p>;
+    bars = (
+      <div className="grid grid-cols-1 gap-3">
+        <ExamBar label="gramática 语法" val={s.grammar} feedback={s.feedback.grammar} />
+        <ExamBar label="léxico 词汇" val={s.vocabulary} feedback={s.feedback.vocabulary} />
+        <ExamBar label="coherencia 连贯" val={s.coherence} feedback={s.feedback.coherence} />
+        <ExamBar label="adecuación 语域得体" val={s.taskAdequacy} feedback={s.feedback.taskAdequacy} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-card p-6 rounded-xl border border-gray-700 space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-gray-400 text-sm font-medium">{title}</h3>
+          {overallNode}
+        </div>
+        <div className="text-right max-w-[55%]">
+          <p className="text-gray-300 italic text-sm">"{generalComment}"</p>
+        </div>
+      </div>
+      {bars}
+      <p className="text-xs text-gray-500">CEFR 参考：{cefr}</p>
+    </div>
+  );
+};
 
 const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
   // 按用户当前目标语言的 CEFR 等级选题（无等级记录默认 A1）
@@ -269,36 +368,9 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
                   </div>
                 )}
 
-                {/* Score Card — 英语+雅思目标显示 IELTS 四项；否则显示 CEFR */}
-                {feedback.examScores ? (
-                  <div className="bg-card p-6 rounded-xl border border-gray-700 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-gray-400 text-sm font-medium">雅思写作总分 (IELTS)</h3>
-                        <p className="text-4xl font-bold text-white mt-1">{feedback.examScores.overall.toFixed(1)}</p>
-                      </div>
-                      <div className="text-right max-w-[55%]">
-                        <p className="text-gray-300 italic text-sm">"{feedback.generalComment}"</p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      {([
-                        { key: 'taskResponse', label: 'TR 任务回应', val: feedback.examScores.taskResponse },
-                        { key: 'coherenceCohesion', label: 'CC 连贯衔接', val: feedback.examScores.coherenceCohesion },
-                        { key: 'lexicalResource', label: 'LR 词汇资源', val: feedback.examScores.lexicalResource },
-                        { key: 'grammaticalRange', label: 'GRA 语法多样', val: feedback.examScores.grammaticalRange },
-                      ] as { key: keyof IeltsBandScores['feedback']; label: string; val: number }[]).map((c) => (
-                        <div key={c.key} className="bg-dark/50 border border-gray-700 rounded-lg p-3">
-                          <div className="flex items-baseline justify-between">
-                            <span className="text-xs text-gray-400">{c.label}</span>
-                            <span className={`text-xl font-bold ${ieltsBandColor(c.val)}`}>{c.val.toFixed(1)}</span>
-                          </div>
-                          <p className="text-xs text-gray-400 mt-1 leading-snug">{feedback.examScores!.feedback[c.key]}</p>
-                        </div>
-                      ))}
-                    </div>
-                    <p className="text-xs text-gray-500">CEFR 参考：{feedback.cefrEstimation}</p>
-                  </div>
+                {/* Score Card — 考试评分（按考试类型渲染面板）或通用 CEFR */}
+                {feedback.examScores && user.targetExam && user.targetExam !== 'TOEFL' ? (
+                  renderExamPanel(feedback.examScores, user.targetExam, feedback.generalComment, feedback.cefrEstimation)
                 ) : (
                   <div className="bg-card p-6 rounded-xl border border-gray-700 flex items-center justify-between">
                     <div>

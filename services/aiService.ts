@@ -277,19 +277,35 @@ export const generateTypingContent = async (targetLang: Language, nativeLang: La
   }
 };
 
-export const analyzeWriting = async (
-  text: string,
+// 考试 ↔ 语言 映射（严格门控：写作考试评分只对匹配语言启用）
+const EXAM_LANGUAGE: Partial<Record<TargetExam, Language>> = {
+  IELTS: Language.English,
+  TOEFL: Language.English,
+  JLPT: Language.Japanese,
+  TOPIK: Language.Korean,
+  DELE: Language.Spanish,
+};
+
+// 该考试是否对当前学习语言启用评分（TOEFL 暂未实现 → false）
+const isExamApplicable = (exam: TargetExam | undefined, lang: Language): boolean => {
+  if (!exam || exam === 'none') return false;
+  if (exam === 'TOEFL') return false;
+  return EXAM_LANGUAGE[exam] === lang;
+};
+
+// 构建考试评分的 prompt 指令块与 JSON 字段。未启用时返回空。
+const buildExamScoring = (
   targetLanguage: Language,
   nativeLanguage: Language,
-  cefrLevel: CEFRLevel = CEFRLevel.A1,
-  targetExam?: TargetExam
-): Promise<WritingFeedback> => {
-  // 雅思四项评分严格门控：仅英语 + 目标 IELTS 才启用，绝不污染其他语言/考试。
-  const isIelts = targetLanguage === Language.English && targetExam === 'IELTS';
+  targetExam: TargetExam | undefined
+): { applies: boolean; block: string; json: string } => {
+  if (!isExamApplicable(targetExam, targetLanguage)) return { applies: false, block: '', json: '' };
 
-  // 雅思四项评分附加指令（门控启用时追加）
-  const ieltsBlock = isIelts
-    ? `
+  switch (targetExam) {
+    case 'IELTS':
+      return {
+        applies: true,
+        block: `
     IMPORTANT — IELTS Academic Writing scoring:
     The student is preparing for the IELTS Academic Writing test. In addition to the above, score this essay using the official IELTS 9-band criteria (bands can be whole or half: e.g. 5.0, 6.5, 7.0).
     - "taskResponse": Task Response / Task Achievement (TR) — how fully and relevantly the task is addressed.
@@ -298,11 +314,8 @@ export const analyzeWriting = async (
     - "grammaticalRange": Grammatical Range & Accuracy (GRA) — grammar structures and correctness.
     - "overall": the average of the four band scores, rounded to ONE decimal place.
     In "feedback", give a SHORT (1 sentence) comment per criterion, in ${nativeLanguage}.
-    `
-    : '';
-
-  const ieltsJson = isIelts
-    ? `,
+    `,
+        json: `,
       "examScores": {
         "taskResponse": number (0-9, may be .5),
         "coherenceCohesion": number (0-9, may be .5),
@@ -315,8 +328,103 @@ export const analyzeWriting = async (
           "lexicalResource": "string (in ${nativeLanguage})",
           "grammaticalRange": "string (in ${nativeLanguage})"
         }
-      }`
-    : '';
+      }`,
+      };
+    case 'JLPT':
+      return {
+        applies: true,
+        block: `
+    IMPORTANT — JLPT 写作能力映射（日语）:
+    JLPT 官方为选择题考试（文字・語彙 / 文法 / 読解 / 聴解），此处将学生的日语「写作」能力映射到 N 级量表作为估算。
+    按以下三维各以 0-100 评分：
+    - "vocabularyKanji": 文字・語彙 — 汉字读音/写法、词汇选择与搭配准确度。
+    - "grammar": 文法 — 助词、活用、句型、敬体/简体使用是否正确。
+    - "composition": 構成・表現 — 文章组织、连贯性、语体是否得体。
+    - "estimatedLevel": 估算对应的 N 级（"N5" 最容易 ~ "N1" 最难）。
+    在 "feedback" 中每个维度给一句简短说明（用 ${nativeLanguage}）。
+    `,
+        json: `,
+      "examScores": {
+        "estimatedLevel": "N5" | "N4" | "N3" | "N2" | "N1",
+        "vocabularyKanji": number (0-100),
+        "grammar": number (0-100),
+        "composition": number (0-100),
+        "feedback": {
+          "vocabularyKanji": "string (in ${nativeLanguage})",
+          "grammar": "string (in ${nativeLanguage})",
+          "composition": "string (in ${nativeLanguage})"
+        }
+      }`,
+      };
+    case 'TOPIK':
+      return {
+        applies: true,
+        block: `
+    IMPORTANT — TOPIK 写作评分（韩语）:
+    学生备考 TOPIK（韩国语能力考试）。按以下三维各以 0-100 评分：
+    - "vocabGrammar": 어휘・문법 — 词汇与语法准确度。
+    - "contentOrganization": 내용 구성 — 内容展开与结构组织。
+    - "expression": 표현 — 表达是否自然、拼写是否正确。
+    - "estimatedLevel": 估算对应的 TOPIK 等级（数字 1 最低 ~ 6 最高；TOPIK I = 1-2，TOPIK II = 3-6）。
+    在 "feedback" 中每个维度给一句简短说明（用 ${nativeLanguage}）。
+    `,
+        json: `,
+      "examScores": {
+        "estimatedLevel": number (1-6),
+        "vocabGrammar": number (0-100),
+        "contentOrganization": number (0-100),
+        "expression": number (0-100),
+        "feedback": {
+          "vocabGrammar": "string (in ${nativeLanguage})",
+          "contentOrganization": "string (in ${nativeLanguage})",
+          "expression": "string (in ${nativeLanguage})"
+        }
+      }`,
+      };
+    case 'DELE':
+      return {
+        applies: true,
+        block: `
+    IMPORTANT — DELE 写作评分（西班牙语）:
+    学生备考 DELE（西班牙语水平文凭）。按 CEFR 维度各以 0-100 评分：
+    - "grammar": gramática — 词法句法准确度。
+    - "vocabulary": léxico — 词汇范围与精确度。
+    - "coherence": coherencia y cohesión — 语篇连贯与衔接。
+    - "taskAdequacy": adecuación a la tarea — 体裁与语域是否得当。
+    - "estimatedLevel": 估算对应的 CEFR 等级（"A1" ~ "C2"）。
+    在 "feedback" 中每个维度给一句简短说明（用 ${nativeLanguage}）。
+    `,
+        json: `,
+      "examScores": {
+        "estimatedLevel": "A1" | "A2" | "B1" | "B2" | "C1" | "C2",
+        "grammar": number (0-100),
+        "vocabulary": number (0-100),
+        "coherence": number (0-100),
+        "taskAdequacy": number (0-100),
+        "feedback": {
+          "grammar": "string (in ${nativeLanguage})",
+          "vocabulary": "string (in ${nativeLanguage})",
+          "coherence": "string (in ${nativeLanguage})",
+          "taskAdequacy": "string (in ${nativeLanguage})"
+        }
+      }`,
+      };
+    default:
+      return { applies: false, block: '', json: '' };
+  }
+};
+
+export const analyzeWriting = async (
+  text: string,
+  targetLanguage: Language,
+  nativeLanguage: Language,
+  cefrLevel: CEFRLevel = CEFRLevel.A1,
+  targetExam?: TargetExam
+): Promise<WritingFeedback> => {
+  // 考试评分：仅当 (目标考试 ↔ 学习语言) 匹配且已实现对才启用，绝不污染其他语言。
+  const exam = buildExamScoring(targetLanguage, nativeLanguage, targetExam);
+  const examBlock = exam.applies ? exam.block : '';
+  const examJson = exam.applies ? exam.json : '';
 
   const prompt = `
     Act as a strict but encouraging language tutor. The student is learning ${targetLanguage} at CEFR level ${cefrLevel} (native language: ${nativeLanguage}).
@@ -327,7 +435,7 @@ export const analyzeWriting = async (
     - Focus feedback on errors typical of ${cefrLevel}: particles, polite form, basic word order, script orthography (kana/kanji spelling), agreement.
     - Be encouraging: in "generalComment", first state what they did well, then the single most important thing to improve.
     - Estimate the CEFR level of THIS sample honestly (it may differ from their declared level).
-    ${ieltsBlock}
+    ${examBlock}
     Text: "${text}"
 
     Explain all feedback, reasons for corrections, and the general comment in ${nativeLanguage}.
@@ -338,7 +446,7 @@ export const analyzeWriting = async (
       "correctedText": "string (The corrected version in ${targetLanguage})",
       "suggestions": [ { "original": "string", "suggestion": "string", "reason": "string (in ${nativeLanguage})" } ],
       "generalComment": "string (in ${nativeLanguage})",
-      "cefrEstimation": "A1" | "A2" | "B1" | "B2" | "C1" | "C2"${ieltsJson}
+      "cefrEstimation": "A1" | "A2" | "B1" | "B2" | "C1" | "C2"${examJson}
     }
   `;
 
@@ -351,8 +459,8 @@ export const analyzeWriting = async (
         cefrEstimation: CEFRLevel.A1,
         examScores: null
     });
-    // 兜底：非雅思场景强制清空（避免 AI 误带 examScores）
-    if (!isIelts) parsed.examScores = null;
+    // 兜底：非匹配/未实现考试强制清空 examScores（避免 AI 误带）
+    if (!isExamApplicable(targetExam, targetLanguage)) parsed.examScores = null;
     return parsed;
   } catch (error) {
     console.error("Writing analysis error:", error);
@@ -375,24 +483,10 @@ export const analyzeWritingRevision = async (
     .map((s) => `- 「${s.original}」→「${s.suggestion}」(${s.reason})`)
     .join("\n");
 
-  // 雅思四项评分严格门控（与首稿一致）
-  const isIelts = targetLanguage === Language.English && targetExam === 'IELTS';
-  const ieltsBlock = isIelts
-    ? `
-    IMPORTANT — IELTS Academic Writing scoring (on the REVISED draft):
-    Score the revised draft using the official IELTS 9-band criteria (bands can be whole or half).
-    Provide: "taskResponse" (TR), "coherenceCohesion" (CC), "lexicalResource" (LR), "grammaticalRange" (GRA),
-    and "overall" = average of the four (one decimal). Each criterion gets a SHORT comment in ${nativeLanguage} under "feedback".
-    `
-    : '';
-  const ieltsJson = isIelts
-    ? `,
-      "examScores": {
-        "taskResponse": number, "coherenceCohesion": number, "lexicalResource": number, "grammaticalRange": number,
-        "overall": number (average, one decimal),
-        "feedback": { "taskResponse": "string", "coherenceCohesion": "string", "lexicalResource": "string", "grammaticalRange": "string" }
-      }`
-    : '';
+  // 考试评分（与首稿一致门控）：针对二稿评分
+  const exam = buildExamScoring(targetLanguage, nativeLanguage, targetExam);
+  const examBlock = exam.applies ? `\n    Score the REVISED draft using the criteria below.\n${exam.block}` : '';
+  const examJson = exam.applies ? exam.json : '';
 
   const prompt = `
     Act as a strict but encouraging language tutor. The student is learning ${targetLanguage} at CEFR ${cefrLevel} (native: ${nativeLanguage}).
@@ -416,7 +510,7 @@ export const analyzeWritingRevision = async (
     3. Estimate the CEFR level of the REVISED draft honestly (cefrEstimation).
     4. generalComment (in ${nativeLanguage}): state whether it improved overall, then the single next most important fix.
     5. improved: true only if the revised draft is clearly better than the first draft.
-    ${ieltsBlock}
+    ${examBlock}
     Explain all feedback and reasons in ${nativeLanguage}.
     Return ONLY valid JSON. No Markdown.
     Structure:
@@ -427,7 +521,7 @@ export const analyzeWritingRevision = async (
       "cefrEstimation": "A1" | "A2" | "B1" | "B2" | "C1" | "C2",
       "fixedIssues": ["string (in ${nativeLanguage})"],
       "remainingIssues": ["string (in ${nativeLanguage})"],
-      "improved": boolean${ieltsJson}
+      "improved": boolean${examJson}
     }
   `;
 
@@ -446,7 +540,7 @@ export const analyzeWritingRevision = async (
     // 兜底：保证数组字段存在；非雅思场景强制清空 examScores
     parsed.fixedIssues = parsed.fixedIssues ?? [];
     parsed.remainingIssues = parsed.remainingIssues ?? [];
-    if (!isIelts) parsed.examScores = null;
+    if (!isExamApplicable(targetExam, targetLanguage)) parsed.examScores = null;
     return parsed;
   } catch (error) {
     console.error("Writing revision analysis error:", error);
