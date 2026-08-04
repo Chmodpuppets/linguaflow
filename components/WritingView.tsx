@@ -1,60 +1,18 @@
 
 import React, { useState } from 'react';
-import { UserProfile, WritingFeedback, WritingRevisionFeedback, CEFRLevel, ExamScores, TargetExam, IeltsBandScores, JlptScores, TopikScores, DeleScores, ToeflScores } from '../types';
+import { UserProfile, WritingFeedback, WritingRevisionFeedback, CEFRLevel, ExamScores, TargetExam, IeltsBandScores, JlptScores, TopikScores, DeleScores, ToeflScores, REGISTER_LABELS } from '../types';
 import { analyzeWriting, analyzeWritingRevision } from '../services/aiService';
 import { addActivity, addErrorCards, addWritingScore } from '../services/storageService';
 import { countWords } from '../services/textUtils';
 import GuidedWritingView from './GuidedWritingView';
 import { Sparkles, ArrowRight, BookCheck, Wand2, Star, AlertCircle } from 'lucide-react';
 import WritingLanguageGate from './WritingLanguageGate';
+import { TOPICS_BY_LEVEL, WritingTopic } from '../data/writingPrompts';
 
 interface WritingViewProps {
   user: UserProfile;
   onComplete: (user: UserProfile) => void;
 }
-
-// 按 CEFR 等级分级的写作题目（母语提示，让学习者用目标语言产出）
-const TOPICS_BY_LEVEL: Record<CEFRLevel, string[]> = {
-  [CEFRLevel.A1]: [
-    '用目标语言做个自我介绍：你叫什么、是哪国人、做什么工作或学生。',
-    '描述你身边的一件物品：这是什么、什么颜色、是大还是小。',
-    '写写你今天做了什么（用过去时），至少两句。',
-    '说说你喜欢什么、不喜欢什么（用"喜欢/讨厌"句型）。',
-    '描述你房间里某样东西在哪里（用方位词）。',
-  ],
-  [CEFRLevel.A2]: [
-    '描述你一天的日常（从早到晚，至少四句）。',
-    '写写你上个周末做了什么（用过去时）。',
-    '比较两种食物或两个城市，说说你更喜欢哪个、为什么。',
-    '写一段话邀请朋友周末一起做某事，说明时间地点。',
-    '你在餐厅，用目标语言点一餐并和服务员简单对话。',
-  ],
-  [CEFRLevel.B1]: [
-    '描述一次让你印象深刻的旅行：去了哪、做了什么、感受如何。',
-    '谈谈你对某件事的看法（用"我认为"句型），并给出理由。',
-    '比较住在城市和乡下的优缺点。',
-    '写一封信给朋友，讲讲你最近的计划和打算。',
-    '介绍一部你喜欢的电影或书，并说明推荐理由。',
-  ],
-  [CEFRLevel.B2]: [
-    '描述一段童年回忆，以及它对你的影响。',
-    '谈谈你对社交媒体的看法：利与弊。',
-    '介绍一道你家乡的传统菜，并写明做法。',
-    '就一个社会话题阐述你的观点，正反两面都要涉及。',
-    '写一封正式邮件，申请一个职位或项目。',
-  ],
-  [CEFRLevel.C1]: [
-    '就一个争议性话题写一篇议论文，立场鲜明、论证充分。',
-    '描述一个复杂的技术或文化概念，让外行也能懂。',
-    '写一篇评论文章，评析最近的一部作品或事件。',
-    '用目标语言写一篇短文，反思你学习这门语言的过程与心得。',
-  ],
-  [CEFRLevel.C2]: [
-    '用目标语言创作一篇短篇散文或故事，注重文采与风格。',
-    '就一个抽象主题（如时间、自由）写一篇哲学思辨短文。',
-    '翻译并评析一段你母语的文学片段。',
-  ],
-};
 
 // 雅思 band 颜色（>=7 绿 / >=6 黄 / >=5 橙 / 其余红）
 const ieltsBandColor = (b: number): string =>
@@ -190,12 +148,13 @@ const renderExamPanel = (scores: ExamScores, exam: TargetExam, generalComment: s
 const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
   // 按用户当前目标语言的 CEFR 等级选题（无等级记录默认 A1）
   const userLevel = user.progress[user.learningLanguage]?.cefrLevel ?? CEFRLevel.A1;
-  const currentTopics = TOPICS_BY_LEVEL[userLevel] ?? TOPICS_BY_LEVEL[CEFRLevel.A1];
+  const currentTopics: WritingTopic[] = TOPICS_BY_LEVEL[userLevel] ?? TOPICS_BY_LEVEL[CEFRLevel.A1];
+  const [activeTopic, setActiveTopic] = useState<WritingTopic | null>(null);
+  const activeTopicResolved = activeTopic ?? currentTopics[0];
 
   const [text, setText] = useState('');
   const [feedback, setFeedback] = useState<WritingFeedback | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [activeTopic, setActiveTopic] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<'free' | 'guided'>('free');
 
@@ -215,10 +174,10 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
       let result: WritingFeedback;
       if (isRevision && firstFeedback) {
         // 二稿：把首稿 + 上次建议 + 当前二稿一起送审
-        result = await analyzeWritingRevision(firstDraftText, text, firstFeedback, user.learningLanguage, user.nativeLanguage, userLevel, user.targetExam);
+        result = await analyzeWritingRevision(firstDraftText, text, firstFeedback, user.learningLanguage, user.nativeLanguage, userLevel, user.targetExam, activeTopicResolved?.text);
         setRevisionResult(result as WritingRevisionFeedback);
       } else {
-        result = await analyzeWriting(text, user.learningLanguage, user.nativeLanguage, userLevel, user.targetExam);
+        result = await analyzeWriting(text, user.learningLanguage, user.nativeLanguage, userLevel, user.targetExam, activeTopicResolved?.register, activeTopicResolved?.text);
         setFirstFeedback(result);
         setFirstDraftText(text);
         setRevisionResult(null);
@@ -269,13 +228,13 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
 
     } catch (err) {
       console.error(err);
-      setError('AI 批改失败，请检查 API Key / 网络后重试。');
+      setError('批改失败（AI 返回格式异常或网络问题）。请重试——不会扣除 XP 或记录趋势。');
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  const useTopic = (topic: string) => {
+  const useTopic = (topic: WritingTopic) => {
     setActiveTopic(topic);
     setFeedback(null);
   };
@@ -317,13 +276,16 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
                         onClick={() => useTopic(t)}
                         className={`whitespace-nowrap px-3 py-1.5 rounded-full text-sm border transition-all ${activeTopic === t ? 'bg-secondary text-white border-secondary' : 'bg-dark border-gray-700 text-gray-400 hover:border-gray-500'}`}
                     >
-                        {t.slice(0, 25)}...
+                        {t.text.slice(0, 22)}…
                     </button>
                 ))}
             </div>
-            {activeTopic && (
+            {activeTopicResolved && (
                 <div className="mt-3 text-white font-medium bg-dark/50 p-3 rounded-lg border-l-4 border-secondary">
-                    {activeTopic}
+                    {activeTopicResolved.text}
+                    <span className="block mt-2">
+                        <span className="inline-block text-[11px] px-2 py-0.5 rounded-full bg-secondary/20 text-secondary">要求语气：{REGISTER_LABELS[activeTopicResolved.register]}</span>
+                    </span>
                 </div>
             )}
         </div>
@@ -433,6 +395,13 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
                     <div className="text-right max-w-[60%]">
                         <p className="text-gray-300 italic">"{feedback.generalComment}"</p>
                     </div>
+                  </div>
+                )}
+
+                {/* 语体点评（仅当本题有语体要求时出现） */}
+                {feedback.registerNote && (
+                  <div className="bg-secondary/10 border border-secondary/30 rounded-xl p-4 text-sm text-gray-200">
+                    <span className="font-bold text-secondary">语体点评：</span>{feedback.registerNote}
                   </div>
                 )}
 

@@ -52,6 +52,11 @@
         0%, 100% { opacity: 1; }
         50% { opacity: 0; }
       }
+      @keyframes pop {
+        0% { opacity: 0; transform: translate(-50%, 6px) scale(0.7); }
+        60% { opacity: 1; transform: translate(-50%, -2px) scale(1.08); }
+        100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+      }
     </style>
 </head>
   <body>

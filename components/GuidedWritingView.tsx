@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { UserProfile, GuidedWritingFeedback, GuidedMode, CEFRLevel, Language } from '../types';
+import { UserProfile, GuidedWritingFeedback, GuidedMode, CEFRLevel, Language, WritingRegister, REGISTER_LABELS } from '../types';
 import { analyzeGuidedWriting, GuidedContext, generateSentenceWords, generateSpeech } from '../services/aiService';
-import { addActivity } from '../services/storageService';
+import { addActivity, addErrorCards } from '../services/storageService';
 import { romajiToKana } from '../services/romajiKana';
 import { countWords } from '../services/textUtils';
-import { getGuidedTemplate, getGuidedPrompt, hasGuidedTemplates, GuidedTemplate } from '../data/guidedWriting';
+import { getGuidedTemplate, getGuidedPrompt, hasGuidedTemplates, GuidedTemplate, GUIDED_DEFAULT_REGISTER } from '../data/guidedWriting';
 import { Sparkles, Check, ArrowRight, RefreshCw, Lightbulb, Wand2, Volume2, AlertCircle } from 'lucide-react';
 
 interface GuidedWritingViewProps {
@@ -28,6 +28,7 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
   const [words, setWords] = useState<Array<{ word: string; meaning: string }>>([]);
   const [loadingWords, setLoadingWords] = useState(false);
   const [situation, setSituation] = useState('');
+  const [situationRegister, setSituationRegister] = useState<WritingRegister | undefined>(undefined);
 
   // 作答与反馈
   const [input, setInput] = useState('');
@@ -50,7 +51,7 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
   const resetRound = () => { setInput(''); setFeedback(null); setError(null); };
 
   const loadScaffold = () => { setTemplate(getGuidedTemplate(user.learningLanguage, userLevel)); resetRound(); };
-  const loadPrompt = () => { setSituation(getGuidedPrompt(userLevel)); resetRound(); };
+  const loadPrompt = () => { const p = getGuidedPrompt(userLevel); setSituation(p.text); setSituationRegister(p.register); resetRound(); };
   const loadWords = async () => {
     setLoadingWords(true); resetRound();
     try {
@@ -75,10 +76,17 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
     else loadWords();
   };
 
+  // 当前题目要求的语体（用于徽章与批改传参）
+  const currentRegister: WritingRegister | undefined =
+    mode === 'scaffold' ? (template?.register ?? GUIDED_DEFAULT_REGISTER[userLevel])
+      : mode === 'prompt' ? situationRegister
+        : GUIDED_DEFAULT_REGISTER[userLevel];
+
   const buildContext = (): GuidedContext => {
-    if (mode === 'scaffold') return { template: template?.template, hint: template?.hint };
-    if (mode === 'wordchain') return { words };
-    return { situation };
+    const regLabel = currentRegister ? REGISTER_LABELS[currentRegister] : undefined;
+    if (mode === 'scaffold') return { template: template?.template, hint: template?.hint, register: regLabel };
+    if (mode === 'wordchain') return { words, register: regLabel };
+    return { situation, register: regLabel };
   };
 
   const submit = async () => {
@@ -90,12 +98,21 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
       totalRef.current += 1;
       if (fb.isCorrect) correctRef.current += 1;
       setStats({ correct: correctRef.current, total: totalRef.current });
+      // 错题沉淀：引导式写作的错误全部进错题本（闭环）
+      if (fb.issues && fb.issues.length > 0) {
+        addErrorCards(fb.issues.map((it) => ({
+          original: it.original,
+          correction: it.fix,
+          reason: it.reason,
+          language: user.learningLanguage,
+        })));
+      }
       const xp = fb.isCorrect ? 15 : 5;
       const { user: updated } = addActivity(user, 'writing', user.learningLanguage, xp,
         `引导式写作·${MODE_INFO[mode].name}${fb.isCorrect ? ' ✓' : ' ✗'}`, { mode, wordCount: countWords(normalizedInput, user.learningLanguage) });
       onComplete(updated);
     } catch (e) {
-      setError('AI 批改失败，请检查网络/API Key 后重试。');
+      setError('批改失败（AI 返回格式异常或网络问题）。请重试——不会扣除 XP 或记录趋势。');
     }
     setAnalyzing(false);
   };
@@ -133,6 +150,13 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
         <span className="text-xs text-gray-500">本轮 {stats.total} 题 · 答对 {stats.correct}</span>
       </div>
       <p className="text-xs text-gray-500 -mt-2">{MODE_INFO[mode].desc}</p>
+      {currentRegister && (
+        <div className="mt-2">
+          <span className="inline-block bg-primary/15 text-primary text-xs font-bold px-2.5 py-1 rounded-full border border-primary/30">
+            要求语气：{REGISTER_LABELS[currentRegister]}
+          </span>
+        </div>
+      )}
 
       {/* 题目卡 */}
       <div className="bg-card border border-gray-700 rounded-2xl p-6">
@@ -270,6 +294,12 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
           <div className="bg-secondary/10 border border-secondary/30 rounded-xl p-4 text-sm text-gray-200">
             <span className="font-bold text-secondary">教练的话：</span>{feedback.encouragement}
           </div>
+
+          {feedback.registerNote && (
+            <div className="bg-primary/10 border border-primary/30 rounded-xl p-4 text-sm text-gray-200">
+              <span className="font-bold text-primary">语体点评：</span>{feedback.registerNote}
+            </div>
+          )}
 
           <button onClick={next} className="w-full py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary/80 flex items-center justify-center gap-2">
             下一题 <ArrowRight size={18} />

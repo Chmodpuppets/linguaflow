@@ -1,15 +1,38 @@
-
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { UserProfile, ScriptPack, ScriptItem } from '../types';
 import { getScriptPacks, getScriptPackForLanguage } from '../data/scriptPacks';
 import { getDueScriptItems, reviewScriptCard, addActivity } from '../services/storageService';
 import { generateSpeech } from '../services/aiService';
-import { PenLine, Volume2, Check, RotateCcw, Keyboard, ArrowRight, Eye } from 'lucide-react';
+import HandwritePad from './HandwritePad';
+import { PenLine, Volume2, Check, RotateCcw, Keyboard, ArrowRight, Eye, HelpCircle, Hand } from 'lucide-react';
 
 interface ScriptTrainerViewProps {
   user: UserProfile;
   onUpdateUser: (user: UserProfile) => void;
 }
+
+type RevealKind = null | 'correct' | 'wrong' | 'stuck' | 'handwrite';
+type SelfRate = null | 'correct' | 'wrong';
+
+// 生成性提示块：只给罗马字/意思 + 再听，绝不展示答案字形（铁律）
+const HintBlock: React.FC<{ prompt: string; onSpeak: () => void }> = ({ prompt, onSpeak }) => (
+  <div className="bg-dark/60 border border-gray-700 rounded-xl p-4">
+    <div className="text-xs text-gray-500 mb-1">提示（生成性脚手架，非答案字形）</div>
+    <div className="text-xl font-bold text-gray-200 font-mono tracking-widest">{prompt}</div>
+    <button onClick={onSpeak} className="mt-2 flex items-center gap-1 mx-auto text-xs text-gray-400 hover:text-secondary">
+      <Volume2 size={14} /> 再听一次
+    </button>
+  </div>
+);
+
+const NextButton: React.FC<{ onClick: () => void; isLast: boolean }> = ({ onClick, isLast }) => (
+  <button
+    onClick={onClick}
+    className="w-full py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary/80 flex items-center justify-center gap-2"
+  >
+    {isLast ? '完成' : '下一个'} <ArrowRight size={18} />
+  </button>
+);
 
 const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUser }) => {
   const packs = useMemo(() => getScriptPacks(), []);
@@ -24,12 +47,17 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
   const [queue, setQueue] = useState<ScriptItem[]>([]);
   const [idx, setIdx] = useState(0);
   const [input, setInput] = useState('');
-  const [revealed, setRevealed] = useState(false);
   const [lastCorrect, setLastCorrect] = useState<boolean | null>(null);
   const [sessionDone, setSessionDone] = useState(false);
   const [stats, setStats] = useState({ reviewed: 0, correct: 0 });
-  // 听音模式：隐藏罗马字/转写线索，仅靠 TTS 发音写出字形（生成式练习完全体）
+  // 听音模式：隐藏文字线索，仅靠 TTS 发音写出字形
   const [listenMode, setListenMode] = useState(false);
+  // 手写产出模式：与 listenMode 正交的输入通道
+  const [inputMode, setInputMode] = useState<'keyboard' | 'handwrite'>('keyboard');
+  // 揭示状态：null=未揭示；correct/wrong=键盘提交结果；stuck=卡住提示；handwrite=手写自评
+  const [revealKind, setRevealKind] = useState<RevealKind>(null);
+  const [selfRate, setSelfRate] = useState<SelfRate>(null);
+  const [showOverlay, setShowOverlay] = useState(false); // 手写自评对照淡显
 
   const reviewedRef = useRef(0);
   const correctRef = useRef(0);
@@ -59,8 +87,10 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
     setQueue(due);
     setIdx(0);
     setInput('');
-    setRevealed(false);
     setLastCorrect(null);
+    setRevealKind(null);
+    setSelfRate(null);
+    setShowOverlay(false);
     setSessionDone(false);
     setStats({ reviewed: 0, correct: 0 });
     reviewedRef.current = 0;
@@ -78,21 +108,36 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
   };
 
   const submit = () => {
-    if (!current || revealed) return;
+    if (!current || revealKind) return;
     if (!input.trim()) return;
     const ok = evaluate(input);
     reviewScriptCard(selectedPack.id, current.id, ok);
     setLastCorrect(ok);
-    setRevealed(true);
+    setRevealKind(ok ? 'correct' : 'wrong');
     if (ok) correctRef.current += 1;
   };
 
-  // 看答案（主动跳过，记为未掌握）
-  const revealSkip = () => {
-    if (!current || revealed) return;
+  // 铁律：卡住也绝不展示答案字形，只给生成性提示并标记困难（下次提前出现）
+  const markStuck = () => {
+    if (!current || revealKind) return;
     reviewScriptCard(selectedPack.id, current.id, false);
     setLastCorrect(false);
-    setRevealed(true);
+    setRevealKind('stuck');
+  };
+
+  // 手写完成：进入自评环节（仍不展示答案，由用户主动"对照"才淡显）
+  const finishHandwrite = () => {
+    if (!current || revealKind) return;
+    setRevealKind('handwrite');
+  };
+
+  // 手写自评：用户自己判断写得对不对，驱动 SRS（纯前端无 OCR，自评最可靠）
+  const selfRatePick = (ok: boolean) => {
+    if (!current || selfRate) return;
+    reviewScriptCard(selectedPack.id, current.id, ok);
+    setSelfRate(ok ? 'correct' : 'wrong');
+    setLastCorrect(ok);
+    if (ok) correctRef.current += 1;
   };
 
   const next = () => {
@@ -101,8 +146,10 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
     if (idx + 1 < queue.length) {
       setIdx(idx + 1);
       setInput('');
-      setRevealed(false);
       setLastCorrect(null);
+      setRevealKind(null);
+      setSelfRate(null);
+      setShowOverlay(false);
     } else {
       finishSession();
       setSessionDone(true);
@@ -131,10 +178,10 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
 
   // 听音模式：切换卡片时自动播一次（浏览器策略可能拦截首次自动播放，用户仍可点按钮补救）
   useEffect(() => {
-    if (listenMode && current && !revealed) {
+    if (listenMode && current && !revealKind) {
       generateSpeech(current.audioText || current.answer, { lang: selectedPack.language });
     }
-  }, [listenMode, idx, revealed, current, selectedPack.language]);
+  }, [listenMode, idx, revealKind, current, selectedPack.language]);
 
   const hasTransliterate = !!selectedPack.transliterate;
 
@@ -204,18 +251,33 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
   // 训练中
   return (
     <div className="max-w-2xl mx-auto">
-      {/* 进度条 */}
+      {/* 进度条 + 模式切换 */}
       <div className="flex items-center justify-between mb-4 text-sm">
         <button onClick={() => { setGroup(''); setSessionDone(false); }} className="text-gray-400 hover:text-white">
           ← {selectedPack.name} · {group}
         </button>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          {/* 输入方式：键盘 / 手写（与听音模式正交） */}
+          <div className="flex rounded-lg border border-gray-600 overflow-hidden">
+            <button
+              onClick={() => setInputMode('keyboard')}
+              className={`px-2.5 py-1 text-xs ${inputMode === 'keyboard' ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'}`}
+            >
+              键盘
+            </button>
+            <button
+              onClick={() => setInputMode('handwrite')}
+              className={`px-2.5 py-1 text-xs flex items-center gap-1 ${inputMode === 'handwrite' ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'}`}
+            >
+              <Hand size={13} /> 手写
+            </button>
+          </div>
           <button
             onClick={() => setListenMode((m) => !m)}
             title="开启后隐藏文字线索，仅靠听音写出字形"
             className={`px-3 py-1 rounded-lg border transition-colors ${listenMode ? 'border-secondary text-secondary bg-secondary/10' : 'border-gray-600 text-gray-400 hover:text-white'}`}
           >
-            {listenMode ? '🔊 听音模式' : '🔈 看字模式'}
+            {listenMode ? '🔊 听音' : '🔈 看字'}
           </button>
           <span className="text-gray-500">{Math.min(idx + 1, queue.length)} / {queue.length}</span>
         </div>
@@ -225,9 +287,10 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
         <div className="text-xs text-gray-500 mb-2">
           {listenMode
             ? '听音写出对应字形（已隐藏文字线索）'
-            : `请写出对应字形${hasTransliterate ? '（输入罗马字 / 拉丁字母）' : '（点按下方键盘）'}`}
+            : `根据提示写出对应字形${inputMode === 'handwrite' ? '（手写产出）' : hasTransliterate ? '（输入罗马字 / 拉丁字母）' : '（点按下方键盘）'}`}
         </div>
 
+        {/* 提示：listenMode 显示听音圈；否则显示 prompt（罗马字/意思，绝非答案字形） */}
         {listenMode ? (
           <button
             onClick={() => speak(current.audioText || current.answer)}
@@ -252,7 +315,8 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
           </button>
         )}
 
-        {!revealed ? (
+        {/* 未揭示：输入区 */}
+        {!revealKind && inputMode === 'keyboard' && (
           <div className="space-y-4">
             {hasTransliterate ? (
               <input
@@ -276,46 +340,108 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
                 <Check size={18} /> 提交
               </button>
               <button
-                onClick={revealSkip}
+                onClick={markStuck}
                 className="px-4 py-3 rounded-xl bg-gray-700/50 text-gray-300 border border-gray-600 font-bold hover:bg-gray-700 flex items-center justify-center gap-2"
               >
-                <Eye size={18} /> 看答案
+                <HelpCircle size={18} /> 卡住了？
               </button>
             </div>
           </div>
-        ) : (
+        )}
+
+        {!revealKind && inputMode === 'handwrite' && (
           <div className="space-y-4">
-            <div className={`p-4 rounded-xl text-2xl font-bold font-mono ${lastCorrect ? 'bg-green-600/20 text-green-300' : 'bg-red-600/20 text-red-300'}`}>
-              {lastCorrect ? '✓ 正确' : '✗ 正确答案'}：{current.answer}
-            </div>
+            <HandwritePad
+              overlayChar={showOverlay ? current.answer : undefined}
+              onClear={() => setShowOverlay(false)}
+            />
             <button
-              onClick={next}
+              onClick={finishHandwrite}
               className="w-full py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary/80 flex items-center justify-center gap-2"
             >
-              {idx + 1 < queue.length ? '下一个' : '完成'} <ArrowRight size={18} />
+              <Check size={18} /> 完成手写
             </button>
+          </div>
+        )}
+
+        {/* 已揭示 */}
+        {revealKind === 'correct' && (
+          <div className="space-y-4">
+            <div className="p-4 rounded-xl text-2xl font-bold bg-green-600/20 text-green-300">✓ 正确！</div>
+            <HintBlock prompt={current.prompt} onSpeak={() => speak(current.audioText || current.answer)} />
+            <NextButton onClick={next} isLast={idx + 1 >= queue.length} />
+          </div>
+        )}
+
+        {revealKind === 'wrong' && (
+          <div className="space-y-4">
+            <div className="p-4 rounded-xl text-2xl font-bold bg-red-600/20 text-red-300">✗ 再想想</div>
+            <HintBlock prompt={current.prompt} onSpeak={() => speak(current.audioText || current.answer)} />
+            <NextButton onClick={next} isLast={idx + 1 >= queue.length} />
+          </div>
+        )}
+
+        {revealKind === 'stuck' && (
+          <div className="space-y-4">
+            <div className="p-4 rounded-xl text-lg text-gray-300">已标记为待复习 · 下一轮会提前出现</div>
+            <HintBlock prompt={current.prompt} onSpeak={() => speak(current.audioText || current.answer)} />
+            <NextButton onClick={next} isLast={idx + 1 >= queue.length} />
+          </div>
+        )}
+
+        {revealKind === 'handwrite' && (
+          <div className="space-y-4">
+            {!selfRate && (
+              <>
+                <button
+                  onClick={() => setShowOverlay((s) => !s)}
+                  className="w-full py-3 rounded-xl bg-gray-700/50 text-gray-200 border border-gray-600 font-bold hover:bg-gray-700 flex items-center justify-center gap-2"
+                >
+                  <Eye size={18} /> {showOverlay ? '隐藏标准字形' : '对照标准字形'}
+                </button>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => selfRatePick(true)}
+                    className="flex-1 py-3 rounded-xl bg-green-600/30 text-green-300 border border-green-600/50 font-bold hover:bg-green-600/40 flex items-center justify-center gap-2"
+                  >
+                    <Check size={18} /> 我对了
+                  </button>
+                  <button
+                    onClick={() => selfRatePick(false)}
+                    className="flex-1 py-3 rounded-xl bg-red-600/30 text-red-300 border border-red-600/50 font-bold hover:bg-red-600/40 flex items-center justify-center gap-2"
+                  >
+                    <HelpCircle size={18} /> 我错了
+                  </button>
+                </div>
+              </>
+            )}
+            {selfRate && (
+              <NextButton onClick={next} isLast={idx + 1 >= queue.length} />
+            )}
           </div>
         )}
       </div>
 
-      {/* 虚拟键盘（跨语言通用：直接点按目标字形） */}
-      <div className="mt-6">
-        <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
-          <Keyboard size={14} /> 或直接点按字形
+      {/* 虚拟键盘（键盘模式 + 未揭示 + 无 transliterate 时） */}
+      {inputMode === 'keyboard' && !revealKind && !hasTransliterate && (
+        <div className="mt-6">
+          <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
+            <Keyboard size={14} /> 或直接点按字形
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {keyboardKeys.map((k) => (
+              <button
+                key={k}
+                onClick={() => setInput(prev => prev + k)}
+                disabled={!!revealKind}
+                className="w-11 h-11 rounded-lg bg-dark border border-gray-700 text-lg text-white hover:border-secondary disabled:opacity-40 transition-colors"
+              >
+                {k}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {keyboardKeys.map((k) => (
-            <button
-              key={k}
-              onClick={() => setInput(prev => prev + k)}
-              disabled={revealed}
-              className="w-11 h-11 rounded-lg bg-dark border border-gray-700 text-lg text-white hover:border-secondary disabled:opacity-40 transition-colors"
-            >
-              {k}
-            </button>
-          ))}
-        </div>
-      </div>
+      )}
     </div>
   );
 };

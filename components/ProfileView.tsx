@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState, useRef } from 'react';
 import { UserProfile, ActivityLog, Language, LanguageProgress, CEFRLevel, MentorPersona, TargetExam } from '../types';
-import { getLogs, ensureLanguageProgress, saveUser, getAIConfig, saveAIConfig, clearAllLearningData, AIConfig } from '../services/storageService';
+import { getLogs, ensureLanguageProgress, saveUser, getAIConfig, saveAIConfig, clearAllLearningData, AIConfig, getLevelInfo } from '../services/storageService';
 import { testModelConnection, GLM_ENV_API_KEY } from '../services/aiService';
 import { Trophy, Flame, Calendar, Clock, PenTool, Type, Zap, TrendingUp, TrendingDown, Activity, Check, Globe, Settings, GraduationCap, ChevronDown, User, LogOut, Download, Upload, Database, Crown, AlertTriangle } from 'lucide-react';
 import { SUPPORTED_LANGUAGES, MENTOR_PERSONAS, TOPIC_PACKAGES } from '../constants';
@@ -221,6 +221,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
   const BACKUP_KEYS = [
     'linguaflow_user', 'linguaflow_logs', 'linguaflow_library',
     'linguaflow_writing_tree', 'linguaflow_vocabulary', 'linguaflow_rpg_session',
+    'linguaflow_errorbook', 'linguaflow_writing_history',
   ];
 
   const exportBackup = () => {
@@ -310,7 +311,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                     <div className="h-3 bg-gray-700 rounded-full overflow-hidden w-full">
                         <div 
                             className="h-full bg-gradient-to-r from-primary to-secondary" 
-                            style={{ width: `${Math.min(100, ((currentProgress.xp % 500) / 500) * 100)}%` }} 
+                            style={{ width: `${getLevelInfo(currentProgress.xp).pct}%` }} 
                         />
                     </div>
                 </div>
@@ -363,7 +364,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                                         <span className="text-xs font-bold text-secondary">等级 {prog.level}</span>
                                     </div>
                                     <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                                        <div className="h-full bg-secondary" style={{ width: `${Math.min(100, ((prog.xp % 500) / 500) * 100)}%` }}></div>
+                                        <div className="h-full bg-secondary" style={{ width: `${getLevelInfo(prog.xp).pct}%` }}></div>
                                     </div>
                                     <div className="text-[10px] text-gray-500 mt-1 flex justify-between">
                                         <span>{prog.totalWordsTyped} 字已输入</span>

@@ -1,14 +1,16 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Language, CEFRLevel, AppMode, UserProfile } from './types';
 import { SUPPORTED_LANGUAGES, NAV_ITEMS } from './constants';
-import { getUser, saveUser, ensureLanguageProgress, logoutUser, checkStreakOnLoad, rolloverDailyQuests, getDueErrorCards } from './services/storageService';
+import { getUser, saveUser, ensureLanguageProgress, logoutUser, checkStreakOnLoad, rolloverDailyQuests, getDueErrorCards, getLevelInfo } from './services/storageService';
 import TypingView from './components/TypingView';
 import WritingView from './components/WritingView';
 import LibraryView from './components/LibraryView';
 import ProfileView from './components/ProfileView';
 import LoginView from './components/LoginView';
 import WritingTreeView from './components/WritingTreeView';
+import CompositionStudioView from './components/CompositionStudioView';
+import PortfolioView from './components/PortfolioView';
 import VocabularyView from './components/VocabularyView';
 import RPGView from './components/RPGView';
 import DailyView from './components/DailyView';
@@ -68,10 +70,22 @@ const App: React.FC = () => {
   const currentProgress = user.progress[user.learningLanguage] || { xp: 0, level: 1, cefrLevel: CEFRLevel.A1 };
   // 错题本待复习数量（按当前学习语言），用于导航角标
   const dueErrorCount = getDueErrorCards().filter((c) => c.language === user.learningLanguage).length;
-  // 等级 = 1 + floor(xp / 500)，进度条反映"到本级满"的真实进度
-  const XP_PER_LEVEL = 500;
-  const xpInLevel = currentProgress.xp % XP_PER_LEVEL;
-  const xpToNext = XP_PER_LEVEL - xpInLevel;
+  // 等级与进度条统一从单一计算源取，消除多处公式漂移
+  const levelInfo = getLevelInfo(currentProgress.xp);
+
+  // 升级检测：等级跨 500 边界跃升时，用闪光把"掉条"重框为"升级奖励"，消除"经验没加"错觉
+  const prevLevelRef = useRef(currentProgress.level);
+  const [levelUpFlash, setLevelUpFlash] = useState<number | null>(null);
+  useEffect(() => {
+    const prev = prevLevelRef.current;
+    if (currentProgress.level > prev) {
+      setLevelUpFlash(currentProgress.level);
+      const t = setTimeout(() => setLevelUpFlash(null), 2600);
+      prevLevelRef.current = currentProgress.level;
+      return () => clearTimeout(t);
+    }
+    prevLevelRef.current = currentProgress.level;
+  }, [currentProgress.level]);
 
   const renderContent = () => {
     switch (mode) {
@@ -95,6 +109,19 @@ const App: React.FC = () => {
             <WritingTreeView 
                 user={user}
                 onUpdateUser={handleUserUpdate}
+            />
+        );
+      case AppMode.CompositionStudio:
+        return (
+            <CompositionStudioView
+                user={user}
+                onUpdateUser={handleUserUpdate}
+            />
+        );
+      case AppMode.Portfolio:
+        return (
+            <PortfolioView
+                user={user}
             />
         );
       case AppMode.Library:
@@ -197,13 +224,20 @@ const App: React.FC = () => {
                     <span className="text-xs font-bold text-orange-500">{user.currentStreak}</span>
                 </div>
             </div>
-            {/* XP Bar */}
-            <div className="w-full h-1.5 bg-gray-700 rounded-full overflow-hidden">
-                <div className="h-full bg-secondary" style={{ width: `${(xpInLevel / XP_PER_LEVEL) * 100}%` }}></div>
+            {/* XP Bar + 升级闪光 */}
+            <div className="relative w-full">
+              {levelUpFlash !== null && (
+                <div className="absolute -top-7 left-1/2 -translate-x-1/2 z-20 px-3 py-1 rounded-full bg-secondary text-[#07070e] text-xs font-extrabold shadow-lg animate-[pop_0.4s_ease-out] whitespace-nowrap">
+                  🎉 升级！Level {levelUpFlash}
+                </div>
+              )}
+              <div className="w-full h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                <div className="h-full bg-secondary" style={{ width: `${levelInfo.pct}%` }}></div>
+              </div>
             </div>
             <div className="flex justify-between text-[10px] text-gray-500 mt-1">
                  <span>{currentProgress.xp} 经验</span>
-                 <span>距下一级还需 {xpToNext}</span>
+                 <span>距下一级还需 {levelInfo.xpToNext}</span>
             </div>
         </div>
 
@@ -235,7 +269,7 @@ const App: React.FC = () => {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col h-screen overflow-hidden">
+      <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* Mobile Header */}
         <header className="md:hidden flex items-center justify-between p-4 border-b border-gray-800 bg-card">
             <div className="flex items-center gap-2">

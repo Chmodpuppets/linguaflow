@@ -1,15 +1,16 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserProfile, WritingNode, CEFRLevel, Language, GuidedWritingFeedback } from '../types';
-import { ensureGrowthTree, saveWritingTree, addActivity } from '../services/storageService';
+import { UserProfile, WritingNode, CEFRLevel, Language, GuidedWritingFeedback, REGISTER_LABELS, CompositionGenre, GENRE_LABELS } from '../types';
+import { ensureGrowthTree, saveWritingTree, addActivity, addErrorCards } from '../services/storageService';
 import { analyzeGuidedWriting, generateSpeech } from '../services/aiService';
 import { romajiToKana } from '../services/romajiKana';
 import { countWords } from '../services/textUtils';
 import {
   FolderTree, FileText, ChevronRight, ChevronDown, Lock, CheckCircle2,
-  Sparkles, Wand2, Volume2, ArrowRight, AlertCircle, PenLine
+  Sparkles, Wand2, Volume2, ArrowRight, AlertCircle, PenLine, BookOpen
 } from 'lucide-react';
 import WritingLanguageGate from './WritingLanguageGate';
+import CompositionEditor from './CompositionEditor';
 
 interface WritingTreeViewProps {
   user: UserProfile;
@@ -46,9 +47,11 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
 
   const selectNode = (id: string) => {
     const n = nodes.find((x) => x.id === id);
-    if (n && n.type === 'task' && !n.unlocked && !n.completed) return; // 锁定不可选
+    if (!n) return;
+    const isWriting = n.type === 'task' || n.type === 'composition';
+    if (isWriting && !n.unlocked && !n.completed) return; // 锁定不可选
     setActiveId(id);
-    setInput(n?.content ?? '');
+    if (n.type === 'task') setInput(n.content ?? '');
     setFeedback(null);
     setError(null);
   };
@@ -62,7 +65,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
     setAnalyzing(true);
     setError(null);
     try {
-      const ctx = { template: active.scaffold, hint: active.scaffoldHint };
+      const ctx = { template: active.scaffold, hint: active.scaffoldHint, register: active.register ? REGISTER_LABELS[active.register] : undefined };
       const fb = await analyzeGuidedWriting(
         normalizedInput,
         user.learningLanguage,
@@ -72,6 +75,15 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
         ctx
       );
       setFeedback(fb);
+      // 错题沉淀：写作树任务的错误全部进错题本（闭环）
+      if (fb.issues && fb.issues.length > 0) {
+        addErrorCards(fb.issues.map((it) => ({
+          original: it.original,
+          correction: it.fix,
+          reason: it.reason,
+          language: user.learningLanguage,
+        })));
+      }
     } catch (e) {
       setError('AI 批改失败，请检查网络/API Key 后重试。');
     }
@@ -106,6 +118,45 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
     onUpdateUser(updated);
   };
 
+  // 保存作文（分段内容 + 总词数）到树
+  const saveComposition = (compId: string, sections: WritingNode['sections'], wordCount: number) => {
+    const next = nodes.map((n) =>
+      n.id === compId
+        ? {
+            ...n,
+            sections,
+            wordCount,
+            content: (sections ?? []).map((s) => s.content).join('\n\n'),
+            updatedAt: Date.now(),
+          }
+        : n
+    );
+    persist(next);
+  };
+
+  // 完成作文：标记 completed + 发 XP（作文权重更高）
+  const completeComposition = (compId: string) => {
+    const comp = nodes.find((n) => n.id === compId);
+    const next = nodes.map((n) => (n.id === compId ? { ...n, completed: true, progress: 100, updatedAt: Date.now() } : n));
+    persist(next);
+    const xp = 50;
+    const { user: updated } = addActivity(
+      user,
+      'tree_writing',
+      user.learningLanguage,
+      xp,
+      `成长树·作文 ${comp?.title ?? ''}`,
+      { wordCount: comp?.wordCount ?? 0 }
+    );
+    onUpdateUser(updated);
+  };
+
+  // 持久化作文体裁（用户切换体裁时调用，避免刷新后回落默认体裁）
+  const saveGenre = (compId: string, genre: CompositionGenre) => {
+    const next = nodes.map((n) => (n.id === compId ? { ...n, genre, updatedAt: Date.now() } : n));
+    persist(next);
+  };
+
   const speak = (text: string) => {
     if (text) generateSpeech(text, { lang: user.learningLanguage });
   };
@@ -118,16 +169,18 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
       <div className={depth > 0 ? 'ml-3 border-l border-gray-700/50' : ''}>
         {children.map((node) => {
           const isTask = node.type === 'task';
-          const locked = isTask && !node.unlocked && !node.completed;
+          const isComp = node.type === 'composition';
+          const isLeaf = isTask || isComp;
+          const locked = isLeaf && !node.unlocked && !node.completed;
           return (
             <div key={node.id}>
               <div
-                onClick={() => (isTask ? selectNode(node.id) : toggleExpand(node.id))}
+                onClick={() => (isLeaf ? selectNode(node.id) : toggleExpand(node.id))}
                 className={`group flex items-center gap-2 p-2 rounded-lg cursor-pointer text-sm mb-1 select-none transition-all border
                   ${activeId === node.id ? 'bg-secondary/20 text-white border-secondary/30' : 'text-gray-400 hover:bg-gray-800 border-transparent'}
                   ${locked ? 'opacity-40 cursor-not-allowed' : ''}`}
               >
-                {!isTask && (
+                {!isLeaf && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -142,6 +195,8 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                   <PenLine size={16} className="text-purple-400 flex-shrink-0" />
                 ) : node.type === 'theme' ? (
                   <FolderTree size={16} className="text-blue-400 flex-shrink-0" />
+                ) : node.type === 'composition' ? (
+                  <BookOpen size={16} className="text-amber-400 flex-shrink-0" />
                 ) : node.completed ? (
                   <CheckCircle2 size={16} className="text-green-400 flex-shrink-0" />
                 ) : locked ? (
@@ -152,6 +207,17 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                 <span className="truncate flex-1 font-medium">{node.title}</span>
                 {isTask && node.cefrLevel && (
                   <span className="text-[10px] text-gray-500 flex-shrink-0">{node.cefrLevel}</span>
+                )}
+                {isComp && (
+                  <>
+                    <span className="text-[10px] text-amber-300/80 flex-shrink-0">作文</span>
+                    {node.genre && (
+                      <span className="text-[10px] text-amber-200/70 flex-shrink-0">{GENRE_LABELS[node.genre]}</span>
+                    )}
+                  </>
+                )}
+                {(isTask || isComp) && node.register && (
+                  <span className="text-[10px] text-purple-300/80 flex-shrink-0">{REGISTER_LABELS[node.register]}</span>
                 )}
               </div>
               {node.isExpanded && renderTree(node.id, depth + 1)}
@@ -182,17 +248,31 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
 
       {/* 右：编辑器 */}
       <div className="flex-1 bg-card border border-gray-700 rounded-xl flex flex-col overflow-hidden">
-        {!active || active.type !== 'task' ? (
+        {!active ? (
           <div className="flex-1 flex flex-col items-center justify-center text-gray-500">
             <PenLine size={64} className="mb-4 opacity-20" />
-            <p className="text-lg">从左侧选择一个解锁的写作任务</p>
+            <p className="text-lg">从左侧选择一个解锁的写作任务或作文</p>
             <p className="text-sm opacity-50 mt-1">完成当前任务，解锁同主题下一题</p>
           </div>
+        ) : active.type === 'composition' ? (
+          <CompositionEditor
+            node={active}
+            user={user}
+            onSave={(sections, wc) => saveComposition(active.id, sections, wc)}
+            onComplete={() => completeComposition(active.id)}
+            onGenreChange={(g) => saveGenre(active.id, g)}
+          />
         ) : (
           <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
             <div className="mb-4">
-              <div className="text-xs text-gray-500">{active.cefrLevel ?? userLevel} · 写作任务</div>
+              <div className="text-xs text-gray-500">{active.cefrLevel ?? userLevel} · 写作任务{active.register ? ` · ${REGISTER_LABELS[active.register]}语气` : ''}</div>
               <h3 className="text-xl font-bold text-white mt-1">{active.title}</h3>
+              {active.register && (
+                <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-500/15 border border-purple-500/30 text-xs text-purple-200">
+                  <span className="opacity-70">要求语气</span>
+                  <span className="font-semibold">{REGISTER_LABELS[active.register]}</span>
+                </div>
+              )}
             </div>
 
             {/* 脚手架模板 / 情境 */}
@@ -309,6 +389,13 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                   <span className="font-bold text-secondary">教练的话：</span>
                   {feedback.encouragement}
                 </div>
+
+                {feedback.registerNote && (
+                  <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4 text-sm text-gray-200">
+                    <span className="font-bold text-purple-300">语体点评：</span>
+                    {feedback.registerNote}
+                  </div>
+                )}
 
                 <button
                   onClick={() => completeTask(active.id)}

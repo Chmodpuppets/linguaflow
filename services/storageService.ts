@@ -1,6 +1,6 @@
 
 import { UserProfile, ActivityLog, Language, CEFRLevel, UserContent, LanguageProgress, WritingNode, VocabularyItem, DailyQuest, QuestKind, MentorPersona, AIMemory, ScriptItem, ScriptCardProgress, ErrorCard, WritingScoreRecord } from '../types';
-import { createDefaultGrowthTree } from '../data/growthTree';
+import { createDefaultGrowthTree, CEFR_RANK } from '../data/growthTree';
 
 const STORAGE_KEY_USER = 'linguaflow_user';
 const STORAGE_KEY_LOGS = 'linguaflow_logs';
@@ -158,6 +158,29 @@ export const ensureLanguageProgress = (user: UserProfile, lang: Language): UserP
         saveUser(user);
     }
     return user;
+};
+
+// 每升一级所需经验值（等级 = 1 + floor(xp / XP_PER_LEVEL)）
+export const XP_PER_LEVEL = 500;
+
+export interface LevelInfo {
+  level: number;        // 1 基的当前等级
+  xpInLevel: number;    // 当前等级内的经验值 [0, XP_PER_LEVEL)
+  xpToNext: number;     // 距下一级还需经验
+  pct: number;          // 当前等级内进度 0–100
+}
+
+// 单一计算源：等级与进度条都从这里取，避免多处公式漂移导致不一致
+export const getLevelInfo = (xp: number): LevelInfo => {
+  const safeXp = Math.max(0, Math.floor(xp));
+  const level = 1 + Math.floor(safeXp / XP_PER_LEVEL);
+  const xpInLevel = safeXp % XP_PER_LEVEL;
+  return {
+    level,
+    xpInLevel,
+    xpToNext: XP_PER_LEVEL - xpInLevel,
+    pct: (xpInLevel / XP_PER_LEVEL) * 100,
+  };
 };
 
 // --- Daily Quests (Phase 1) ---
@@ -416,17 +439,47 @@ export const saveWritingTree = (nodes: WritingNode[]) => {
     localStorage.setItem(STORAGE_KEY_TREE, JSON.stringify(nodes));
 };
 
-// 成长树：树空或旧格式（无task节点）时初始化默认成长树（3 主题×3 任务，首任务解锁）并保存
+// 成长树：确保当前语言有一棵有效成长树。
+// - 无树 / 旧格式 / 语言不符 → 生成新树（按等级解锁）。
+// - 树已存在 → 以「默认树为基准」合并：新增的主题/任务自动补进来（如题库扩充后），
+//   同时保留用户已写内容、完成状态，并按当前等级重新计算解锁（不收回已达成的进度）。
 export const ensureGrowthTree = (lang: Language, level: CEFRLevel): WritingNode[] => {
     const existing = getWritingTree();
     const isGrowthFormat = existing.some((n) => n.type === 'task');
     const rootLang = existing.find((n) => n.type === 'root')?.language;
-    // 有效成长树且语言匹配当前学习语言 → 直接复用
-    if (existing.length > 0 && isGrowthFormat && rootLang === lang) return existing;
-    // 旧格式 / 空树 / 语言不匹配（切换语言）→ 生成对应语言的新成长树
-    const tree = createDefaultGrowthTree(lang, level);
-    saveWritingTree(tree);
-    return tree;
+    // 无有效树 或 语言不匹配（切换语言）→ 生成对应语言的新成长树（按等级解锁）
+    if (existing.length === 0 || !isGrowthFormat || rootLang !== lang) {
+        const tree = createDefaultGrowthTree(lang, level);
+        saveWritingTree(tree);
+        return tree;
+    }
+    // 树已存在且语言匹配 → 以默认树为基准合并，补齐新增节点并重新计算解锁
+    const fresh = createDefaultGrowthTree(lang, level);
+    const levelRank = CEFR_RANK[level] ?? 1;
+    const existingById = new Map(existing.map((n) => [n.id, n]));
+    const merged = fresh.map((n) => {
+        const ex = existingById.get(n.id);
+        if (!ex) return n; // 新增节点（如题库扩充新增的主题/任务/作文），直接采用默认解锁
+        // root/theme 结构不变
+        if (n.type !== 'task' && n.type !== 'composition') return n;
+        const taskRank = n.cefrLevel ? (CEFR_RANK[n.cefrLevel] ?? 1) : 1;
+        // 保留用户已写内容/完成状态；解锁 = 已达成的进度 ∪ 达到当前等级 ∪ 原本已解锁
+        const unlocked = ex.completed || ex.unlocked || taskRank <= levelRank;
+        return {
+            ...n,
+            content: ex.content ?? n.content,
+            sections: ex.sections ?? n.sections,
+            genre: ex.genre ?? n.genre,
+            prompt: ex.prompt ?? n.prompt,
+            completed: ex.completed ?? false,
+            progress: ex.progress ?? 0,
+            wordCount: ex.wordCount ?? 0,
+            isExpanded: ex.isExpanded ?? n.isExpanded,
+            unlocked,
+        };
+    });
+    saveWritingTree(merged);
+    return merged;
 };
 
 // --- Vocabulary ---

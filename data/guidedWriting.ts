@@ -1,4 +1,4 @@
-import { Language, CEFRLevel } from '../types';
+import { Language, CEFRLevel, WritingRegister } from '../types';
 
 // 句型填空模板：含 ___ 的句型，让学习者填空产出完整句
 export interface GuidedTemplate {
@@ -6,6 +6,7 @@ export interface GuidedTemplate {
   template: string;       // 含 ___ 的句型，如「私は ___ です。」
   hint: string;           // 母语提示填什么
   answerExample: string;  // 示例答案（仅供参考，校验由 AI 完成）
+  register?: WritingRegister; // 语体/口气（可选，缺省按 CEFR 等级默认）
 }
 
 // 按语言 × 等级维护的句型模板库。结构通用可扩展，新增语言只需往此处加条目。
@@ -123,32 +124,46 @@ export const GUIDED_TEMPLATES: Partial<Record<Language, Partial<Record<CEFRLevel
 };
 
 // 情境库：通用（不绑语言），按等级。给中文情境，让学习者用目标语言写 1-3 句。
-export const GUIDED_PROMPTS: Partial<Record<CEFRLevel, string[]>> = {
+export interface GuidedPrompt {
+  text: string;
+  register: WritingRegister;
+}
+export const GUIDED_PROMPTS: Partial<Record<CEFRLevel, GuidedPrompt[]>> = {
   [CEFRLevel.A1]: [
-    '用目标语言介绍你自己：叫什么、是哪国人。',
-    '用目标语言说一样你喜欢的食物。',
-    '用目标语言说说你今天早上做了什么。',
-    '用目标语言描述你房间里的一件东西在哪里。',
-    '用目标语言说说你的一个爱好。',
-    '用目标语言说现在几点、你正在做什么。',
-    '用目标语言介绍你的一位朋友：叫什么、是哪国人。',
+    { text: '用目标语言介绍你自己：叫什么、是哪国人。', register: 'casual' },
+    { text: '用目标语言说一样你喜欢的食物。', register: 'casual' },
+    { text: '用目标语言说说你今天早上做了什么。', register: 'casual' },
+    { text: '用目标语言描述你房间里的一件东西在哪里。', register: 'casual' },
+    { text: '用目标语言说说你的一个爱好。', register: 'casual' },
+    { text: '用目标语言说现在几点、你正在做什么。', register: 'casual' },
+    { text: '用目标语言介绍你的一位朋友：叫什么、是哪国人。', register: 'casual' },
   ],
   [CEFRLevel.A2]: [
-    '用目标语言描述你上个周末做了什么（用过去时）。',
-    '用目标语言说说你明天的计划。',
-    '用目标语言比较你喜欢的两种食物。',
-    '用目标语言描述你的日常作息（至少三句）。',
+    { text: '用目标语言描述你上个周末做了什么（用过去时）。', register: 'neutral' },
+    { text: '用目标语言说说你明天的计划。', register: 'neutral' },
+    { text: '用目标语言比较你喜欢的两种食物。', register: 'neutral' },
+    { text: '用目标语言描述你的日常作息（至少三句）。', register: 'neutral' },
   ],
   [CEFRLevel.B1]: [
-    '用目标语言描述一次让你印象深刻的旅行经历（至少三句，用过去时）。',
-    '用目标语言说明你支持或反对某件事的理由（给出至少两个理由）。',
-    '用目标语言讲述你学会某件重要事情的过程（起因、经过、结果）。',
+    { text: '用目标语言描述一次让你印象深刻的旅行经历（至少三句，用过去时）。', register: 'polite' },
+    { text: '用目标语言说明你支持或反对某件事的理由（给出至少两个理由）。', register: 'polite' },
+    { text: '用目标语言讲述你学会某件重要事情的过程（起因、经过、结果）。', register: 'polite' },
   ],
   [CEFRLevel.B2]: [
-    '用目标语言就一个社会话题阐述你的立场，正反两面都要涉及（至少四句）。',
-    '用目标语言写一封正式邮件，申请一个职位或项目，说明你的资历与动机。',
-    '用目标语言评论最近的一部作品或事件，给出有深度的看法（至少四句）。',
+    { text: '用目标语言就一个社会话题阐述你的立场，正反两面都要涉及（至少四句）。', register: 'formal' },
+    { text: '用目标语言写一封正式邮件，申请一个职位或项目，说明你的资历与动机。', register: 'business' },
+    { text: '用目标语言评论最近的一部作品或事件，给出有深度的看法（至少四句）。', register: 'formal' },
   ],
+};
+
+// 引导练习按 CEFR 等级的默认语体（任务未显式指定 register 时使用）
+export const GUIDED_DEFAULT_REGISTER: Record<CEFRLevel, WritingRegister> = {
+  [CEFRLevel.A1]: 'casual',
+  [CEFRLevel.A2]: 'neutral',
+  [CEFRLevel.B1]: 'polite',
+  [CEFRLevel.B2]: 'formal',
+  [CEFRLevel.C1]: 'formal',
+  [CEFRLevel.C2]: 'formal',
 };
 
 export function getGuidedTemplate(lang: Language, level: CEFRLevel): GuidedTemplate | null {
@@ -157,9 +172,9 @@ export function getGuidedTemplate(lang: Language, level: CEFRLevel): GuidedTempl
   return list[Math.floor(Math.random() * list.length)];
 }
 
-export function getGuidedPrompt(level: CEFRLevel): string {
+export function getGuidedPrompt(level: CEFRLevel): GuidedPrompt {
   const list = GUIDED_PROMPTS[level] ?? GUIDED_PROMPTS[CEFRLevel.A1] ?? [];
-  if (list.length === 0) return '用目标语言写一句话描述你现在的心情。';
+  if (list.length === 0) return { text: '用目标语言写一句话描述你现在的心情。', register: 'casual' };
   return list[Math.floor(Math.random() * list.length)];
 }
 

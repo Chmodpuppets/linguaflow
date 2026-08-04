@@ -1,5 +1,5 @@
 
-import { Language, CEFRLevel, AssessmentResult, TypingContent, WritingFeedback, WritingRevisionFeedback, GuidedWritingFeedback, GuidedMode, WritingNode, NodeType, ReadingReflection, RPGScenario, RPGTurnResult, UserProfile, ScenarioDef, TargetExam } from '../types';
+import { Language, CEFRLevel, AssessmentResult, TypingContent, WritingFeedback, WritingRevisionFeedback, GuidedWritingFeedback, GuidedMode, WritingNode, NodeType, ReadingReflection, RPGScenario, RPGTurnResult, UserProfile, ScenarioDef, TargetExam, WritingRegister, CompositionGenre, GENRE_LABELS, ReferenceEssay } from '../types';
 import { MENTOR_PERSONAS } from '../constants';
 import { getAIConfig, AIConfig } from './storageService';
 
@@ -119,7 +119,7 @@ const isQuotaOrLimit = (status: number, text: string): boolean =>
   status === 429 || status === 402 ||
   /quota|exceeded|insufficient|额度|余额|rate.?limit|limit reached/i.test(text);
 
-const callProvider = async (p: LLMProvider, messages: { role: string; content: string }[]): Promise<string> => {
+const callProvider = async (p: LLMProvider, messages: { role: string; content: string }[], temperature?: number): Promise<string> => {
     let res: Response;
     try {
         res = await fetch(`${p.baseUrl}/chat/completions`, {
@@ -134,7 +134,7 @@ const callProvider = async (p: LLMProvider, messages: { role: string; content: s
             body: JSON.stringify({
                 model: p.model,
                 messages,
-                temperature: 0.7,
+                temperature: temperature ?? 0.7,
             }),
         });
     } catch (e) {
@@ -157,11 +157,11 @@ const callProvider = async (p: LLMProvider, messages: { role: string; content: s
     return data?.choices?.[0]?.message?.content ?? "";
 };
 
-const chatCompletion = async (prompt: string): Promise<string> => {
+const chatCompletion = async (prompt: string, temperature?: number): Promise<string> => {
     let lastErr: unknown;
     for (const p of buildProviders()) {
         try {
-            return await callProvider(p, [{ role: "user", content: prompt }]);
+            return await callProvider(p, [{ role: "user", content: prompt }], temperature);
         } catch (e: any) {
             lastErr = e;
             // Only fall through to the next provider on quota/limit or network failure.
@@ -173,14 +173,14 @@ const chatCompletion = async (prompt: string): Promise<string> => {
 };
 
 // 带 system 指令的对话（用于注入 AI 导师人设与"记住你"的上下文）
-export const chatCompletionWithSystem = async (system: string, prompt: string): Promise<string> => {
+export const chatCompletionWithSystem = async (system: string, prompt: string, temperature?: number): Promise<string> => {
     let lastErr: unknown;
     for (const p of buildProviders()) {
         try {
             return await callProvider(p, [
                 { role: "system", content: system },
                 { role: "user", content: prompt },
-            ]);
+            ], temperature);
         } catch (e: any) {
             lastErr = e;
             if (e?.quota || e?.network) continue;
@@ -296,15 +296,28 @@ const isExamApplicable = (exam: TargetExam | undefined, lang: Language): boolean
 const buildExamScoring = (
   targetLanguage: Language,
   nativeLanguage: Language,
-  targetExam: TargetExam | undefined
+  targetExam: TargetExam | undefined,
+  topic?: string
 ): { applies: boolean; block: string; json: string } => {
   if (!isExamApplicable(targetExam, targetLanguage)) return { applies: false, block: '', json: '' };
 
+  // 响应相关性维度：考试评分中「是否回应任务」对应的维度名。
+  // TR / Development / 내용 구성 / adecuación a la tarea 考的都是同一件事——切题。
+  const responseDimByExam: Partial<Record<TargetExam, string>> = {
+    IELTS: 'taskResponse',
+    TOEFL: 'development',
+    TOPIK: 'contentOrganization',
+    DELE: 'taskAdequacy',
+    JLPT: 'composition',
+  };
+
+  let applies = false;
+  let block = '';
+  let json = '';
   switch (targetExam) {
     case 'IELTS':
-      return {
-        applies: true,
-        block: `
+      applies = true;
+      block = `
     IMPORTANT — IELTS Academic Writing scoring:
     The student is preparing for the IELTS Academic Writing test. In addition to the above, score this essay using the official IELTS 9-band criteria (bands can be whole or half: e.g. 5.0, 6.5, 7.0).
     - "taskResponse": Task Response / Task Achievement (TR) — how fully and relevantly the task is addressed.
@@ -313,8 +326,8 @@ const buildExamScoring = (
     - "grammaticalRange": Grammatical Range & Accuracy (GRA) — grammar structures and correctness.
     - "overall": the average of the four band scores, rounded to ONE decimal place.
     In "feedback", give a SHORT (1 sentence) comment per criterion, in ${nativeLanguage}.
-    `,
-        json: `,
+    `;
+      json = `,
       "examScores": {
         "taskResponse": number (0-9, may be .5),
         "coherenceCohesion": number (0-9, may be .5),
@@ -327,12 +340,11 @@ const buildExamScoring = (
           "lexicalResource": "string (in ${nativeLanguage})",
           "grammaticalRange": "string (in ${nativeLanguage})"
         }
-      }`,
-      };
+      }`;
+      break;
     case 'JLPT':
-      return {
-        applies: true,
-        block: `
+      applies = true;
+      block = `
     IMPORTANT — JLPT 写作能力映射（日语）:
     JLPT 官方为选择题考试（文字・語彙 / 文法 / 読解 / 聴解），此处将学生的日语「写作」能力映射到 N 级量表作为估算。
     按以下三维各以 0-100 评分：
@@ -341,8 +353,8 @@ const buildExamScoring = (
     - "composition": 構成・表現 — 文章组织、连贯性、语体是否得体。
     - "estimatedLevel": 估算对应的 N 级（"N5" 最容易 ~ "N1" 最难）。
     在 "feedback" 中每个维度给一句简短说明（用 ${nativeLanguage}）。
-    `,
-        json: `,
+    `;
+      json = `,
       "examScores": {
         "estimatedLevel": "N5" | "N4" | "N3" | "N2" | "N1",
         "vocabularyKanji": number (0-100),
@@ -353,12 +365,11 @@ const buildExamScoring = (
           "grammar": "string (in ${nativeLanguage})",
           "composition": "string (in ${nativeLanguage})"
         }
-      }`,
-      };
+      }`;
+      break;
     case 'TOPIK':
-      return {
-        applies: true,
-        block: `
+      applies = true;
+      block = `
     IMPORTANT — TOPIK 写作评分（韩语）:
     学生备考 TOPIK（韩国语能力考试）。按以下三维各以 0-100 评分：
     - "vocabGrammar": 어휘・문법 — 词汇与语法准确度。
@@ -366,8 +377,8 @@ const buildExamScoring = (
     - "expression": 표현 — 表达是否自然、拼写是否正确。
     - "estimatedLevel": 估算对应的 TOPIK 等级（数字 1 最低 ~ 6 最高；TOPIK I = 1-2，TOPIK II = 3-6）。
     在 "feedback" 中每个维度给一句简短说明（用 ${nativeLanguage}）。
-    `,
-        json: `,
+    `;
+      json = `,
       "examScores": {
         "estimatedLevel": number (1-6),
         "vocabGrammar": number (0-100),
@@ -378,12 +389,11 @@ const buildExamScoring = (
           "contentOrganization": "string (in ${nativeLanguage})",
           "expression": "string (in ${nativeLanguage})"
         }
-      }`,
-      };
+      }`;
+      break;
     case 'DELE':
-      return {
-        applies: true,
-        block: `
+      applies = true;
+      block = `
     IMPORTANT — DELE 写作评分（西班牙语）:
     学生备考 DELE（西班牙语水平文凭）。按 CEFR 维度各以 0-100 评分：
     - "grammar": gramática — 词法句法准确度。
@@ -392,8 +402,8 @@ const buildExamScoring = (
     - "taskAdequacy": adecuación a la tarea — 体裁与语域是否得当。
     - "estimatedLevel": 估算对应的 CEFR 等级（"A1" ~ "C2"）。
     在 "feedback" 中每个维度给一句简短说明（用 ${nativeLanguage}）。
-    `,
-        json: `,
+    `;
+      json = `,
       "examScores": {
         "estimatedLevel": "A1" | "A2" | "B1" | "B2" | "C1" | "C2",
         "grammar": number (0-100),
@@ -406,12 +416,11 @@ const buildExamScoring = (
           "coherence": "string (in ${nativeLanguage})",
           "taskAdequacy": "string (in ${nativeLanguage})"
         }
-      }`,
-      };
+      }`;
+      break;
     case 'TOEFL':
-      return {
-        applies: true,
-        block: `
+      applies = true;
+      block = `
     IMPORTANT — TOEFL iBT Writing scoring (English):
     The student is preparing for the TOEFL iBT Writing section. Score this essay using the official TOEFL writing rubric. Each criterion is scored 0-5:
     - "development": Development — ideas are elaborated with appropriate detail, examples, and explanation; the task is addressed fully.
@@ -419,8 +428,8 @@ const buildExamScoring = (
     - "languageUse": Language Use — grammar, vocabulary range, and mechanics (accuracy and appropriacy).
     - "scaled": estimate the overall TOEFL Writing scaled score (0-30), derived from the three 0-5 criteria above (approx. (development+organization+languageUse)/15 * 30).
     In "feedback", give a SHORT (1 sentence) comment per criterion, in ${nativeLanguage}.
-    `,
-        json: `,
+    `;
+      json = `,
       "examScores": {
         "development": number (0-5),
         "organization": number (0-5),
@@ -431,11 +440,20 @@ const buildExamScoring = (
           "organization": "string (in ${nativeLanguage})",
           "languageUse": "string (in ${nativeLanguage})"
         }
-      }`,
-      };
+      }`;
+      break;
     default:
       return { applies: false, block: '', json: '' };
   }
+
+  // 关键：把真实考题写进考试评分指令，并显式绑定「响应相关性维度」到这道题。
+  // 否则 TR/Development 等指标在结构上无法判断「是否回应任务」。
+  if (applies && topic) {
+    const dim = responseDimByExam[targetExam as TargetExam] ?? 'taskResponse';
+    block += `\n    TASK / 题目（评分依据）：学生被要求回应以下任务 ——「${topic}」。\n    请将 "${dim}" 维度严格对照这道任务评分：切题、充分展开并支撑论点者给高分；跑题、偏题、与题目无关的内容必须扣分。`;
+  }
+
+  return { applies, block, json };
 };
 
 export const analyzeWriting = async (
@@ -443,16 +461,30 @@ export const analyzeWriting = async (
   targetLanguage: Language,
   nativeLanguage: Language,
   cefrLevel: CEFRLevel = CEFRLevel.A1,
-  targetExam?: TargetExam
+  targetExam?: TargetExam,
+  register?: WritingRegister,
+  topic?: string
 ): Promise<WritingFeedback> => {
   // 考试评分：仅当 (目标考试 ↔ 学习语言) 匹配且已实现对才启用，绝不污染其他语言。
-  const exam = buildExamScoring(targetLanguage, nativeLanguage, targetExam);
+  // 传入 topic，让 TR/Development 等维度对照真实任务评分（而非盲评）。
+  const exam = buildExamScoring(targetLanguage, nativeLanguage, targetExam, topic);
   const examBlock = exam.applies ? exam.block : '';
   const examJson = exam.applies ? exam.json : '';
+
+  // 语体（口气）要求：题目标注了 register 才注入，避免污染无语体要求的自由写作。
+  const registerBlock = register
+    ? `- REGISTER / 语气要求：本题要求用 "${register}" register 写作（casual=口语随意 / neutral=中性日常 / polite=礼貌客气 / formal=正式书面 / business=商务专业）。请判断学生使用的口气是否得当：若该正式却太口语、或该商务却太随意，请在 suggestions 中给出语体修正建议，并在 registerNote 点评。若语体合适，registerNote 简短肯定即可。`
+    : '';
+
+  // 题目上下文：让 AI 知道学生被要求写什么，这对 Task Response / Development 等维度至关重要。
+  const topicBlock = topic
+    ? `\n    TOPIC / 题目：学生被要求围绕以下主题/题目写作 ——「${topic}」。\n    请在评分时重点评估学生是否回应了题目要求（Task Response / Task Achievement），内容是否切题、有无跑题或偏题。`
+    : '';
 
   const prompt = `
     Act as a strict but encouraging language tutor. The student is learning ${targetLanguage} at CEFR level ${cefrLevel} (native language: ${nativeLanguage}).
     Review their writing sample. Identify errors and suggest improvements.
+    ${topicBlock}
 
     IMPORTANT grading rules:
     - Evaluate at the student's declared level (${cefrLevel}). Do NOT penalize the absence of grammar/vocabulary above that level — a ${cefrLevel} learner is not expected to use advanced structures.
@@ -460,9 +492,10 @@ export const analyzeWriting = async (
     - Be encouraging: in "generalComment", first state what they did well, then the single most important thing to improve.
     - Estimate the CEFR level of THIS sample honestly (it may differ from their declared level).
     ${examBlock}
+    ${registerBlock}
     Text: "${text}"
 
-    Explain all feedback, reasons for corrections, and the general comment in ${nativeLanguage}.
+    Explain all feedback, reasons for corrections, the general comment, and registerNote in ${nativeLanguage}.
 
     Return ONLY valid JSON. No Markdown.
     Structure:
@@ -470,25 +503,76 @@ export const analyzeWriting = async (
       "correctedText": "string (The corrected version in ${targetLanguage})",
       "suggestions": [ { "original": "string", "suggestion": "string", "reason": "string (in ${nativeLanguage})" } ],
       "generalComment": "string (in ${nativeLanguage})",
-      "cefrEstimation": "A1" | "A2" | "B1" | "B2" | "C1" | "C2"${examJson}
+      "cefrEstimation": "A1" | "A2" | "B1" | "B2" | "C1" | "C2"${examJson},
+      "registerNote": "string (in ${nativeLanguage}: comment on whether the register/tone was appropriate for the task; if fine, affirm briefly)"
     }
   `;
 
   try {
-    const responseText = await chatCompletion(prompt);
+    const responseText = await chatCompletion(prompt, 0.2);
     const parsed = parseAIJSON<WritingFeedback>(responseText, {
         correctedText: text,
         suggestions: [],
         generalComment: "Analysis failed.",
         cefrEstimation: CEFRLevel.A1,
-        examScores: null
+        examScores: null,
+        registerNote: ''
     });
     // 兜底：非匹配/未实现考试强制清空 examScores（避免 AI 误带）
     if (!isExamApplicable(targetExam, targetLanguage)) parsed.examScores = null;
     return parsed;
   } catch (error) {
     console.error("Writing analysis error:", error);
-    throw new Error("Failed to analyze writing.");
+    throw new Error("批改失败（AI 返回格式异常或网络问题）。请重试——不会扣除 XP 或记录趋势。");
+  }
+};
+
+// 作文（长文）参考范文 / 提纲生成。长文允许范文（iron-rule 仅限手写特训模块），
+// 故与微写作批改不同，这里按体裁/等级/语体产出一篇参考结构与范文，供学生搭建框架。
+export const generateReferenceEssay = async (params: {
+  topic: string;
+  language: Language;
+  nativeLanguage: Language;
+  cefrLevel: CEFRLevel;
+  genre: CompositionGenre;
+  register?: WritingRegister;
+  exam?: TargetExam;
+}): Promise<ReferenceEssay> => {
+  const { topic, language, nativeLanguage, cefrLevel, genre, register, exam } = params;
+  const genreLabel = GENRE_LABELS[genre] ?? genre;
+  const registerNote = register
+    ? `请用 "${register}" 语体（口语/中性/礼貌/正式/商务）撰写。`
+    : '';
+  const examNote = exam && exam !== 'none' ? `（参考评分框架：${exam}）` : '';
+
+  const system = `You are a model essay writer and writing coach for students learning ${language}. ` +
+    `You write at CEFR level ${cefrLevel} and follow the requested genre and tone precisely.`;
+
+  const prompt = `
+    Write a MODEL ${genreLabel} in ${language} on the topic "${topic}".
+    Target CEFR level: ${cefrLevel}. ${registerNote} ${examNote}
+
+    Requirements:
+    - The essay must be appropriate for a ${cefrLevel} learner of ${language}: natural but not overly advanced; clear structure; correct for the genre.
+    - Length: roughly ${cefrLevel === CEFRLevel.A1 || cefrLevel === CEFRLevel.A2 ? '60-120' : cefrLevel === CEFRLevel.B1 ? '120-180' : cefrLevel === CEFRLevel.B2 ? '180-260' : '260-350'} words.
+    - Provide BOTH:
+      1) outline: 3-5 bullet points (in ${nativeLanguage}) describing how to structure the essay for this genre/topic.
+      2) essay: the full model essay in ${language}.
+
+    Return ONLY valid JSON. No Markdown.
+    Structure:
+    {
+      "outline": string[]  // 提纲要点，用 ${nativeLanguage} 写，帮学生搭结构
+      "essay": string      // 参考范文全文，用 ${language} 写
+    }
+  `;
+
+  try {
+    const responseText = await chatCompletionWithSystem(system, prompt);
+    return parseAIJSON<ReferenceEssay>(responseText, { outline: [], essay: '' });
+  } catch (error) {
+    console.error("Reference essay generation error:", error);
+    throw new Error("生成参考范文失败，请检查网络 / API Key 后重试。");
   }
 };
 
@@ -501,14 +585,15 @@ export const analyzeWritingRevision = async (
   targetLanguage: Language,
   nativeLanguage: Language,
   cefrLevel: CEFRLevel = CEFRLevel.A1,
-  targetExam?: TargetExam
+  targetExam?: TargetExam,
+  topic?: string
 ): Promise<WritingRevisionFeedback> => {
   const prevSummary = previousFeedback.suggestions
     .map((s) => `- 「${s.original}」→「${s.suggestion}」(${s.reason})`)
     .join("\n");
 
-  // 考试评分（与首稿一致门控）：针对二稿评分
-  const exam = buildExamScoring(targetLanguage, nativeLanguage, targetExam);
+  // 考试评分（与首稿一致门控）：针对二稿评分，传入同一 topic 保持评分口径一致
+  const exam = buildExamScoring(targetLanguage, nativeLanguage, targetExam, topic);
   const examBlock = exam.applies ? `\n    Score the REVISED draft using the criteria below.\n${exam.block}` : '';
   const examJson = exam.applies ? exam.json : '';
 
@@ -550,7 +635,7 @@ export const analyzeWritingRevision = async (
   `;
 
   try {
-    const responseText = await chatCompletion(prompt);
+    const responseText = await chatCompletion(prompt, 0.2);
     const parsed = parseAIJSON<WritingRevisionFeedback>(responseText, {
       correctedText: revisedText,
       suggestions: [],
@@ -608,6 +693,7 @@ export interface GuidedContext {
   hint?: string;
   words?: Array<{ word: string; meaning: string }>;
   situation?: string;
+  register?: string; // 要求语体/口气（中文标签，如「正式」「商务」）
 }
 
 export const analyzeGuidedWriting = async (
@@ -628,9 +714,16 @@ export const analyzeGuidedWriting = async (
     modeDesc = `情境一句模式。情境：「${ctx.situation ?? ''}」。学生用目标语言写 1-3 句回应。`;
   }
 
+  // 语体/口气要求：若指定，让教练额外评估表达是否得体
+  let registerDesc = '';
+  if (ctx.register) {
+    registerDesc = `要求语体/口气：${ctx.register}。请判断学生的表达是否符合该语体：本该正式/商务却过于口语，或本该口语却过于生硬，都算语体不当。若不当，请在 issues 中给出语体修正建议，并在 registerNote 中说明。`;
+  }
+
   const prompt = `
     Act as a strict but encouraging language tutor. The student is learning ${targetLanguage} at CEFR ${cefrLevel} (native: ${nativeLanguage}).
     ${modeDesc}
+    ${registerDesc}
 
     Student's writing: "${text}"
 
@@ -643,18 +736,20 @@ export const analyzeGuidedWriting = async (
       "correctedText": "string (corrected version in ${targetLanguage})",
       "issues": [ { "original": "string", "fix": "string (in ${targetLanguage})", "reason": "string (in ${nativeLanguage})" } ],
       "encouragement": "string (in ${nativeLanguage}: first praise what they did well, then state the single most important fix)",
-      "cefrEstimation": "A1" | "A2" | "B1" | "B2" | "C1" | "C2"
+      "cefrEstimation": "A1" | "A2" | "B1" | "B2" | "C1" | "C2",
+      "registerNote": "string (in ${nativeLanguage}: 语体/口气是否得当的简短点评，无问题可为空字符串)"
     }
   `;
 
   try {
-    const responseText = await chatCompletion(prompt);
+    const responseText = await chatCompletion(prompt, 0.2);
     return parseAIJSON<GuidedWritingFeedback>(responseText, {
       isCorrect: false,
       correctedText: text,
       issues: [],
       encouragement: '批改失败，请重试。',
       cefrEstimation: CEFRLevel.A1,
+      registerNote: '',
     });
   } catch (error) {
     console.error('Guided writing analysis error:', error);

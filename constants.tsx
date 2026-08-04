@@ -17,7 +17,9 @@ import {
   Target,
   PenLine,
   BookX,
-  LineChart
+  LineChart,
+  GalleryVerticalEnd,
+  Layers
 } from 'lucide-react';
 
 export const SUPPORTED_LANGUAGES = [
@@ -52,10 +54,12 @@ export const NAV_ITEMS = [
   { id: 'rpg', label: '剧情对话', icon: <Gamepad2 size={20} /> },
   { id: 'typing', label: '打字闯关', icon: <Type size={20} /> },
   { id: 'writing_tree', label: '写作树', icon: <Network size={20} /> },
+  { id: 'composition_studio', label: '作文流水线', icon: <Layers size={20} /> },
   { id: 'writing', label: '写作工坊', icon: <PenTool size={20} /> },
   { id: 'library', label: '记忆库', icon: <Book size={20} /> },
   { id: 'vocabulary', label: '词汇', icon: <BookA size={20} /> },
   { id: 'errorbook', label: '错题本', icon: <BookX size={20} /> },
+  { id: 'portfolio', label: '作品集', icon: <GalleryVerticalEnd size={20} /> },
   { id: 'trend', label: '写作趋势', icon: <LineChart size={20} /> },
   { id: 'script_trainer', label: '文字特训', icon: <PenLine size={20} /> },
   { id: 'import', label: '导入', icon: <Upload size={20} /> },

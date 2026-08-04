@@ -115,7 +115,9 @@ export enum AppMode {
   Social = 'social',
   ScriptTrainer = 'script_trainer',
   ErrorBook = 'errorbook',
-  Trend = 'trend'
+  Trend = 'trend',
+  Portfolio = 'portfolio',
+  CompositionStudio = 'composition_studio'
 }
 
 // --- Personalization (Phase 2/3) ---
@@ -171,6 +173,8 @@ export interface WritingFeedback {
   cefrEstimation: CEFRLevel;
   // 仅当目标考试与该学习语言匹配且已实现时由 AI 填充；否则为 null（含 none 或语言不匹配）。
   examScores?: ExamScores | null;
+  // 语体（口气）点评：题目要求用某种语气写作时，由 AI 评估口气是否得当（母语说明）。
+  registerNote?: string;
 }
 
 // 二稿改写闭环：在首稿批改基础上，对比二稿是否修复了问题。
@@ -190,6 +194,33 @@ export interface GuidedWritingFeedback {
   issues: Array<{ original: string; fix: string; reason: string }>;
   encouragement: string;     // 母语：先肯定，再给一个最该改进的点
   cefrEstimation: CEFRLevel;
+  registerNote?: string;     // 语体/口气是否得当的点评（母语）
+}
+
+// 写作语体 / 口气（register）：同一主题用不同语体写，训练得体表达
+export type WritingRegister = 'casual' | 'neutral' | 'polite' | 'formal' | 'business';
+export const REGISTER_LABELS: Record<WritingRegister, string> = {
+  casual: '口语',
+  neutral: '中性',
+  polite: '礼貌',
+  formal: '正式',
+  business: '商务',
+};
+
+// 作文体裁 / 题材（genre）：同一主题可用不同体裁写，训练不同篇章结构
+export type CompositionGenre = 'argumentative' | 'narrative' | 'expository' | 'letter' | 'story';
+export const GENRE_LABELS: Record<CompositionGenre, string> = {
+  argumentative: '议论文',
+  narrative: '记叙文',
+  expository: '说明文',
+  letter: '书信',
+  story: '故事',
+};
+
+// AI 生成的参考范文 / 提纲（长文允许范文，iron-rule 仅限手写特训模块）
+export interface ReferenceEssay {
+  outline: string[]; // 参考提纲要点（母语说明，帮助学生搭结构）
+  essay: string;     // 参考范文全文（目标语言）
 }
 
 export interface ReadingReflection {
@@ -278,7 +309,15 @@ export interface ScriptCardProgress {
 
 // --- Writing Tree System Types ---
 
-export type NodeType = 'root' | 'chapter' | 'section' | 'snippet' | 'idea' | 'theme' | 'task';
+export type NodeType = 'root' | 'chapter' | 'section' | 'snippet' | 'idea' | 'theme' | 'task' | 'composition';
+
+// 作文（长文）节点下的段落：提纲骨架 + 用户分段写作内容
+export interface CompositionSection {
+  id: string;
+  title: string;        // 段落标题（如 引言 / 主体段落1 / 结论）
+  targetWords: number;  // 该段目标词数
+  content: string;      // 用户写作内容
+}
 
 export interface WritingNode {
   id: string;
@@ -295,11 +334,17 @@ export interface WritingNode {
   updatedAt: number;
   // 成长树字段（theme/task 节点用）
   cefrLevel?: CEFRLevel;   // 任务难度
+  register?: WritingRegister; // 要求语体/口气（口语/中性/礼貌/正式/商务）
   unlocked?: boolean;      // 是否解锁（可开始）
   completed?: boolean;     // 是否已完成
   scaffold?: string;       // 脚手架模板（含 ___，空串表示自由写）
   scaffoldHint?: string;   // 填空提示
   order?: number;          // 同主题内顺序（解锁链用）
+  // 作文（composition）节点字段
+  sections?: CompositionSection[];   // 分段内容与提纲骨架
+  defaultExam?: TargetExam;          // 默认考试维度（用于结构/構成评分，如 EN→IELTS）
+  genre?: CompositionGenre;          // 作文体裁（议论文/记叙文/书信…），决定提纲骨架
+  prompt?: string;                   // 真实考题/任务正文（非主题标签）。考试评分（TR/Development 等）必须对照此题，否则评分在结构上无意义
   language?: Language;      // 该树所属语言（root/theme/task 均写入，便于按语言重建缓存）
 }
 
