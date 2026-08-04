@@ -113,7 +113,8 @@ export enum AppMode {
   Daily = 'daily',
   Import = 'import',
   Social = 'social',
-  ScriptTrainer = 'script_trainer'
+  ScriptTrainer = 'script_trainer',
+  ErrorBook = 'errorbook'
 }
 
 // --- Personalization (Phase 2/3) ---
@@ -208,6 +209,23 @@ export interface VocabularyItem {
   dueDate?: number;    // 下次复习时间戳
   reviews?: number;    // 已复习次数
   lapses?: number;     // 遗忘次数
+}
+
+// 写作错题卡（自动从 AI 批改的 suggestions 沉淀，间隔复习强化弱项）
+// 与 VocabularyItem 平行、按 language 区分；存独立 storage，不污染 UserProfile（多语言隔离）
+export interface ErrorCard {
+  id: string;
+  original: string;        // 错误写法（学习者原文片段）
+  correction: string;      // 正确写法（AI 建议）
+  reason: string;          // 母语解释（为什么错、怎么改）
+  language: Language;
+  context?: string;        // 原句/段落上下文片段（可选，帮助回忆）
+  createdAt: number;       // 最近一次出现时间（合并去重时刷新）
+  // --- SRS (Leitner) fields ---
+  box: number;             // 1..5 (1 = 刚错/最难)
+  dueDate: number;         // 下次复习时间戳
+  reviews: number;         // 已复习次数
+  lapses: number;          // 再次犯错次数
 }
 
 // --- Script / Alphabet Production Trainer (跨语言通用，数据驱动) ---

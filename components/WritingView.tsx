@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { UserProfile, WritingFeedback, WritingRevisionFeedback, CEFRLevel, ExamScores, TargetExam, IeltsBandScores, JlptScores, TopikScores, DeleScores, ToeflScores } from '../types';
 import { analyzeWriting, analyzeWritingRevision } from '../services/aiService';
-import { addActivity } from '../services/storageService';
+import { addActivity, addErrorCards } from '../services/storageService';
 import { countWords } from '../services/textUtils';
 import GuidedWritingView from './GuidedWritingView';
 import { Sparkles, ArrowRight, BookCheck, Wand2, Star, AlertCircle } from 'lucide-react';
@@ -224,6 +224,18 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
         setRevisionResult(null);
       }
       setFeedback(result);
+
+      // 把 AI 批改指出的错误沉淀为错题卡（自动去重合并，按学习语言隔离）
+      if (result.suggestions && result.suggestions.length > 0) {
+        addErrorCards(
+          result.suggestions.map((s) => ({
+            original: s.original,
+            correction: s.suggestion,
+            reason: s.reason,
+            language: user.learningLanguage,
+          }))
+        );
+      }
 
       // Calculate XP: Base 50 + Length Bonus（CJK 按字符数，拉丁按词数）
       const wordCount = countWords(text, user.learningLanguage);

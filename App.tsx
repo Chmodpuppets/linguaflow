@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Language, CEFRLevel, AppMode, UserProfile } from './types';
 import { SUPPORTED_LANGUAGES, NAV_ITEMS } from './constants';
-import { getUser, saveUser, ensureLanguageProgress, logoutUser, checkStreakOnLoad, rolloverDailyQuests } from './services/storageService';
+import { getUser, saveUser, ensureLanguageProgress, logoutUser, checkStreakOnLoad, rolloverDailyQuests, getDueErrorCards } from './services/storageService';
 import TypingView from './components/TypingView';
 import WritingView from './components/WritingView';
 import LibraryView from './components/LibraryView';
@@ -15,6 +15,7 @@ import DailyView from './components/DailyView';
 import ImportView from './components/ImportView';
 import SocialView from './components/SocialView';
 import ScriptTrainerView from './components/ScriptTrainerView';
+import ErrorBookView from './components/ErrorBookView';
 import { GraduationCap, ChevronDown, Menu, Flame, Star } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -64,6 +65,8 @@ const App: React.FC = () => {
   // Derived state for current language stats
   const currentFlag = SUPPORTED_LANGUAGES.find(l => l.id === user.learningLanguage)?.flag || '🌐';
   const currentProgress = user.progress[user.learningLanguage] || { xp: 0, level: 1, cefrLevel: CEFRLevel.A1 };
+  // 错题本待复习数量（按当前学习语言），用于导航角标
+  const dueErrorCount = getDueErrorCards().filter((c) => c.language === user.learningLanguage).length;
   // 等级 = 1 + floor(xp / 500)，进度条反映"到本级满"的真实进度
   const XP_PER_LEVEL = 500;
   const xpInLevel = currentProgress.xp % XP_PER_LEVEL;
@@ -103,6 +106,13 @@ const App: React.FC = () => {
       case AppMode.Vocabulary:
         return (
             <VocabularyView 
+                user={user}
+                onUpdateUser={handleUserUpdate}
+            />
+        );
+      case AppMode.ErrorBook:
+        return (
+            <ErrorBookView
                 user={user}
                 onUpdateUser={handleUserUpdate}
             />
@@ -192,7 +202,9 @@ const App: React.FC = () => {
 
         <nav className="flex-1 p-4 space-y-2">
             <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">菜单</div>
-            {NAV_ITEMS.map((item) => (
+            {NAV_ITEMS.map((item) => {
+                const dueBadge = item.id === 'errorbook' && dueErrorCount > 0 ? dueErrorCount : 0;
+                return (
                 <button
                     key={item.id}
                     onClick={() => handleModeChange(item.id as AppMode)}
@@ -206,8 +218,12 @@ const App: React.FC = () => {
                 >
                     {item.icon}
                     {item.label}
+                    {dueBadge > 0 && (
+                        <span className="ml-auto bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">{dueBadge}</span>
+                    )}
                 </button>
-            ))}
+                );
+            })}
         </nav>
       </aside>
 

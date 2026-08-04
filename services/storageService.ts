@@ -1,5 +1,5 @@
 
-import { UserProfile, ActivityLog, Language, CEFRLevel, UserContent, LanguageProgress, WritingNode, VocabularyItem, DailyQuest, QuestKind, MentorPersona, AIMemory, ScriptItem, ScriptCardProgress } from '../types';
+import { UserProfile, ActivityLog, Language, CEFRLevel, UserContent, LanguageProgress, WritingNode, VocabularyItem, DailyQuest, QuestKind, MentorPersona, AIMemory, ScriptItem, ScriptCardProgress, ErrorCard } from '../types';
 import { createDefaultGrowthTree } from '../data/growthTree';
 
 const STORAGE_KEY_USER = 'linguaflow_user';
@@ -9,6 +9,7 @@ const STORAGE_KEY_TREE = 'linguaflow_writing_tree';
 const STORAGE_KEY_VOCAB = 'linguaflow_vocabulary';
 const STORAGE_KEY_AI = 'linguaflow_ai_config';
 const STORAGE_KEY_SCRIPT = 'linguaflow_script_progress';
+const STORAGE_KEY_ERRORBOOK = 'linguaflow_errorbook';
 
 // --- Runtime AI model configuration (switcher in Settings -> 模型设置) ---
 // Keys are stored ONLY in localStorage (browser), never committed to source.
@@ -107,6 +108,7 @@ export const clearAllLearningData = () => {
     localStorage.removeItem(STORAGE_KEY_TREE);
     localStorage.removeItem(STORAGE_KEY_VOCAB);
     localStorage.removeItem(STORAGE_KEY_SCRIPT);
+    localStorage.removeItem(STORAGE_KEY_ERRORBOOK);
 };
 
 export const registerUser = (username: string, nativeLanguage: Language, learningLanguage: Language, level: CEFRLevel): UserProfile => {
@@ -493,4 +495,94 @@ export const getDueScriptItems = (packId: string, items: ScriptItem[]): ScriptIt
     const progress = getScriptProgress(packId);
     const now = Date.now();
     return items.filter(it => (progress[it.id]?.dueDate ?? 0) <= now);
+};
+
+// --- Writing Error Book (SRS) ---
+// 与词汇/字形特训共用 Leitner 间隔重复逻辑：答错回 box1，答对冲高 box，间隔变长。
+export const getErrorBook = (): ErrorCard[] => {
+    const data = localStorage.getItem(STORAGE_KEY_ERRORBOOK);
+    return data ? JSON.parse(data) : [];
+};
+
+// 把 AI 批改建议沉淀为错题卡。按 (original 小写 + language) 去重合并：
+// 已存在 → 更新改正/理由、回到 box1、lapses+1（强化反复出错项）；不存在 → 新增（box1 立即到期）
+export const addErrorCards = (
+    cards: Array<{ original: string; correction: string; reason: string; language: Language; context?: string }>
+): void => {
+    const existing = getErrorBook();
+    const now = Date.now();
+    let changed = false;
+    const updated = [...existing];
+    for (const c of cards) {
+        const original = c.original?.trim();
+        const correction = c.correction?.trim();
+        if (!original || !correction) continue;
+        const idx = updated.findIndex(
+            (e) => e.original.toLowerCase() === original.toLowerCase() && e.language === c.language
+        );
+        if (idx >= 0) {
+            updated[idx] = {
+                ...updated[idx],
+                correction,
+                reason: c.reason,
+                context: c.context ?? updated[idx].context,
+                box: 1,
+                dueDate: now,
+                lapses: (updated[idx].lapses ?? 0) + 1,
+                createdAt: now,
+            };
+        } else {
+            updated.unshift({
+                id: crypto.randomUUID(),
+                original,
+                correction,
+                reason: c.reason,
+                language: c.language,
+                context: c.context,
+                createdAt: now,
+                box: 1,
+                dueDate: now,
+                reviews: 0,
+                lapses: 0,
+            });
+        }
+        changed = true;
+    }
+    if (changed) localStorage.setItem(STORAGE_KEY_ERRORBOOK, JSON.stringify(updated));
+};
+
+export const updateErrorCard = (item: ErrorCard) => {
+    const items = getErrorBook();
+    const idx = items.findIndex((i) => i.id === item.id);
+    if (idx >= 0) {
+        const updated = [...items];
+        updated[idx] = item;
+        localStorage.setItem(STORAGE_KEY_ERRORBOOK, JSON.stringify(updated));
+    }
+};
+
+export const deleteErrorCard = (id: string) => {
+    const items = getErrorBook().filter((i) => i.id !== id);
+    localStorage.setItem(STORAGE_KEY_ERRORBOOK, JSON.stringify(items));
+};
+
+export const reviewErrorCard = (item: ErrorCard, known: boolean): ErrorCard => {
+    const box = item.box ?? 1;
+    const nextBox = known ? Math.min(5, box + 1) : 1;
+    const days = SRS_INTERVALS_DAYS[nextBox] ?? 35;
+    const due = Date.now() + days * 24 * 3600 * 1000;
+    return {
+        ...item,
+        box: nextBox,
+        dueDate: due,
+        reviews: (item.reviews ?? 0) + 1,
+        lapses: known ? (item.lapses ?? 0) : (item.lapses ?? 0) + 1,
+    };
+};
+
+export const getDueErrorCards = (): ErrorCard[] => {
+    const now = Date.now();
+    return getErrorBook()
+        .filter((i) => (i.dueDate ?? 0) <= now)
+        .sort((a, b) => (a.dueDate ?? 0) - (b.dueDate ?? 0));
 };
