@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { UserProfile, ScriptPack, ScriptItem } from '../types';
 import { getScriptPacks, getScriptPackForLanguage } from '../data/scriptPacks';
-import { getDueScriptItems, reviewScriptCard, addActivity } from '../services/storageService';
+import { getDueScriptItems, getCustomScriptItems, reviewScriptCard, addActivity } from '../services/storageService';
 import { generateSpeech } from '../services/aiService';
 import HandwritePad from './HandwritePad';
 import { PenLine, Volume2, Check, RotateCcw, Keyboard, ArrowRight, Eye, HelpCircle, Hand } from 'lucide-react';
@@ -36,12 +36,27 @@ const NextButton: React.FC<{ onClick: () => void; isLast: boolean }> = ({ onClic
 
 const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUser }) => {
   const packs = useMemo(() => getScriptPacks(), []);
+  // 用户在内容仓库里自建的字形卡：合成一个独立包，走虚拟键盘点按（无 transliterate，符合生成式产出铁律）
+  const customItems = useMemo(() => getCustomScriptItems(user.learningLanguage), [user.learningLanguage]);
+  const customPack: ScriptPack | null = useMemo(() => {
+    if (customItems.length === 0) return null;
+    const groups = Array.from(new Set(customItems.map((i) => i.group || '自建')));
+    return {
+      id: `custom-${user.learningLanguage}`,
+      language: user.learningLanguage,
+      name: '我的自建字形卡',
+      description: '你在内容仓库里自建的字形卡。点按字形产出练习（无自动罗马字校验）。',
+      groups,
+      items: customItems,
+    };
+  }, [customItems, user.learningLanguage]);
+  const tabPacks = useMemo(() => (customPack ? [...packs, customPack] : packs), [packs, customPack]);
   const [packId, setPackId] = useState<string>('');
   const selectedPack: ScriptPack = useMemo(() => {
-    const byId = packs.find(p => p.id === packId);
+    const byId = tabPacks.find((p) => p.id === packId);
     if (byId) return byId;
     return getScriptPackForLanguage(user.learningLanguage) || packs[0];
-  }, [packs, packId, user.learningLanguage]);
+  }, [tabPacks, packId, user.learningLanguage, packs]);
 
   const [group, setGroup] = useState<string>('');
   const [queue, setQueue] = useState<ScriptItem[]>([]);
@@ -191,19 +206,22 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
       <div className="max-w-4xl mx-auto">
         {/* 语言切换 tab */}
         <div className="flex flex-wrap gap-2 mb-6">
-          {packs.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => selectPack(p.id)}
-              className={`px-4 py-2 rounded-xl text-sm font-bold border transition-colors ${
-                p.id === selectedPack.id
-                  ? 'bg-primary text-white border-primary'
-                  : 'bg-card border-line-strong text-gray-300 hover:border-secondary'
-              }`}
-            >
-              {p.name}
-            </button>
-          ))}
+          {tabPacks.map((p) => {
+            const isCustom = p.id.startsWith('custom-');
+            return (
+              <button
+                key={p.id}
+                onClick={() => selectPack(p.id)}
+                className={`px-4 py-2 rounded-xl text-sm font-bold border transition-colors ${
+                  p.id === selectedPack.id
+                    ? 'bg-primary text-white border-primary'
+                    : 'bg-card border-line-strong text-gray-300 hover:border-secondary'
+                }`}
+              >
+                {isCustom ? `✏️ 我的自建 (${customItems.length})` : p.name}
+              </button>
+            );
+          })}
         </div>
 
         <div className="mb-6">

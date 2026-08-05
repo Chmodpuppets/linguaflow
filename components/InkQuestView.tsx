@@ -14,6 +14,8 @@ import {
   updateInkQuestListeningAttempt,
   deleteInkQuestListeningItem,
   InkQuestListeningItem,
+  CustomWritingPrompt,
+  getCustomWritingPrompts,
 } from '../services/storageService';
 import {
   getInkQuestCoachFeedback,
@@ -69,6 +71,15 @@ const WEEKLY_BENCHMARK: Partial<Record<CEFRLevel, number>> = {
   B2: 6,
   C1: 7,
   C2: 7,
+};
+
+// 自建写作题按语体给出生成性引导（中文提示，不显示答案）
+const REGISTER_HINTS: Record<string, string[]> = {
+  casual: ['用轻松口语的语气写'],
+  neutral: ['用中性、自然的语气写'],
+  polite: ['注意用礼貌语体表达'],
+  formal: ['用正式书面语写'],
+  business: ['用商务 / 专业口吻写'],
 };
 
 const tokenize = (text: string, lang: Language): string[] => {
@@ -166,8 +177,21 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
   const [rightTab, setRightTab] = useState<RightTab>('handbook');
 
   const [activeCardId, setActiveCardId] = useState<string>(season.cards[0]?.id ?? '');
-  const activeCard: InkQuestCardDef | undefined =
-    season.cards.find((c) => c.id === activeCardId) ?? season.cards[0];
+  const [customPrompt, setCustomPrompt] = useState<CustomWritingPrompt | null>(null);
+  const [showCustomPicker, setShowCustomPicker] = useState(false);
+  const customItems = useMemo(() => getCustomWritingPrompts(lang), [lang]);
+  const activeCard: InkQuestCardDef | undefined = useMemo(() => {
+    if (customPrompt) {
+      return {
+        id: 'custom:' + customPrompt.id,
+        theme: customPrompt.text,
+        prompts: REGISTER_HINTS[customPrompt.register] ?? ['自由发挥，写出你想写的内容'],
+        minSentences: 2,
+        maxSentences: 4,
+      };
+    }
+    return season.cards.find((c) => c.id === activeCardId) ?? season.cards[0];
+  }, [customPrompt, activeCardId, season]);
 
   const [text, setText] = useState('');
   const [scaffold, setScaffold] = useState<string[]>([]);
@@ -212,11 +236,21 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
     const next = ((idx % INK_QUEST_SEASON_COUNT) + INK_QUEST_SEASON_COUNT) % INK_QUEST_SEASON_COUNT;
     setSeasonIndex(next);
     setActiveCardId(getInkQuestSeason(next).cards[0]?.id ?? '');
+    setCustomPrompt(null);
+    setShowCustomPicker(false);
     resetRound();
   };
 
   const selectCard = (id: string) => {
     setActiveCardId(id);
+    setCustomPrompt(null);
+    setShowCustomPicker(false);
+    resetRound();
+  };
+
+  const pickCustomPrompt = (cp: CustomWritingPrompt) => {
+    setCustomPrompt(cp);
+    setShowCustomPicker(false);
     resetRound();
   };
 
@@ -492,7 +526,38 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
           >
             <ChevronRight size={16} />
           </button>
+          {customItems.length > 0 && (
+            <button
+              onClick={() => setShowCustomPicker((v) => !v)}
+              className={`ml-1 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                customPrompt
+                  ? 'border-fuchsia-400 bg-fuchsia-500/15 text-white'
+                  : 'border-line-strong bg-surface-3/40 text-muted hover:text-white'
+              }`}
+              title="选择你自建的写作题"
+            >
+              ✏️ 我的自建 ({customItems.length})
+            </button>
+          )}
         </div>
+
+        {showCustomPicker && customItems.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {customItems.map((cp) => (
+              <button
+                key={cp.id}
+                onClick={() => pickCustomPrompt(cp)}
+                className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  customPrompt?.id === cp.id
+                    ? 'border-fuchsia-400 bg-fuchsia-500/15 text-white'
+                    : 'border-line-strong bg-surface-3/40 text-gray-200 hover:border-fuchsia-400'
+                }`}
+              >
+                {cp.text.length > 10 ? cp.text.slice(0, 10) + '…' : cp.text}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* 模式切换：自由写 / 听写 */}
         <div className="mt-4 inline-flex rounded-lg border border-line-strong bg-surface-3/40 p-1">
@@ -525,7 +590,14 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
         {/* 写作台 / 听写台 */}
         <section className="md:col-span-2 space-y-4 rounded-2xl border border-line bg-surface-2 p-5">
           <div>
-            <h3 className="text-xl font-bold text-white">{activeCard.theme}</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-xl font-bold text-white">{activeCard.theme}</h3>
+              {customPrompt && (
+                <span className="rounded-full bg-fuchsia-500/15 px-2 py-0.5 text-[10px] font-semibold text-fuchsia-300">
+                  自建题
+                </span>
+              )}
+            </div>
             <p className="mt-1 text-xs text-muted">
               {mode === 'free'
                 ? `建议 ${activeCard.minSentences}–${activeCard.maxSentences} 句 · 用 ${lang} 自由写，不需要完美`
