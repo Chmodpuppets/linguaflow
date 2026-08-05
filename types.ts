@@ -117,7 +117,9 @@ export enum AppMode {
   ErrorBook = 'errorbook',
   Trend = 'trend',
   Portfolio = 'portfolio',
-  CompositionStudio = 'composition_studio'
+  CompositionStudio = 'composition_studio',
+  InkQuest = 'ink_quest',
+  ContentRepo = 'content_repo'
 }
 
 // --- Personalization (Phase 2/3) ---

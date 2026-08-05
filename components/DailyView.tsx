@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, AppMode, QuestKind, ActivityLog } from '../types';
 import { getDueVocabulary, getLogs } from '../services/storageService';
-import { Flame, Shield, CheckCircle2, ArrowRight, Sparkles, Target, BookOpen, MessageSquare, PenTool, Type, Trophy, PenLine } from 'lucide-react';
+import { Flame, Shield, CheckCircle2, ArrowRight, Sparkles, Target, BookOpen, MessageSquare, PenTool, Type, Trophy, PenLine, Feather } from 'lucide-react';
 
 interface DailyViewProps {
   user: UserProfile;
@@ -14,7 +14,7 @@ const QUEST_TO_MODE: Record<QuestKind, AppMode> = {
   typing_words: AppMode.Typing,
   vocab_review: AppMode.Vocabulary,
   rpg_sessions: AppMode.RPG,
-  writing_words: AppMode.Writing,
+  writing_words: AppMode.InkQuest,
   script_practice: AppMode.ScriptTrainer,
 };
 
@@ -174,6 +174,7 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser, onNavigate })
             { mode: AppMode.RPG, label: '剧情对话', icon: <MessageSquare size={22} />, desc: '情景对话练口语' },
             { mode: AppMode.Typing, label: '打字冒险', icon: <Type size={22} />, desc: '手感与速度' },
             { mode: AppMode.Writing, label: '写作工坊', icon: <PenTool size={22} />, desc: 'AI 批改输出' },
+            { mode: AppMode.InkQuest, label: '墨程', icon: <Feather size={22} />, desc: '微写作 + AI 教练' },
             { mode: AppMode.Import, label: '导入内容', icon: <BookOpen size={22} />, desc: '学你自己的材料' },
           ].map((m) => (
             <button

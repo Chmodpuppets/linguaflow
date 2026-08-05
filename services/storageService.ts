@@ -1,5 +1,5 @@
 
-import { UserProfile, ActivityLog, Language, CEFRLevel, UserContent, LanguageProgress, WritingNode, VocabularyItem, DailyQuest, QuestKind, MentorPersona, AIMemory, ScriptItem, ScriptCardProgress, ErrorCard, WritingScoreRecord } from '../types';
+import { UserProfile, ActivityLog, Language, CEFRLevel, UserContent, LanguageProgress, WritingNode, VocabularyItem, DailyQuest, QuestKind, MentorPersona, AIMemory, ScriptItem, ScriptCardProgress, ErrorCard, WritingScoreRecord, TypingContent } from '../types';
 import { createDefaultGrowthTree, CEFR_RANK } from '../data/growthTree';
 
 const STORAGE_KEY_USER = 'linguaflow_user';
@@ -11,6 +11,10 @@ const STORAGE_KEY_AI = 'linguaflow_ai_config';
 const STORAGE_KEY_SCRIPT = 'linguaflow_script_progress';
 const STORAGE_KEY_ERRORBOOK = 'linguaflow_errorbook';
 const STORAGE_KEY_WRITING_HISTORY = 'linguaflow_writing_history';
+const STORAGE_KEY_INKQUEST = 'linguaflow_inkquest';
+const STORAGE_KEY_INKQUEST_STORY = 'linguaflow_inkquest_story';
+const STORAGE_KEY_INKQUEST_LISTENING = 'linguaflow_inkquest_listening';
+const STORAGE_KEY_TYPING_LIBRARY = 'linguaflow_typing_library';
 
 // --- Runtime AI model configuration (switcher in Settings -> 模型设置) ---
 // Keys are stored ONLY in localStorage (browser), never committed to source.
@@ -115,6 +119,268 @@ export const clearAllLearningData = () => {
     localStorage.removeItem(STORAGE_KEY_SCRIPT);
     localStorage.removeItem(STORAGE_KEY_ERRORBOOK);
     localStorage.removeItem(STORAGE_KEY_WRITING_HISTORY);
+    localStorage.removeItem(STORAGE_KEY_INKQUEST);
+    localStorage.removeItem(STORAGE_KEY_INKQUEST_STORY);
+    localStorage.removeItem(STORAGE_KEY_INKQUEST_LISTENING);
+    localStorage.removeItem(STORAGE_KEY_TYPING_LIBRARY);
+};
+
+// --- 墨程 InkQuest 手帐（独立于 UserProfile，避免 addActivity 频繁序列化大数组） ---
+export interface InkQuestCard {
+  id: string;
+  date: string;            // YYYY-MM-DD
+  language: Language;
+  seasonId: string;
+  cardId: string;
+  theme: string;          // 主题（中文）
+  userText: string;       // 用户写的原文
+  highlight: string;      // 用户收进手帐的亮点句/段落
+  coachComment?: string;  // 教练总评
+  scores?: { grammar: number; fluency: number; vocabulary: number; task: number }; // 教练四维度小分
+  wordCount?: number;     // 字数/词数（用于成长对决）
+  createdAt: number;
+}
+
+// --- 墨程 InkQuest 故事线（叙事成长）：按语言存一条持续累积的旅程手帐 ---
+export interface InkQuestStory {
+  language: Language;
+  text: string;       // 已累积的完整故事
+  updatedAt: number;
+}
+
+export const getInkQuestStory = (lang: Language): InkQuestStory | null => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_INKQUEST_STORY);
+    const all: InkQuestStory[] = raw ? JSON.parse(raw) : [];
+    return all.find((s) => s.language === lang) ?? null;
+  } catch {
+    return null;
+  }
+};
+
+export const setInkQuestStory = (story: InkQuestStory): void => {
+  const raw = localStorage.getItem(STORAGE_KEY_INKQUEST_STORY);
+  const all: InkQuestStory[] = raw ? JSON.parse(raw) : [];
+  const next = [...all.filter((s) => s.language !== story.language), story];
+  localStorage.setItem(STORAGE_KEY_INKQUEST_STORY, JSON.stringify(next));
+};
+
+export const appendInkQuestStory = (lang: Language, paragraph: string): InkQuestStory => {
+  const cur = getInkQuestStory(lang);
+  const sep = cur && cur.text ? '\n\n' : '';
+  const text = (cur?.text ?? '') + sep + paragraph;
+  const story: InkQuestStory = { language: lang, text, updatedAt: Date.now() };
+  setInkQuestStory(story);
+  return story;
+};
+
+// --- 墨程 InkQuest 听力库：AI 生成的听写句持久化，可回看/重听/重做 ---
+export interface InkQuestListeningAttempt {
+  text: string;     // 用户当时写下的内容
+  pct: number;      // 匹配百分比
+  at: number;       // 时间戳
+}
+
+export interface InkQuestListeningItem {
+  id: string;
+  date: string;            // YYYY-MM-DD
+  language: Language;
+  seasonId: string;
+  cardId: string;
+  theme: string;           // 主题（中文）
+  sentence: string;        // AI 生成的听写句（目标语）
+  createdAt: number;
+  attempts: InkQuestListeningAttempt[]; // 历次重做记录，最新在前
+}
+
+export const getInkQuestListeningItems = (lang?: Language): InkQuestListeningItem[] => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_INKQUEST_LISTENING);
+    const all: InkQuestListeningItem[] = raw ? JSON.parse(raw) : [];
+    const filtered = lang ? all.filter((c) => c.language === lang) : all;
+    return filtered.sort((a, b) => b.createdAt - a.createdAt);
+  } catch {
+    return [];
+  }
+};
+
+export const saveInkQuestListeningItem = (item: InkQuestListeningItem): void => {
+  const all = getInkQuestListeningItems();
+  const next = [item, ...all.filter((c) => c.id !== item.id)].slice(0, INKQUEST_MAX);
+  localStorage.setItem(STORAGE_KEY_INKQUEST_LISTENING, JSON.stringify(next));
+};
+
+export const updateInkQuestListeningAttempt = (
+  id: string,
+  attempt: InkQuestListeningAttempt
+): void => {
+  const all = getInkQuestListeningItems();
+  const target = all.find((c) => c.id === id);
+  if (!target) return;
+  target.attempts = [attempt, ...(target.attempts ?? [])].slice(0, 10);
+  localStorage.setItem(STORAGE_KEY_INKQUEST_LISTENING, JSON.stringify(all));
+};
+
+export const deleteInkQuestListeningItem = (id: string): void => {
+  const all = getInkQuestListeningItems();
+  localStorage.setItem(STORAGE_KEY_INKQUEST_LISTENING, JSON.stringify(all.filter((c) => c.id !== id)));
+};
+
+const INKQUEST_MAX = 200;
+
+// --- 打字库：AI 生成的打字闯关内容持久化，可无 token 重复练习 ---
+export interface TypingLibraryItem {
+  id: string;
+  language: Language;
+  cefr: CEFRLevel;
+  topic: string;
+  source: 'stage' | 'practice';
+  text: string;
+  translation: string;
+  phoneticGuide: string;
+  keyVocabulary: TypingContent['keyVocabulary'];
+  createdAt: number;
+  lastPracticedAt?: number;
+  practiceCount: number;
+}
+
+export const getTypingLibraryItems = (lang?: Language): TypingLibraryItem[] => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_TYPING_LIBRARY);
+    const all: TypingLibraryItem[] = raw ? JSON.parse(raw) : [];
+    const filtered = lang ? all.filter((c) => c.language === lang) : all;
+    return filtered.sort((a, b) => b.createdAt - a.createdAt);
+  } catch {
+    return [];
+  }
+};
+
+// 保存一条；同一语言下 text 去重，避免反复生成相同内容造成重复条目。
+// 返回该语言下的最新列表，方便调用方直接 setState。
+export const saveTypingLibraryItem = (item: TypingLibraryItem): TypingLibraryItem[] => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_TYPING_LIBRARY);
+    const all: TypingLibraryItem[] = raw ? JSON.parse(raw) : [];
+    if (all.some((c) => c.language === item.language && c.text === item.text)) {
+      return getTypingLibraryItems(item.language);
+    }
+    const next = [...all, item].slice(-300); // 上限保护
+    localStorage.setItem(STORAGE_KEY_TYPING_LIBRARY, JSON.stringify(next));
+    return getTypingLibraryItems(item.language);
+  } catch {
+    return getTypingLibraryItems(item.language);
+  }
+};
+
+export const deleteTypingLibraryItem = (id: string, lang?: Language): TypingLibraryItem[] => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_TYPING_LIBRARY);
+    const all: TypingLibraryItem[] = raw ? JSON.parse(raw) : [];
+    localStorage.setItem(STORAGE_KEY_TYPING_LIBRARY, JSON.stringify(all.filter((c) => c.id !== id)));
+    return getTypingLibraryItems(lang);
+  } catch {
+    return [];
+  }
+};
+
+// 重新练习时更新练习次数与最近练习时间。
+export const touchTypingLibraryItem = (id: string, lang?: Language): TypingLibraryItem[] => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_TYPING_LIBRARY);
+    const all: TypingLibraryItem[] = raw ? JSON.parse(raw) : [];
+    const target = all.find((c) => c.id === id);
+    if (target) {
+      target.practiceCount = (target.practiceCount ?? 0) + 1;
+      target.lastPracticedAt = Date.now();
+      localStorage.setItem(STORAGE_KEY_TYPING_LIBRARY, JSON.stringify(all));
+    }
+    return getTypingLibraryItems(lang);
+  } catch {
+    return getTypingLibraryItems(lang);
+  }
+};
+
+// --- 自定义字形卡（用户自建，接入文字特训 / 内容仓库）---
+// 注意：自建包无 romaji 自动校验（transliterate 是函数不可存），只能走虚拟键盘点按字形。
+export interface CustomScriptItem extends ScriptItem {
+  language: Language;
+}
+
+const STORAGE_KEY_CUSTOM_SCRIPT = 'linguaflow_custom_script';
+
+export const getCustomScriptItems = (lang?: Language): CustomScriptItem[] => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_CUSTOM_SCRIPT);
+    const all: CustomScriptItem[] = raw ? JSON.parse(raw) : [];
+    return lang ? all.filter((c) => c.language === lang) : all;
+  } catch {
+    return [];
+  }
+};
+
+export const saveCustomScriptItem = (item: CustomScriptItem): void => {
+  const all = getCustomScriptItems();
+  const next = [item, ...all.filter((c) => c.id !== item.id)].slice(0, 500);
+  localStorage.setItem(STORAGE_KEY_CUSTOM_SCRIPT, JSON.stringify(next));
+};
+
+export const deleteCustomScriptItem = (id: string): void => {
+  const all = getCustomScriptItems();
+  localStorage.setItem(STORAGE_KEY_CUSTOM_SCRIPT, JSON.stringify(all.filter((c) => c.id !== id)));
+};
+
+// --- 自定义写作题（用户自建，接入墨程 / 内容仓库）---
+export interface CustomWritingPrompt {
+  id: string;
+  text: string;            // 主题/写作任务（中文）
+  register: string;        // 'casual' | 'neutral' | 'polite' | 'formal' | 'business'
+  language: Language;
+  createdAt: number;
+}
+
+const STORAGE_KEY_CUSTOM_WRITING = 'linguaflow_custom_writing';
+
+export const getCustomWritingPrompts = (lang?: Language): CustomWritingPrompt[] => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_CUSTOM_WRITING);
+    const all: CustomWritingPrompt[] = raw ? JSON.parse(raw) : [];
+    return lang ? all.filter((c) => c.language === lang) : all;
+  } catch {
+    return [];
+  }
+};
+
+export const saveCustomWritingPrompt = (item: CustomWritingPrompt): void => {
+  const all = getCustomWritingPrompts();
+  const next = [item, ...all.filter((c) => c.id !== item.id)].slice(0, 500);
+  localStorage.setItem(STORAGE_KEY_CUSTOM_WRITING, JSON.stringify(next));
+};
+
+export const deleteCustomWritingPrompt = (id: string): void => {
+  const all = getCustomWritingPrompts();
+  localStorage.setItem(STORAGE_KEY_CUSTOM_WRITING, JSON.stringify(all.filter((c) => c.id !== id)));
+};
+
+export const getInkQuestCards = (lang?: Language): InkQuestCard[] => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_INKQUEST);
+    const all: InkQuestCard[] = raw ? JSON.parse(raw) : [];
+    const filtered = lang ? all.filter((c) => c.language === lang) : all;
+    return filtered.sort((a, b) => b.createdAt - a.createdAt);
+  } catch {
+    return [];
+  }
+};
+
+export const saveInkQuestCard = (card: InkQuestCard): void => {
+  const all = getInkQuestCards();
+  const next = [card, ...all.filter((c) => c.id !== card.id)].slice(0, INKQUEST_MAX);
+  localStorage.setItem(STORAGE_KEY_INKQUEST, JSON.stringify(next));
+};
+
+export const deleteInkQuestCard = (id: string): void => {
+  const all = getInkQuestCards();
+  localStorage.setItem(STORAGE_KEY_INKQUEST, JSON.stringify(all.filter((c) => c.id !== id)));
 };
 
 export const registerUser = (username: string, nativeLanguage: Language, learningLanguage: Language, level: CEFRLevel): UserProfile => {

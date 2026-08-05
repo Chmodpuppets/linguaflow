@@ -2,9 +2,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { TypingContent, UserProfile, UserContent, CEFRLevel, VocabularyItem } from '../types';
 import { generateTypingContent, generateSpeech, cancelSpeech, transcribeAudio, languageToSpeechLang } from '../services/aiService';
-import { addActivity, getLibrary, saveLibraryItem, saveVocabularyItem } from '../services/storageService';
+import { addActivity, getLibrary, saveLibraryItem, saveVocabularyItem, getTypingLibraryItems, saveTypingLibraryItem, deleteTypingLibraryItem, touchTypingLibraryItem, TypingLibraryItem } from '../services/storageService';
 import { TYPING_STAGES, DRILL_TOPICS } from '../constants';
-import { RefreshCw, Play, Keyboard, Eye, EyeOff, BookOpen, Zap, Star, Sparkles, LayoutGrid, Book, Volume2, StopCircle, Loader2, Mic, Square, Trash2, Ear, Pause, X, Lock, CheckCircle2, Swords, Crown, ShieldAlert, Plus, Check, Bookmark } from 'lucide-react';
+import { RefreshCw, Play, Keyboard, Eye, EyeOff, BookOpen, Zap, Star, Sparkles, LayoutGrid, Book, Volume2, StopCircle, Loader2, Mic, Square, Trash2, Ear, Pause, X, Lock, CheckCircle2, Swords, Crown, ShieldAlert, Plus, Check, Bookmark, Library, Repeat } from 'lucide-react';
 import TtsAudioPlayer, { TtsAudioPlayerHandle } from './TtsAudioPlayer';
 
 interface TypingViewProps {
@@ -90,8 +90,9 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
   const [isTranscribing, setIsTranscribing] = useState(false);
 
   // Selection Mode State
-  const [activeTab, setActiveTab] = useState<'campaign' | 'practice' | 'memory'>('campaign');
+  const [activeTab, setActiveTab] = useState<'campaign' | 'practice' | 'memory' | 'typinglib'>('campaign');
   const [libraryItems, setLibraryItems] = useState<UserContent[]>([]);
+  const [typingLib, setTypingLib] = useState<TypingLibraryItem[]>(() => getTypingLibraryItems(user.learningLanguage));
   
   const inputRef = useRef<HTMLInputElement>(null);
   const textContainerRef = useRef<HTMLDivElement>(null);
@@ -105,6 +106,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
 
   useEffect(() => {
       setLibraryItems(getLibrary().filter(i => i.language === user.learningLanguage));
+      setTypingLib(getTypingLibraryItems(user.learningLanguage));
   }, [user.learningLanguage]);
 
   // Cleanup audio on unmount
@@ -289,6 +291,28 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
 
   // --- Content & Game Logic ---
 
+  // AI 生成的打字内容自动入「打字库」，省 token 且可重复练习
+  const persistGenerated = (data: TypingContent, cefr: CEFRLevel, source: 'stage' | 'practice') => {
+    try {
+      const item: TypingLibraryItem = {
+        id: generateId(),
+        language: user.learningLanguage,
+        cefr,
+        topic: data.topic || '打字练习',
+        source,
+        text: data.text,
+        translation: data.translation,
+        phoneticGuide: data.phoneticGuide || '',
+        keyVocabulary: data.keyVocabulary || [],
+        createdAt: Date.now(),
+        practiceCount: 0,
+      };
+      setTypingLib(saveTypingLibraryItem(item));
+    } catch {
+      /* 入库失败不影响本次练习 */
+    }
+  };
+
   const fetchStageContent = async (stage: typeof TYPING_STAGES[0]) => {
       stopAudio();
       setIsLoading(true);
@@ -309,6 +333,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
           
           const data = await generateTypingContent(user.learningLanguage, user.nativeLanguage, stage.cefr, stage.title, instructions);
           setContent(data);
+          persistGenerated(data, stage.cefr, 'stage');
           setTimeout(() => inputRef.current?.focus(), 100);
       } catch (error) {
           console.error(error);
@@ -335,6 +360,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
           const currentLevel = user.progress[user.learningLanguage]?.cefrLevel || CEFRLevel.A1;
           const data = await generateTypingContent(user.learningLanguage, user.nativeLanguage, currentLevel, topic);
           setContent(data);
+          persistGenerated(data, currentLevel, 'practice');
           setTimeout(() => inputRef.current?.focus(), 100);
       } catch (error) {
           console.error(error);
@@ -343,6 +369,29 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
       } finally {
           setIsLoading(false);
       }
+  };
+
+  // 从打字库载入一条已生成内容重练（不调 AI，省 token）
+  const loadFromTypingLibrary = (item: TypingLibraryItem) => {
+      stopAudio();
+      setIsLoading(false);
+      setErrorMsg(null);
+      setInputValue('');
+      setStartTime(null);
+      setWpm(0);
+      setFinished(false);
+      setPassedStage(false);
+      setActiveStage(null);
+      setIsAISource(false); // 重练不重复写通用记忆库
+      setContent({
+        text: item.text,
+        topic: item.topic,
+        phoneticGuide: item.phoneticGuide,
+        translation: item.translation,
+        keyVocabulary: item.keyVocabulary,
+      });
+      setTypingLib(touchTypingLibraryItem(item.id, item.language));
+      setTimeout(() => inputRef.current?.focus(), 100);
   };
 
   // Manual Save Function
@@ -830,12 +879,18 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                      >
                         <LayoutGrid size={18} /> AI 练习
                      </button>
-                     <button 
+                    <button 
                         onClick={() => setActiveTab('memory')}
                         className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold transition-all ${activeTab === 'memory' ? 'bg-secondary text-white shadow-lg shadow-secondary/20' : 'bg-surface-2 text-muted hover:bg-surface-3'}`}
-                     >
+                    >
                         <Book size={18} /> 记忆库
-                     </button>
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('typinglib')}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold transition-all ${activeTab === 'typinglib' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-surface-2 text-muted hover:bg-surface-3'}`}
+                    >
+                        <Library size={18} /> 打字库
+                    </button>
                  </div>
 
                  {/* Content Selection */}
@@ -882,6 +937,50 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                                          <h4 className="font-bold text-gray-200 group-hover:text-white mb-1 truncate">{item.title}</h4>
                                          <p className="text-xs text-muted truncate">{item.content}</p>
                                      </button>
+                                 ))}
+                             </div>
+                         )}
+                     </div>
+                 )}
+
+                 {activeTab === 'typinglib' && (
+                     <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
+                         {typingLib.length === 0 ? (
+                             <div className="text-center py-12 border-2 border-dashed border-line rounded-xl">
+                                 <p className="text-muted mb-4">你的打字库还是空的。</p>
+                                 <div className="text-sm text-faint">完成「闯关」或「AI 练习」后，生成的打字内容会自动存到这里，可随时无 token 重练。</div>
+                             </div>
+                         ) : (
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                 {typingLib.map(item => (
+                                     <div
+                                        key={item.id}
+                                        className="p-4 bg-surface-2/50 hover:bg-surface-3 border border-line-strong hover:border-primary/50 rounded-xl transition-all group"
+                                     >
+                                         <div className="flex items-start justify-between gap-2 mb-1">
+                                             <h4 className="font-bold text-gray-200 group-hover:text-white truncate">{item.topic}</h4>
+                                             <span className="shrink-0 px-2 py-0.5 rounded-full bg-primary/20 text-primary text-[10px] font-bold border border-primary/30">{item.cefr}</span>
+                                         </div>
+                                         <p className="text-xs text-muted truncate mb-1">
+                                             {item.source === 'stage' ? '关卡' : '练习'} · 已练 {item.practiceCount ?? 0} 次
+                                         </p>
+                                         <p className="text-xs text-muted/80 line-clamp-2 mb-3">{item.text}</p>
+                                         <div className="flex items-center gap-2">
+                                             <button
+                                                onClick={() => loadFromTypingLibrary(item)}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-bold hover:brightness-110 transition"
+                                             >
+                                                <Repeat size={14} /> 重练
+                                             </button>
+                                             <button
+                                                onClick={() => setTypingLib(deleteTypingLibraryItem(item.id, item.language))}
+                                                className="p-1.5 rounded-lg text-muted hover:text-red-400 hover:bg-red-500/10 transition"
+                                                title="删除"
+                                             >
+                                                <Trash2 size={14} />
+                                             </button>
+                                         </div>
+                                     </div>
                                  ))}
                              </div>
                          )}

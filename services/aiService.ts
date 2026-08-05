@@ -218,6 +218,135 @@ export const testModelConnection = async (config?: AIConfig): Promise<string> =>
   ]);
 };
 
+// --- 墨程 InkQuest：轻量微写作教练（三件套 + 四维度小分） ---
+export interface InkQuestCoachFeedback {
+  highlight: string;
+  fix: string;
+  fixReasonZh: string;
+  rewrite: string;
+  scores: { grammar: number; fluency: number; vocabulary: number; task: number };
+  comment: string;
+}
+
+const INKQUEST_COACH_FALLBACK: InkQuestCoachFeedback = {
+  highlight: '',
+  fix: '',
+  fixReasonZh: '暂时无法连接 AI 教练，稍后再试～',
+  rewrite: '',
+  scores: { grammar: 3, fluency: 3, vocabulary: 3, task: 3 },
+  comment: '已收到你的练习，继续加油！',
+};
+
+export const getInkQuestCoachFeedback = async (
+  user: UserProfile,
+  userText: string,
+  theme: string,
+  targetLanguage: Language,
+  nativeLanguage: Language,
+  cefrLevel: CEFRLevel
+): Promise<InkQuestCoachFeedback> => {
+  const system =
+    `${buildTutorSystemPrompt(user)}\n` +
+    `你同时也是一位「微写作教练」，擅长鼓励初学者。\n` +
+    `学生刚用 ${targetLanguage} 写了一小段（主题：${theme}；CEFR ${cefrLevel}；学生母语 ${nativeLanguage}）。\n` +
+    `请严格用 JSON 回复，不要有任何额外文字。JSON 字段：\n` +
+    `{\n` +
+    `  "highlight": "学生写得最好的一句（尽量引用原文原句）",\n` +
+    `  "fix": "最值得改的一处（指出原文中有问题的那句/词）",\n` +
+    `  "fixReasonZh": "用中文解释为什么不够好，并给一个更地道/正确的说法",\n` +
+    `  "rewrite": "把学生整段改写成更自然的一版（保留原意与当前难度）",\n` +
+    `  "scores": { "grammar": 0到5的整数, "fluency": 0到5的整数, "vocabulary": 0到5的整数, "task": 0到5的整数 },\n` +
+    `  "comment": "一句鼓励向的中文总评"\n` +
+    `}\n` +
+    `评分满分 5 分，对初学者请宽松善意；若 fix 确实没有大问题，可写"整体很棒，挑不出毛病"。`;
+  const prompt = `这是学生写的内容：\n"""\n${userText}\n"""\n请给教练反馈。`;
+  try {
+    const raw = await chatCompletionWithSystem(system, prompt, 0.3);
+    return parseAIJSON<InkQuestCoachFeedback>(raw, INKQUEST_COACH_FALLBACK);
+  } catch (e) {
+    console.warn('InkQuest coach failed:', e);
+    return INKQUEST_COACH_FALLBACK;
+  }
+};
+
+// 给微写作卡生成 3 个目标语「脚手架词汇/短语」，降低空白页焦虑（按需点击）
+export const getInkQuestScaffold = async (
+  theme: string,
+  targetLanguage: Language,
+  cefrLevel: CEFRLevel
+): Promise<string[]> => {
+  const system =
+    `你是语言学习素材生成器。` +
+    `请直接输出一个 **JSON 字符串数组**（数组长度正好 3，每个元素都是一段纯文本字符串）。` +
+    `适合 CEFR ${cefrLevel} 学习者在写「${theme}」主题时可以用到的 ${targetLanguage} 词汇或短句。` +
+    `严禁输出对象、严禁输出对象数组、严禁加解释或前后缀文字，**只输出形如 ["词1","词2","词3"] 的纯 JSON 字符串数组**。`;
+  try {
+    const raw = await chatCompletionWithSystem(system, `生成 3 个 ${targetLanguage} 词汇/短语，主题：${theme}`, 0.6);
+    const arr = parseAIJSON<unknown[]>(raw, []);
+    if (!Array.isArray(arr)) return [];
+    // 防御式归一：模型偶尔还是会返回对象（{word:'…', translation:'…'} 或 {term:'…', example:'…'} 等），落到字符串再过滤
+    return arr
+      .slice(0, 3)
+      .map((item) => {
+        if (typeof item === 'string') return item.trim();
+        if (item && typeof item === 'object') {
+          const o = item as Record<string, unknown>;
+          const cand =
+            o.word ?? o.term ?? o.text ?? o.vocab ?? o.phrase ?? o.example ??
+            o.value ?? o.translation_zh;
+          if (typeof cand === 'string' && cand.trim()) return cand.trim();
+        }
+        return '';
+      })
+      .filter((s) => s.length > 0);
+  } catch {
+    return [];
+  }
+};
+
+// 听写模式：为某主题生成一句适合 CEFR 等级、长度适中、便于听写的短句（目标语）
+export const getInkQuestDictationSentence = async (
+  theme: string,
+  targetLanguage: Language,
+  cefrLevel: CEFRLevel
+): Promise<string> => {
+  const system =
+    `你是语言学习素材生成器。请生成一句适合 CEFR ${cefrLevel} 学习者、主题「${theme}」的 ${targetLanguage} 短句` +
+    `（1–2 句，尽量自然、口语化、长度适中，便于听写复述）。只输出句子本身，不要解释、不要引号、不要额外文字。`;
+  try {
+    const raw = await chatCompletionWithSystem(system, `生成一句 ${targetLanguage} 听写句，主题：${theme}`, 0.5);
+    const cleaned = (raw || '').trim().replace(/^["'「」『』\s]+|["'「」『』\s]+$/g, '').trim();
+    return cleaned;
+  } catch {
+    return '';
+  }
+};
+
+// 故事线（叙事成长）：把用户手帐里的亮点句，由 AI 织成一段第一人称旅程日记续篇（目标语）
+export const getInkQuestStoryContinuation = async (
+  user: UserProfile,
+  lang: Language,
+  level: CEFRLevel,
+  pastStory: string,
+  newHighlights: string[]
+): Promise<string> => {
+  const system =
+    `你是「微写作旅程日记」的执笔人。学生正在用 ${lang} 写一本第一人称的旅程手帐（CEFR ${level}）。` +
+    `请用 ${lang} 写一段新的日记续篇（3–5 句，难度贴合 ${level}），自然地把下面这些"今日亮点句"织进情节里。` +
+    `保持第一人称、温暖、有画面感。只输出续写段落本身，不要标题、不要额外解释、不要用引号包裹。`;
+  const prompt =
+    (pastStory
+      ? `这是已有的故事：\n"""\n${pastStory}\n"""\n\n`
+      : `（这是故事的开头，还没有前情。）\n\n`) +
+    `今日要织进来的亮点句：\n- ${newHighlights.join('\n- ')}\n\n请续写下一小段。`;
+  try {
+    const raw = await chatCompletionWithSystem(system, prompt, 0.7);
+    return (raw || '').trim();
+  } catch {
+    return '';
+  }
+};
+
 export const assessUserLevel = async (text: string, language: Language): Promise<AssessmentResult> => {
   const prompt = `
     Analyze the following ${language} text to determine the CEFR language proficiency level of the author.
