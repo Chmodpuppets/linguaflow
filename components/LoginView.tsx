@@ -34,7 +34,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-dark text-white p-4">
-      <div className="max-w-md w-full bg-card border border-line-strong rounded-3xl p-8 shadow-2xl relative overflow-hidden">
+      <div className="w-full max-w-2xl bg-card/70 backdrop-blur-xl border border-line-strong/40 rounded-3xl p-8 md:p-10 shadow-2xl shadow-black/40 relative overflow-hidden">
         {/* Background blobs */}
         <div className="absolute top-0 right-0 w-32 h-32 bg-primary/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-32 h-32 bg-secondary/20 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2 pointer-events-none" />
