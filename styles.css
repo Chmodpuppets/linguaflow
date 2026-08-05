@@ -15,6 +15,11 @@
   --text-faint: 100 116 139;  /* #64748b 极弱文字（非必要信息） */
   --line: 38 38 54;           /* #26263a 默认描边 */
   --line-strong: 55 55 78;    /* #37374e 强描边 */
+
+  /* 暗夜霓虹光效 token */
+  --neon: 139 92 246;         /* #8b5cf6 霓虹紫主光 */
+  --neon-2: 34 211 238;       /* #22d3ee 霓虹青辅光 */
+  --neon-3: 244 114 182;      /* #f472b6 霓虹粉点缀 */
 }
 
 html,
@@ -103,5 +108,222 @@ input, select, textarea {
   .elevate {
     box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
       0 8px 24px -12px rgba(0, 0, 0, 0.6);
+  }
+}
+
+/* ================= 暗夜霓虹氛围层 ================= */
+
+/* 全局面定氛围背景：三层极光光斑 + 细网格，随 keyframes 缓慢漂移 */
+.ambient-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.aurora {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.5;
+  will-change: transform;
+}
+.aurora-a {
+  width: 44vw;
+  height: 44vw;
+  top: -18%;
+  left: -10%;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.34) 0%, transparent 65%);
+  animation: aurora-drift-a 26s ease-in-out infinite alternate;
+}
+.aurora-b {
+  width: 38vw;
+  height: 38vw;
+  bottom: -20%;
+  right: -8%;
+  background: radial-gradient(circle, rgba(34, 211, 238, 0.22) 0%, transparent 65%);
+  animation: aurora-drift-b 32s ease-in-out infinite alternate;
+}
+.aurora-c {
+  width: 26vw;
+  height: 26vw;
+  top: 38%;
+  left: 42%;
+  background: radial-gradient(circle, rgba(244, 114, 182, 0.14) 0%, transparent 65%);
+  animation: aurora-drift-c 38s ease-in-out infinite alternate;
+}
+
+.grid-overlay {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 90% 80% at 50% 40%, black 30%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 40%, black 30%, transparent 75%);
+}
+
+@keyframes aurora-drift-a {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(6vw, 4vh) scale(1.12); }
+  100% { transform: translate(-2vw, 8vh) scale(0.95); }
+}
+@keyframes aurora-drift-b {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-5vw, -6vh) scale(1.1); }
+  100% { transform: translate(3vw, -3vh) scale(1.05); }
+}
+@keyframes aurora-drift-c {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(-6vw, 5vh) scale(1.18); }
+}
+
+/* 玻璃拟态面板 */
+.glass-panel {
+  background: linear-gradient(160deg, rgba(24, 24, 38, 0.72), rgba(14, 14, 24, 0.82));
+  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* 霓虹渐变文字 */
+.neon-text {
+  background: linear-gradient(120deg, #c4b5fd 0%, #8b5cf6 45%, #22d3ee 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ================= 导航项交互 ================= */
+.nav-item {
+  position: relative;
+  isolation: isolate;
+  transition: color 0.25s ease, transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* hover 时光晕从左侧晕开 */
+.nav-item::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 0.875rem;
+  background: radial-gradient(120px 60px at 18% 50%, rgba(139, 92, 246, 0.18), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: -1;
+}
+.nav-item:hover::before {
+  opacity: 1;
+}
+.nav-item:hover {
+  transform: translateX(3px);
+}
+.nav-item:hover .nav-icon {
+  color: #a78bfa;
+  filter: drop-shadow(0 0 6px rgba(139, 92, 246, 0.7));
+  transform: scale(1.12);
+}
+.nav-icon {
+  transition: color 0.25s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.25s ease;
+}
+
+/* 激活态：渐变胶囊 + 霓虹描边光 */
+.nav-item-active {
+  background: linear-gradient(120deg, rgba(139, 92, 246, 0.22), rgba(34, 211, 238, 0.1));
+  box-shadow:
+    inset 0 0 0 1px rgba(139, 92, 246, 0.35),
+    0 0 18px -4px rgba(139, 92, 246, 0.45);
+}
+.nav-item-active .nav-icon {
+  color: #c4b5fd;
+  filter: drop-shadow(0 0 8px rgba(139, 92, 246, 0.9));
+}
+/* 激活态左侧光柱（呼吸） */
+.nav-item-active::after {
+  content: "";
+  position: absolute;
+  left: -14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  border-radius: 9999px;
+  background: linear-gradient(180deg, #8b5cf6, #22d3ee);
+  box-shadow: 0 0 10px 1px rgba(139, 92, 246, 0.8);
+  animation: beam-breathe 2.6s ease-in-out infinite;
+}
+@keyframes beam-breathe {
+  0%, 100% { opacity: 0.75; height: 45%; }
+  50% { opacity: 1; height: 68%; }
+}
+
+/* ================= XP 进度条：霓虹渐变 + 流光 ================= */
+.xp-bar {
+  background: linear-gradient(90deg, #7c6cff, #8b5cf6, #22d3ee);
+  background-size: 200% 100%;
+  animation: xp-shimmer 3.2s linear infinite;
+  box-shadow: 0 0 10px rgba(139, 92, 246, 0.55);
+}
+@keyframes xp-shimmer {
+  0% { background-position: 0% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ================= 页面切换过渡 ================= */
+@keyframes page-in {
+  0% { opacity: 0; transform: translateY(14px) scale(0.995); filter: blur(4px); }
+  100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+.page-enter {
+  animation: page-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ================= 连击火焰：呼吸闪烁 ================= */
+@keyframes flame-flicker {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 3px rgba(251, 146, 60, 0.6)); }
+  30% { transform: scale(1.12) rotate(-3deg); filter: drop-shadow(0 0 8px rgba(251, 146, 60, 0.9)); }
+  60% { transform: scale(0.96) rotate(2deg); filter: drop-shadow(0 0 4px rgba(251, 146, 60, 0.7)); }
+}
+.flame-flicker {
+  animation: flame-flicker 1.8s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+/* ================= 角标脉冲 ================= */
+@keyframes badge-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55); }
+  60% { box-shadow: 0 0 0 7px rgba(239, 68, 68, 0); }
+}
+.badge-pulse {
+  animation: badge-pulse 2s ease-out infinite;
+}
+
+/* Logo 光晕呼吸 */
+@keyframes logo-glow {
+  0%, 100% { box-shadow: 0 0 14px rgba(139, 92, 246, 0.5), 0 0 34px rgba(34, 211, 238, 0.18); }
+  50% { box-shadow: 0 0 24px rgba(139, 92, 246, 0.85), 0 0 54px rgba(34, 211, 238, 0.32); }
+}
+.logo-glow {
+  animation: logo-glow 3.4s ease-in-out infinite;
+}
+
+/* 页面标题下划线：渐变流光 */
+.title-underline {
+  height: 2px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #8b5cf6, #22d3ee, transparent);
+  background-size: 200% 100%;
+  animation: xp-shimmer 4s linear infinite;
+}
+
+/* 尊重减弱动效偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .aurora, .xp-bar, .flame-flicker, .badge-pulse, .logo-glow,
+  .nav-item-active::after, .title-underline, .page-enter {
+    animation: none !important;
+  }
+  .nav-item, .nav-icon {
+    transition: none !important;
   }
 }

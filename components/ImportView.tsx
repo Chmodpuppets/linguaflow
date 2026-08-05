@@ -115,7 +115,7 @@ const ImportView: React.FC<ImportViewProps> = ({ user }) => {
     <div className="max-w-3xl mx-auto space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          <Upload size={22} className="text-primary" /> 导入你的内容
+          <Upload size={22} className="text-neon" /> 导入你的内容
         </h1>
         <p className="text-muted text-sm mt-1">
           学你<b className="text-white">自己</b>感兴趣的材料——追的剧、读的文章、工作的文档。粘进来就能变成打字、词汇和记忆练习。
@@ -141,7 +141,7 @@ const ImportView: React.FC<ImportViewProps> = ({ user }) => {
 
       {/* URL fetch */}
       <div className="flex gap-2">
-        <div className="flex-1 flex items-center gap-2 bg-card border border-line rounded-lg px-3">
+        <div className="flex-1 flex items-center gap-2 glass-panel border border-white/10 rounded-lg px-3">
           <LinkIcon size={16} className="text-muted" />
           <input
             value={url}
@@ -153,7 +153,7 @@ const ImportView: React.FC<ImportViewProps> = ({ user }) => {
         <button
           onClick={fetchUrl}
           disabled={busy}
-          className="px-4 py-2.5 rounded-lg bg-primary text-white text-sm font-bold disabled:opacity-50"
+          className="px-4 py-2.5 rounded-lg bg-neon text-white text-sm font-bold hover:bg-neon/80 shadow-glow-neon disabled:opacity-50"
         >
           {busy ? '抓取中…' : '抓取'}
         </button>
@@ -163,27 +163,27 @@ const ImportView: React.FC<ImportViewProps> = ({ user }) => {
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="给这段内容起个标题（可选）"
-        className="w-full bg-card border border-line rounded-lg px-3 py-2.5 outline-none text-sm text-white placeholder:text-faint"
+        className="w-full glass-panel border border-white/10 rounded-lg px-3 py-2.5 outline-none text-sm text-white placeholder:text-faint"
       />
 
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="在此粘贴文本（YouTube 字幕、新闻、文档……）。本地解析，不上传第三方。"
-        className="w-full h-56 bg-card border border-line rounded-lg p-3 outline-none text-sm text-white placeholder:text-faint resize-none custom-scrollbar"
+        className="w-full h-56 glass-panel border border-white/10 rounded-lg p-3 outline-none text-sm text-white placeholder:text-faint resize-none custom-scrollbar"
       />
 
       <div className="flex flex-wrap gap-3">
         <button
           onClick={saveToMemoryBank}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-secondary text-white text-sm font-bold hover:bg-secondary/80"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-neon-2 text-white text-sm font-bold hover:bg-neon-2/80 shadow-glow-cyan"
         >
           <BookPlus size={16} /> 存入记忆库
         </button>
         <button
           onClick={extractVocab}
           disabled={busy}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/80 disabled:opacity-50"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-neon text-white text-sm font-bold hover:bg-neon/80 shadow-glow-neon disabled:opacity-50"
         >
           <Scissors size={16} /> 提取词汇进词库
         </button>

@@ -138,8 +138,8 @@ const LibraryView: React.FC<LibraryViewProps> = ({ user, onPractice }) => {
   return (
     <div className="flex flex-col lg:flex-row h-[calc(100vh-140px)] gap-6">
       {/* Sidebar List */}
-      <div className={`w-full lg:w-1/3 bg-card border border-line-strong rounded-xl flex flex-col ${selectedItem || isCreating ? 'hidden lg:flex' : 'flex'}`}>
-        <div className="p-4 border-b border-line-strong flex justify-between items-center bg-surface/50">
+      <div className={`w-full lg:w-1/3 glass-panel rounded-xl flex flex-col ${selectedItem || isCreating ? 'hidden lg:flex' : 'flex'}`}>
+        <div className="p-4 border-b border-line-strong flex justify-between items-center bg-white/5">
           <h2 className="font-bold text-white flex items-center gap-2">
             <BookOpen size={20} className="text-secondary" />
             记忆库
@@ -147,14 +147,14 @@ const LibraryView: React.FC<LibraryViewProps> = ({ user, onPractice }) => {
           <div className="flex gap-2">
               <button 
                 onClick={handleCreateReadingLog}
-                className="p-2 bg-secondary/20 hover:bg-secondary/30 text-secondary border border-secondary/50 rounded-lg transition-colors"
+                className="p-2 bg-neon-2/15 hover:bg-neon-2/25 text-neon-2 border border-neon-2/40 rounded-lg transition-colors shadow-glow-cyan"
                 title="新建阅读反思日志"
               >
                 <BrainCircuit size={20} />
               </button>
               <button 
                 onClick={handleCreateNew}
-                className="p-2 bg-primary hover:bg-primary/80 rounded-lg text-white transition-colors shadow-lg shadow-primary/20"
+                className="p-2 bg-neon hover:bg-neon/80 rounded-lg text-white transition-colors shadow-glow-neon"
                 title="添加普通记忆"
               >
                 <Plus size={20} />
@@ -170,13 +170,13 @@ const LibraryView: React.FC<LibraryViewProps> = ({ user, onPractice }) => {
                 <div className="flex flex-col gap-3 w-full max-w-[200px]">
                     <button 
                         onClick={handleCreateNew}
-                        className="flex items-center justify-center gap-2 py-2 px-4 bg-surface-2 hover:bg-surface-3 border border-line-strong rounded-lg transition-colors font-medium text-white"
+                        className="flex items-center justify-center gap-2 py-2 px-4 bg-surface-2 hover:bg-surface-3 border border-line-strong hover:border-neon/40 rounded-lg transition-all font-medium text-white"
                     >
                         <FileText size={16} /> 添加文本
                     </button>
                     <button 
                         onClick={handleCreateReadingLog}
-                        className="flex items-center justify-center gap-2 py-2 px-4 bg-secondary/10 hover:bg-secondary/20 border border-secondary/30 text-secondary rounded-lg transition-colors font-medium"
+                        className="flex items-center justify-center gap-2 py-2 px-4 bg-neon-2/10 hover:bg-neon-2/20 border border-neon-2/30 text-neon-2 rounded-lg transition-colors font-medium"
                     >
                         <BrainCircuit size={16} /> 记录阅读
                     </button>
@@ -187,7 +187,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ user, onPractice }) => {
               <button
                 key={item.id}
                 onClick={() => setSelectedItem(item)}
-                className={`w-full text-left p-3 rounded-lg transition-colors border ${selectedItem?.id === item.id ? 'bg-secondary/20 border-secondary text-white' : 'border-transparent text-gray-300 hover:bg-surface-3'}`}
+                className={`w-full text-left p-3 rounded-lg transition-colors border ${selectedItem?.id === item.id ? 'bg-neon/15 border-neon/50 text-white shadow-glow-sm' : 'border-transparent text-gray-300 hover:bg-surface-3 hover:border-neon/20'}`}
               >
                 <div className="font-semibold truncate flex items-center gap-2">
                     {item.reflection ? <BrainCircuit size={14} className="text-secondary shrink-0" /> : <FileText size={14} className="text-muted shrink-0" />}
@@ -201,7 +201,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ user, onPractice }) => {
       </div>
 
       {/* Main Content Area */}
-      <div className={`w-full flex-1 bg-card border border-line-strong rounded-xl flex flex-col ${!selectedItem && !isCreating ? 'hidden lg:flex justify-center items-center text-muted' : 'flex'}`}>
+      <div className={`w-full flex-1 glass-panel rounded-xl flex flex-col ${!selectedItem && !isCreating ? 'hidden lg:flex justify-center items-center text-muted' : 'flex'}`}>
         
         {/* Placeholder if nothing selected */}
         {!selectedItem && !isCreating && (
@@ -215,7 +215,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ user, onPractice }) => {
         {(selectedItem || isCreating) && (
           <div className="flex flex-col h-full">
             {/* Toolbar */}
-            <div className="p-4 border-b border-line-strong flex justify-between items-center gap-4 bg-surface/20">
+            <div className="p-4 border-b border-line-strong flex justify-between items-center gap-4 bg-white/5">
               <div className="flex items-center gap-2 flex-1">
                  <button className="lg:hidden p-2 text-muted" onClick={() => {setSelectedItem(null); setIsCreating(false)}}>
                     <ArrowLeft size={20} />
@@ -240,7 +240,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ user, onPractice }) => {
                  )}
                  <button 
                     onClick={handleSave}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg font-medium transition-colors shadow-lg shadow-green-900/20"
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 hover:brightness-110 text-white rounded-lg font-medium transition-all shadow-lg shadow-green-900/20"
                  >
                     <Save size={18} /> 保存
                  </button>
@@ -256,7 +256,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ user, onPractice }) => {
                          {!isCreating && (
                              <button 
                                 onClick={() => onPractice({ text: content, title, notes })}
-                                className="text-xs flex items-center gap-1 bg-blue-600/20 text-blue-400 px-3 py-1.5 rounded-full hover:bg-blue-600/40 transition-colors font-medium border border-blue-500/30"
+                                className="text-xs flex items-center gap-1 bg-neon-2/15 text-neon-2 px-3 py-1.5 rounded-full hover:bg-neon-2/25 transition-colors font-medium border border-neon-2/30"
                              >
                                 <Type size={12} /> 加入练习
                              </button>
@@ -276,13 +276,13 @@ const LibraryView: React.FC<LibraryViewProps> = ({ user, onPractice }) => {
                     <div className="flex border-b border-line-strong">
                         <button 
                             onClick={() => setShowReflection(false)}
-                            className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${!showReflection ? 'text-white bg-transparent border-b-2 border-primary' : 'text-muted hover:text-gray-300 border-b-2 border-transparent bg-black/20'}`}
+                            className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${!showReflection ? 'text-white bg-transparent border-b-2 border-neon' : 'text-muted hover:text-gray-300 border-b-2 border-transparent bg-black/20'}`}
                         >
                             <PenLine size={14} className="inline mr-1 -mt-0.5" /> 快速笔记
                         </button>
                         <button 
                              onClick={() => setShowReflection(true)}
-                             className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${showReflection ? 'text-secondary bg-secondary/5 border-b-2 border-secondary' : 'text-muted hover:text-gray-300 border-b-2 border-transparent bg-black/20'}`}
+                             className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${showReflection ? 'text-neon-2 bg-neon-2/5 border-b-2 border-neon-2' : 'text-muted hover:text-gray-300 border-b-2 border-transparent bg-black/20'}`}
                         >
                             <BrainCircuit size={14} className="inline mr-1 -mt-0.5" /> 深度阅读日志
                         </button>
@@ -297,7 +297,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ user, onPractice }) => {
                                 <button 
                                     onClick={handleAnalyzeReflection}
                                     disabled={!content.trim() || isAnalyzingReflection}
-                                    className="text-xs flex items-center gap-1 bg-secondary text-white px-3 py-1.5 rounded-lg hover:bg-secondary/90 transition-colors disabled:opacity-50 shadow-lg shadow-secondary/20"
+                                    className="text-xs flex items-center gap-1 bg-neon text-white px-3 py-1.5 rounded-lg hover:brightness-110 transition-all disabled:opacity-50 shadow-glow-neon"
                                 >
                                     {isAnalyzingReflection ? <Sparkles size={12} className="animate-spin" /> : <BrainCircuit size={12} />} 
                                     {isAnalyzingReflection ? '分析中……' : 'AI 分析文本'}
@@ -317,7 +317,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ user, onPractice }) => {
                                         type="text" 
                                         value={reflectionTopic}
                                         onChange={e => setReflectionTopic(e.target.value)}
-                                        className="w-full bg-dark border border-line-strong rounded-lg p-2.5 text-sm text-white focus:border-secondary outline-none transition-colors"
+                                        className="w-full bg-dark/60 border border-line-strong rounded-lg p-2.5 text-sm text-white focus:border-neon outline-none transition-colors"
                                         placeholder="例如：每日写作的好处……"
                                     />
                                 </div>
@@ -326,7 +326,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ user, onPractice }) => {
                                     <textarea 
                                         value={reflectionPoint}
                                         onChange={e => setReflectionPoint(e.target.value)}
-                                        className="w-full bg-dark border border-line-strong rounded-lg p-2.5 text-sm text-white focus:border-secondary outline-none resize-none h-20 transition-colors"
+                                        className="w-full bg-dark/60 border border-line-strong rounded-lg p-2.5 text-sm text-white focus:border-neon outline-none resize-none h-20 transition-colors"
                                         placeholder="哪一点让你印象深刻？"
                                     />
                                 </div>
@@ -335,7 +335,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ user, onPractice }) => {
                                     <textarea 
                                         value={reflectionExamples}
                                         onChange={e => setReflectionExamples(e.target.value)}
-                                        className="w-full bg-dark border border-line-strong rounded-lg p-2.5 text-sm text-white focus:border-secondary outline-none resize-none h-20 transition-colors"
+                                        className="w-full bg-dark/60 border border-line-strong rounded-lg p-2.5 text-sm text-white focus:border-neon outline-none resize-none h-20 transition-colors"
                                         placeholder="列出文中提到的例子……"
                                     />
                                 </div>
@@ -344,7 +344,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ user, onPractice }) => {
                                     <textarea 
                                         value={reflectionOpinion}
                                         onChange={e => setReflectionOpinion(e.target.value)}
-                                        className="w-full bg-dark border border-line-strong rounded-lg p-2.5 text-sm text-white focus:border-secondary outline-none resize-none h-20 transition-colors"
+                                        className="w-full bg-dark/60 border border-line-strong rounded-lg p-2.5 text-sm text-white focus:border-neon outline-none resize-none h-20 transition-colors"
                                         placeholder="你赞同吗？为什么？"
                                     />
                                 </div>
@@ -353,7 +353,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ user, onPractice }) => {
                                     <textarea 
                                         value={reflectionSummary}
                                         onChange={e => setReflectionSummary(e.target.value)}
-                                        className="w-full bg-dark border border-line-strong rounded-lg p-2.5 text-sm text-white focus:border-secondary outline-none resize-none h-16 transition-colors"
+                                        className="w-full bg-dark/60 border border-line-strong rounded-lg p-2.5 text-sm text-white focus:border-neon outline-none resize-none h-16 transition-colors"
                                         placeholder="概括核心观点……"
                                     />
                                 </div>

@@ -26,6 +26,10 @@ export default {
         faint: "rgb(var(--text-faint) / <alpha-value>)",
         line: "rgb(var(--line) / <alpha-value>)",
         "line-strong": "rgb(var(--line-strong) / <alpha-value>)",
+        // 暗夜霓虹
+        neon: "rgb(var(--neon) / <alpha-value>)",
+        "neon-2": "rgb(var(--neon-2) / <alpha-value>)",
+        "neon-3": "rgb(var(--neon-3) / <alpha-value>)",
       },
       fontFamily: {
         sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
@@ -34,6 +38,8 @@ export default {
       boxShadow: {
         glow: "0 0 24px rgba(124,108,255,0.35)",
         "glow-sm": "0 0 12px rgba(124,108,255,0.25)",
+        "glow-neon": "0 0 20px rgba(139,92,246,0.5), 0 0 44px rgba(34,211,238,0.16)",
+        "glow-cyan": "0 0 16px rgba(34,211,238,0.45)",
         card: "0 1px 0 0 rgba(255,255,255,0.04) inset, 0 8px 24px -12px rgba(0,0,0,0.6)",
       },
       borderRadius: {

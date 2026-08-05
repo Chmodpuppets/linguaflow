@@ -206,7 +206,7 @@ const ContentRepoView: React.FC<ContentRepoViewProps> = ({ user }) => {
       {/* Header */}
       <div className="mb-5 flex flex-col gap-1">
         <div className="flex items-center gap-2">
-          <Warehouse size={22} className="text-primary" />
+          <Warehouse size={22} className="text-neon" />
           <h1 className="text-2xl font-bold text-white">内容仓库</h1>
         </div>
         <p className="text-sm text-muted">
@@ -218,19 +218,19 @@ const ContentRepoView: React.FC<ContentRepoViewProps> = ({ user }) => {
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <button
           onClick={() => setShowBuild(true)}
-          className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-primary to-secondary px-3.5 py-2 text-sm font-bold text-white shadow-lg shadow-primary/20 transition hover:brightness-110"
+          className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-neon to-neon-2 px-3.5 py-2 text-sm font-bold text-white shadow-glow-neon transition hover:brightness-110"
         >
           <Plus size={16} /> 新建内容
         </button>
         <button
           onClick={exportItems}
-          className="flex items-center gap-1.5 rounded-lg border border-line-strong bg-surface-3/40 px-3.5 py-2 text-sm font-semibold text-gray-200 transition hover:text-white"
+          className="flex items-center gap-1.5 rounded-lg border border-line-strong bg-surface-3/40 px-3.5 py-2 text-sm font-semibold text-gray-200 transition hover:text-white hover:border-neon/40 hover:bg-surface-3/60"
         >
           <Download size={16} /> 导出 JSON
         </button>
         <button
           onClick={() => importRef.current?.click()}
-          className="flex items-center gap-1.5 rounded-lg border border-line-strong bg-surface-3/40 px-3.5 py-2 text-sm font-semibold text-gray-200 transition hover:text-white"
+          className="flex items-center gap-1.5 rounded-lg border border-line-strong bg-surface-3/40 px-3.5 py-2 text-sm font-semibold text-gray-200 transition hover:text-white hover:border-neon/40 hover:bg-surface-3/60"
         >
           <Upload size={16} /> 导入 JSON
         </button>
@@ -243,7 +243,7 @@ const ContentRepoView: React.FC<ContentRepoViewProps> = ({ user }) => {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="搜索内容…"
-              className="w-44 rounded-lg border border-line-strong bg-surface-2 py-2 pl-8 pr-3 text-sm text-gray-100 outline-none placeholder:text-muted focus:border-primary"
+              className="w-44 rounded-lg border border-line-strong bg-surface-2 py-2 pl-8 pr-3 text-sm text-gray-100 outline-none placeholder:text-muted focus:border-neon"
             />
           </div>
         </div>
@@ -252,17 +252,17 @@ const ContentRepoView: React.FC<ContentRepoViewProps> = ({ user }) => {
       {/* Filters */}
       <div className="mb-5 flex flex-wrap items-center gap-2 text-xs">
         <select value={filterType} onChange={(e) => setFilterType(e.target.value as RepoKind | 'all')}
-          className="rounded-lg border border-line-strong bg-surface-2 px-2.5 py-1.5 text-gray-200 outline-none">
+          className="rounded-lg border border-line-strong bg-surface-2 px-2.5 py-1.5 text-gray-200 outline-none focus:border-neon">
           <option value="all">全部类型</option>
           {kindOptions.map((k) => <option key={k} value={k}>{KIND_META[k].label}</option>)}
         </select>
         <select value={filterLang} onChange={(e) => setFilterLang(e.target.value as Language | 'all')}
-          className="rounded-lg border border-line-strong bg-surface-2 px-2.5 py-1.5 text-gray-200 outline-none">
+          className="rounded-lg border border-line-strong bg-surface-2 px-2.5 py-1.5 text-gray-200 outline-none focus:border-neon">
           <option value="all">全部语言</option>
           {SUPPORTED_LANGUAGES.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
         </select>
         <select value={filterSource} onChange={(e) => setFilterSource(e.target.value as any)}
-          className="rounded-lg border border-line-strong bg-surface-2 px-2.5 py-1.5 text-gray-200 outline-none">
+          className="rounded-lg border border-line-strong bg-surface-2 px-2.5 py-1.5 text-gray-200 outline-none focus:border-neon">
           <option value="all">全部来源</option>
           <option value="ai">AI 生成</option>
           <option value="user">自建/导入</option>
@@ -273,7 +273,7 @@ const ContentRepoView: React.FC<ContentRepoViewProps> = ({ user }) => {
 
       {/* Grid */}
       {filtered.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-line-strong bg-surface-2/40 py-16 text-center text-muted">
+        <div className="rounded-2xl border border-dashed border-line-strong bg-surface-2/40 py-16 text-center text-muted hover:border-neon/40 transition-colors">
           没有匹配的内容。试试切换筛选，或点「新建内容」自己造一条。
         </div>
       ) : (
@@ -283,12 +283,12 @@ const ContentRepoView: React.FC<ContentRepoViewProps> = ({ user }) => {
             const sourceBadge =
               it.source === 'ai' ? 'AI 生成' : it.source === 'preset' ? '预置' : '自建';
             return (
-              <div key={`${it.kind}-${idx}`} className="flex flex-col rounded-xl border border-line-strong bg-surface-2 p-3.5 transition hover:border-primary/50">
+              <div key={`${it.kind}-${idx}`} className="flex flex-col rounded-xl glass-panel p-3.5 transition hover:border-neon/50">
                 <div className="mb-2 flex items-center justify-between">
                   <span className={`flex items-center gap-1.5 text-xs font-semibold ${meta.color}`}>
                     {meta.icon} {meta.label}
                   </span>
-                  <span className="rounded-full bg-surface-3/60 px-2 py-0.5 text-[10px] font-medium text-muted">
+                  <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-medium text-muted">
                     {sourceBadge}
                   </span>
                 </div>
@@ -324,7 +324,7 @@ const ContentRepoView: React.FC<ContentRepoViewProps> = ({ user }) => {
 
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-xl border border-line-strong bg-surface-3 px-4 py-2.5 text-sm font-medium text-white shadow-xl">
+        <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-xl border border-neon/30 bg-surface-3/90 px-4 py-2.5 text-sm font-medium text-white shadow-xl shadow-glow-sm backdrop-blur">
           <CheckCircle2 size={16} className="text-emerald-300" /> {toast}
         </div>
       )}
@@ -415,13 +415,13 @@ const BuildModal: React.FC<{ onClose: () => void; onDone: (msg: string) => void 
     }
   };
 
-  const inputCls = 'w-full rounded-lg border border-line-strong bg-surface-2 px-3 py-2 text-sm text-gray-100 outline-none placeholder:text-muted focus:border-primary';
+  const inputCls = 'w-full rounded-lg border border-line-strong bg-surface-2 px-3 py-2 text-sm text-gray-100 outline-none placeholder:text-muted focus:border-neon';
   const labelCls = 'mb-1 block text-xs font-medium text-muted';
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-line-strong bg-surface-1 p-5 shadow-2xl"
+        className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-2xl glass-panel p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
@@ -434,7 +434,7 @@ const BuildModal: React.FC<{ onClose: () => void; onDone: (msg: string) => void 
           {buildOptions.map((o) => (
             <button key={o.kind} onClick={() => setBuildType(o.kind)}
               className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                buildType === o.kind ? 'bg-primary text-white' : 'bg-surface-3/50 text-gray-300 hover:text-white'
+                buildType === o.kind ? 'bg-neon text-white shadow-glow-sm' : 'bg-surface-3/50 text-gray-300 hover:text-white'
               }`}>
               {o.icon} {o.label}
             </button>
@@ -576,7 +576,7 @@ const BuildModal: React.FC<{ onClose: () => void; onDone: (msg: string) => void 
         <div className="mt-5 flex justify-end gap-2">
           <button onClick={onClose} className="rounded-lg border border-line-strong px-4 py-2 text-sm font-semibold text-gray-300 transition hover:text-white">取消</button>
           <button onClick={submit}
-            className="rounded-lg bg-gradient-to-r from-primary to-secondary px-5 py-2 text-sm font-bold text-white shadow-lg shadow-primary/20 transition hover:brightness-110">
+            className="rounded-lg bg-gradient-to-r from-neon to-neon-2 px-5 py-2 text-sm font-bold text-white shadow-glow-neon transition hover:brightness-110">
             保存到仓库
           </button>
         </div>

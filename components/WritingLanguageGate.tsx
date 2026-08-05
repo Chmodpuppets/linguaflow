@@ -43,13 +43,13 @@ const WritingLanguageGate: React.FC<WritingLanguageGateProps> = ({
       <div className="max-w-lg w-full">
         {/* 图标 + 标题 */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-purple-500/10 border border-purple-500/20 mb-4">
-            <PenLine size={32} className="text-purple-400" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-neon/10 border border-neon/30 mb-4">
+            <PenLine size={32} className="text-neon" />
           </div>
           <h2 className="text-2xl font-bold text-white mb-2">{featureName} · 语言选择</h2>
           <p className="text-muted text-sm">
             {featureName}目前仅支持部分语言。你的学习语言是
-            <span className="text-secondary font-semibold mx-1">
+            <span className="text-neon-2 font-semibold mx-1">
               {currentLang?.flag} {currentLang?.label}
             </span>
             ，请选择下方已支持的语言开始体验。
@@ -57,7 +57,7 @@ const WritingLanguageGate: React.FC<WritingLanguageGateProps> = ({
         </div>
 
         {/* 已支持语言：切换入口 */}
-        <div className="bg-card border border-line-strong rounded-xl p-4 mb-6">
+        <div className="glass-panel border border-white/10 rounded-xl p-4 mb-6">
           <div className="text-xs font-bold text-muted uppercase tracking-wider mb-3 flex items-center gap-2">
             <CheckCircle2 size={14} className="text-green-400" /> 已支持 · 点击切换
           </div>
@@ -68,7 +68,7 @@ const WritingLanguageGate: React.FC<WritingLanguageGateProps> = ({
                 <button
                   key={langId}
                   onClick={() => switchToLanguage(langId)}
-                  className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-primary to-secondary text-white font-bold hover:brightness-110 transition-all"
+                  className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-neon to-neon-2 text-white font-bold shadow-glow-neon hover:brightness-110 transition-all"
                 >
                   <span className="text-lg">{lang.flag}</span>
                   {lang.label}
@@ -79,7 +79,7 @@ const WritingLanguageGate: React.FC<WritingLanguageGateProps> = ({
         </div>
 
         {/* 全部语言可用性概览 */}
-        <div className="bg-card border border-line-strong rounded-xl p-4">
+        <div className="glass-panel border border-white/10 rounded-xl p-4">
           <div className="text-xs font-bold text-muted uppercase tracking-wider mb-3 flex items-center gap-2">
             <Globe size={14} /> 全部语言支持情况
           </div>
@@ -94,7 +94,7 @@ const WritingLanguageGate: React.FC<WritingLanguageGateProps> = ({
                     supported
                       ? 'bg-green-900/10 border-green-700/30 text-green-300'
                       : 'bg-surface-2/30 border-line-strong/50 text-muted'
-                  } ${isCurrent ? 'ring-1 ring-secondary' : ''}`}
+                  } ${isCurrent ? 'ring-1 ring-neon' : ''}`}
                 >
                   <span className="text-lg">{lang.flag}</span>
                   <span className="flex-1 truncate">{lang.label}</span>

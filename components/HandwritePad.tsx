@@ -78,7 +78,7 @@ const HandwritePad: React.FC<HandwritePadProps> = ({ height = 220, disabled = fa
         onPointerMove={move}
         onPointerUp={up}
         onPointerLeave={up}
-        style={{ width: '100%', height, touchAction: 'none', background: '#0b0b16', borderRadius: 12, border: '1px solid #374151' }}
+        style={{ width: '100%', height, touchAction: 'none', background: '#0b0b16', borderRadius: 12, border: '1px solid rgba(139,92,246,0.4)' }}
         className={disabled ? 'opacity-50' : ''}
       />
       {overlayChar && (
@@ -90,7 +90,7 @@ const HandwritePad: React.FC<HandwritePadProps> = ({ height = 220, disabled = fa
         type="button"
         onClick={clear}
         disabled={disabled}
-        className="absolute top-2 right-2 px-3 py-1 rounded-lg bg-surface-2/80 text-xs text-gray-300 border border-line-strong hover:text-white disabled:opacity-40"
+        className="absolute top-2 right-2 px-3 py-1 rounded-lg bg-surface-2/80 text-xs text-gray-300 border border-neon/40 hover:text-neon hover:border-neon/70 transition-colors disabled:opacity-40"
       >
         清除
       </button>

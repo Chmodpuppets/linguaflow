@@ -488,14 +488,15 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       {/* 赛季横幅 + 切换 + 模式切换 */}
-      <section className="rounded-2xl border border-line bg-gradient-to-br from-primary/15 via-surface-2 to-surface-2 p-5">
-        <div className="flex items-center gap-2 text-primary">
-          <Feather size={18} />
+      <section className="relative overflow-hidden rounded-2xl border border-white/[0.07] bg-gradient-to-br from-neon/20 via-surface-2/70 to-surface-2/50 backdrop-blur-xl p-5 shadow-card">
+        <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-neon/25 blur-3xl" />
+        <div className="relative flex items-center gap-2 text-violet-300">
+          <Feather size={18} className="drop-shadow-[0_0_8px_rgba(139,92,246,0.8)]" />
           <span className="text-sm font-bold uppercase tracking-wide">{season.title}</span>
         </div>
-        <p className="mt-1 text-sm text-muted">{season.blurb}</p>
+        <p className="relative mt-1 text-sm text-muted">{season.blurb}</p>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+        <div className="relative mt-3 flex flex-wrap items-center gap-2">
           <button
             onClick={() => switchSeason(seasonIndex - 1)}
             className="rounded-lg border border-line-strong bg-surface-3/40 p-1.5 text-muted transition-colors hover:text-white"
@@ -509,10 +510,10 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
               <button
                 key={c.id}
                 onClick={() => selectCard(c.id)}
-                className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all duration-200 ${
                   active
-                    ? 'border-primary bg-primary/15 text-white'
-                    : 'border-line-strong bg-surface-3/40 text-muted hover:text-white'
+                    ? 'border-neon/60 bg-neon/15 text-white shadow-glow-sm'
+                    : 'border-white/10 bg-surface-3/40 text-muted hover:text-white hover:border-neon/35'
                 }`}
               >
                 {c.theme.length > 10 ? c.theme.slice(0, 10) + '…' : c.theme}
@@ -566,8 +567,8 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
               setMode('free');
               resetRound();
             }}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-              mode === 'free' ? 'bg-primary text-white' : 'text-muted hover:text-white'
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all duration-200 ${
+              mode === 'free' ? 'bg-gradient-to-r from-neon to-neon-2 text-white shadow-glow-sm' : 'text-muted hover:text-white'
             }`}
           >
             <PenLine size={14} /> 自由写
@@ -577,8 +578,8 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
               setMode('dictation');
               resetRound();
             }}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-              mode === 'dictation' ? 'bg-primary text-white' : 'text-muted hover:text-white'
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all duration-200 ${
+              mode === 'dictation' ? 'bg-gradient-to-r from-neon to-neon-2 text-white shadow-glow-sm' : 'text-muted hover:text-white'
             }`}
           >
             <Headphones size={14} /> 听写
@@ -588,7 +589,7 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
 
       <div className="grid gap-6 md:grid-cols-3">
         {/* 写作台 / 听写台 */}
-        <section className="md:col-span-2 space-y-4 rounded-2xl border border-line bg-surface-2 p-5">
+        <section className="md:col-span-2 space-y-4 glass-panel rounded-2xl p-5 shadow-card">
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-xl font-bold text-white">{activeCard.theme}</h3>
@@ -629,7 +630,7 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
                 <button
                   key={i}
                   onClick={() => insertScaffold(w)}
-                  className="rounded-lg border border-secondary/40 bg-secondary/10 px-2.5 py-1 text-xs text-secondary transition-colors hover:bg-secondary/20"
+                  className="rounded-lg border border-neon/40 bg-neon/10 px-2.5 py-1 text-xs text-violet-300 transition-all duration-200 hover:bg-neon/20 hover:shadow-glow-sm hover:-translate-y-0.5"
                   title="点按插入到输入框"
                 >
                   {w}
@@ -644,7 +645,7 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
               <button
                 onClick={generateDictation}
                 disabled={dictationLoading}
-                className="flex items-center gap-2 rounded-xl border border-secondary/50 bg-secondary/10 px-4 py-2.5 text-sm font-bold text-secondary transition hover:bg-secondary/20 disabled:opacity-60"
+                className="flex items-center gap-2 rounded-xl border border-neon/50 bg-neon/10 px-4 py-2.5 text-sm font-bold text-violet-300 transition-all duration-200 hover:bg-neon/20 hover:shadow-glow-sm disabled:opacity-60"
               >
                 {dictationLoading ? <Loader2 size={16} className="animate-spin" /> : <Mic size={16} />}
                 {dictationLoading ? '生成中…' : dictationSentence ? '换一句' : '生成听写句'}
@@ -705,7 +706,7 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
             onChange={(e) => setText(e.target.value)}
             placeholder={mode === 'dictation' ? '把你听到的写下来…' : '在这里用目标语言写下来…'}
             rows={7}
-            className="w-full resize-none rounded-xl border border-line-strong bg-dark/50 p-4 text-white outline-none focus:border-secondary"
+            className="w-full resize-none rounded-xl border border-white/10 bg-dark/50 p-4 text-white outline-none transition-all duration-300 focus:border-neon/50 focus:ring-2 focus:ring-neon/30 focus:shadow-glow-sm"
           />
 
           <div className="flex items-center justify-between">
@@ -714,7 +715,7 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
               <button
                 onClick={handleSubmit}
                 disabled={dictationSentence === null || dictationSentence === ''}
-                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-secondary px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-primary/20 transition hover:brightness-110 disabled:opacity-60"
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-neon to-neon-2 px-5 py-2.5 text-sm font-bold text-white shadow-glow-sm transition-all duration-200 hover:brightness-110 hover:shadow-glow-neon active:scale-[0.97] disabled:opacity-60"
               >
                 <CheckCircle2 size={16} />
                 校对完成（本地）
@@ -723,7 +724,7 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
               <button
                 onClick={handleSubmit}
                 disabled={analyzing}
-                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-secondary px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-primary/20 transition hover:brightness-110 disabled:opacity-60"
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-neon to-neon-2 px-5 py-2.5 text-sm font-bold text-white shadow-glow-sm transition-all duration-200 hover:brightness-110 hover:shadow-glow-neon active:scale-[0.97] disabled:opacity-60"
               >
                 {analyzing ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
                 {analyzing ? '教练评改中…' : '交给教练'}
@@ -735,9 +736,9 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
 
           {/* 教练小条 */}
           {feedback && (
-            <div className="space-y-3 rounded-xl border border-secondary/30 bg-dark/40 p-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <div className="flex items-center gap-2 text-secondary">
-                <Sparkles size={16} />
+            <div className="space-y-3 rounded-xl border border-neon/35 bg-dark/40 p-4 shadow-glow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="flex items-center gap-2 text-violet-300">
+                <Sparkles size={16} className="drop-shadow-[0_0_6px_rgba(139,92,246,0.8)]" />
                 <span className="text-sm font-bold">教练小条</span>
               </div>
               {feedback.highlight && (
@@ -767,7 +768,7 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
                       <span className="w-8 text-[11px] text-muted">{s.label}</span>
                       <div className="flex gap-0.5">
                         {[1, 2, 3, 4, 5].map((n) => (
-                          <span key={n} className={`h-2 w-3 rounded-sm ${n <= v ? 'bg-secondary' : 'bg-line-strong'}`} />
+                          <span key={n} className={`h-2 w-3 rounded-sm transition-all duration-300 ${n <= v ? 'bg-gradient-to-r from-neon to-neon-2 shadow-glow-sm' : 'bg-line-strong'}`} />
                         ))}
                       </div>
                     </div>
@@ -778,7 +779,7 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
               <button
                 onClick={handleSave}
                 disabled={savedThisRound}
-                className="flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white transition hover:bg-primary/80 disabled:opacity-50"
+                className="flex items-center gap-1 rounded-lg bg-gradient-to-r from-neon to-neon-2 px-3 py-1.5 text-xs font-bold text-white shadow-glow-sm transition-all duration-200 hover:brightness-110 active:scale-[0.97] disabled:opacity-50"
               >
                 {savedThisRound ? <Check size={14} /> : <BookOpen size={14} />}
                 {savedThisRound ? '已收进手帐' : '收进手帐'}
@@ -788,8 +789,8 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
         </section>
 
         {/* 右侧：手帐 / 故事线 / 成长对决 */}
-        <section className="space-y-3 rounded-2xl border border-line bg-surface-2 p-5">
-          <div className="flex items-center gap-1 rounded-lg border border-line-strong bg-surface-3/40 p-1">
+        <section className="space-y-3 glass-panel rounded-2xl p-5 shadow-card">
+          <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-surface-3/40 p-1">
             {([
               { id: 'handbook', label: '手帐', icon: <BookOpen size={13} /> },
               { id: 'story', label: '故事线', icon: <ScrollText size={13} /> },
@@ -799,8 +800,8 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
               <button
                 key={t.id}
                 onClick={() => setRightTab(t.id)}
-                className={`flex flex-1 items-center justify-center gap-1 rounded-md px-2 py-1.5 text-xs font-semibold transition-colors ${
-                  rightTab === t.id ? 'bg-primary text-white' : 'text-muted hover:text-white'
+                className={`flex flex-1 items-center justify-center gap-1 rounded-md px-2 py-1.5 text-xs font-semibold transition-all duration-200 ${
+                  rightTab === t.id ? 'bg-gradient-to-r from-neon to-neon-2 text-white shadow-glow-sm' : 'text-muted hover:text-white'
                 }`}
               >
                 {t.icon}
@@ -823,7 +824,7 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
               ) : (
                 <div className="max-h-[34rem] space-y-2 overflow-y-auto custom-scrollbar pr-1">
                   {handbook.map((c) => (
-                    <div key={c.id} className="group rounded-xl border border-line bg-dark/40 p-3">
+                    <div key={c.id} className="group rounded-xl border border-white/[0.06] bg-dark/40 p-3 transition-all duration-300 hover:border-neon/30 hover:shadow-glow-sm">
                       <div className="flex items-center justify-between">
                         <span className="text-[11px] font-semibold text-secondary">{c.theme}</span>
                         <button
@@ -863,7 +864,7 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
                     const best = it.attempts && it.attempts.length ? Math.max(...it.attempts.map((a) => a.pct)) : null;
                     const expanded = expandedListenId === it.id;
                     return (
-                      <div key={it.id} className="group rounded-xl border border-line bg-dark/40 p-3">
+                      <div key={it.id} className="group rounded-xl border border-white/[0.06] bg-dark/40 p-3 transition-all duration-300 hover:border-neon/30 hover:shadow-glow-sm">
                         <div className="flex items-center justify-between">
                           <span className="text-[11px] font-semibold text-secondary">{it.theme}</span>
                           <button
@@ -951,7 +952,7 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
               <button
                 onClick={weaveStory}
                 disabled={storyLoading || handbook.length === 0}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-secondary px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-primary/20 transition hover:brightness-110 disabled:opacity-50"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-neon to-neon-2 px-4 py-2.5 text-sm font-bold text-white shadow-glow-sm transition-all duration-200 hover:brightness-110 hover:shadow-glow-neon active:scale-[0.98] disabled:opacity-50"
               >
                 {storyLoading ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
                 {storyLoading ? '编织中…' : story?.text ? '续写一段' : '用今日亮点织成故事'}
@@ -996,7 +997,7 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
                 </div>
                 <div className="h-2.5 w-full overflow-hidden rounded-full bg-line-strong">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-primary to-secondary transition-all"
+                    className="h-full xp-bar rounded-full transition-all duration-500"
                     style={{
                       width: `${Math.min(
                         100,

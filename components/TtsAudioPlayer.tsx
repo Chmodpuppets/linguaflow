@@ -293,7 +293,7 @@ const TtsAudioPlayer = forwardRef<TtsAudioPlayerHandle, TtsAudioPlayerProps>(fun
   }, [speed, audioUrl]);
 
   return (
-    <div className={`bg-surface-2/50 rounded-lg p-3 border border-line-strong space-y-2 ${className}`}>
+    <div className={`glass-panel rounded-lg p-3 border border-white/10 space-y-2 ${className}`}>
       {/* 真实 audio 元素（用户看不到，靠 play/pause 控件控制） */}
       {audioUrl && (
         <audio
@@ -319,7 +319,7 @@ const TtsAudioPlayer = forwardRef<TtsAudioPlayerHandle, TtsAudioPlayerProps>(fun
         {/* A-B 高亮带 */}
         {loopWidthPct !== null && aPct !== null && (
           <div
-            className="absolute top-1 bottom-1 bg-primary/20 rounded pointer-events-none"
+            className="absolute top-1 bottom-1 bg-neon/20 rounded pointer-events-none"
             style={{
               left: `${aPct}%`,
               width: `${loopWidthPct}%`,
@@ -334,7 +334,7 @@ const TtsAudioPlayer = forwardRef<TtsAudioPlayerHandle, TtsAudioPlayerProps>(fun
           value={Math.min(currentTime, duration || 0)}
           onChange={onSeek}
           disabled={!audioUrl || duration === 0}
-          className="w-full h-2 bg-surface-3 rounded-full appearance-none cursor-pointer accent-secondary disabled:opacity-40 relative z-10"
+          className="w-full h-2 bg-surface-3 rounded-full appearance-none cursor-pointer accent-neon disabled:opacity-40 relative z-10"
         />
         {/* A / B 标线 */}
         {aPct !== null && (
@@ -366,7 +366,7 @@ const TtsAudioPlayer = forwardRef<TtsAudioPlayerHandle, TtsAudioPlayerProps>(fun
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
             isPlaying
               ? "bg-green-500/20 text-green-400 hover:bg-green-500/30"
-              : "bg-secondary text-white hover:bg-secondary/90"
+              : "bg-neon text-white hover:bg-neon/90 shadow-glow-sm"
           } disabled:opacity-40 disabled:cursor-not-allowed`}
           title={isPlaying ? "暂停" : loading ? "正在合成..." : "播放"}
         >
@@ -425,9 +425,9 @@ const TtsAudioPlayer = forwardRef<TtsAudioPlayerHandle, TtsAudioPlayerProps>(fun
             checked={loopEnabled}
             onChange={(e) => setLoopEnabled(e.target.checked)}
             disabled={pointA === null || pointB === null}
-            className="accent-primary"
+            className="accent-neon"
           />
-          <Repeat size={12} className={loopEnabled ? "text-primary" : ""} />
+          <Repeat size={12} className={loopEnabled ? "text-neon" : ""} />
           A→B 循环
         </label>
       </div>

@@ -1,8 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { UserProfile, AppMode, QuestKind, ActivityLog } from '../types';
 import { getDueVocabulary, getLogs } from '../services/storageService';
 import { Flame, Shield, CheckCircle2, ArrowRight, Sparkles, Target, BookOpen, MessageSquare, PenTool, Type, Trophy, PenLine, Feather } from 'lucide-react';
+import { GlassCard, NeonButton, NeonBadge, SectionTitle } from './ui';
 
 interface DailyViewProps {
   user: UserProfile;
@@ -47,13 +47,14 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser, onNavigate })
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
-      {/* Hero */}
-      <section className="relative overflow-hidden rounded-2xl border border-line bg-gradient-to-br from-primary/15 via-surface-2 to-surface-2 p-6 md:p-8">
-        <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-secondary/20 blur-3xl" />
+      {/* Hero：极光渐变 + 玻璃面 */}
+      <section className="relative overflow-hidden rounded-2xl border border-white/[0.07] bg-gradient-to-br from-neon/20 via-surface-2/70 to-surface-2/50 backdrop-blur-xl p-6 md:p-8 shadow-card">
+        <div className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full bg-neon/25 blur-3xl" />
+        <div className="pointer-events-none absolute -left-8 -bottom-10 h-36 w-36 rounded-full bg-neon-2/15 blur-3xl" />
         <div className="relative flex flex-wrap items-center justify-between gap-5">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-white">
-              你好，{user.username} 👋
+            <h1 className="text-2xl font-bold text-white tracking-tight">
+              你好，<span className="neon-text">{user.username}</span> 👋
             </h1>
             <p className="mt-1 text-sm text-muted">
               {questsCompletedAll
@@ -62,15 +63,15 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser, onNavigate })
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex flex-col items-center rounded-xl border border-line bg-surface-3/60 px-4 py-2">
-              <div className="flex items-center gap-1 text-orange-500">
-                <Flame size={20} />
+            <div className="flex flex-col items-center rounded-xl border border-orange-400/20 bg-surface-3/50 backdrop-blur-lg px-4 py-2 transition-shadow duration-300 hover:shadow-[0_0_18px_rgba(251,146,60,0.35)]">
+              <div className="flex items-center gap-1 text-orange-400">
+                <Flame size={20} className="flame-flicker" />
                 <span className="text-2xl font-bold">{user.currentStreak}</span>
               </div>
               <span className="text-[10px] uppercase tracking-wide text-muted">连续天数</span>
             </div>
-            <div className="flex flex-col items-center rounded-xl border border-line bg-surface-3/60 px-4 py-2">
-              <div className="flex items-center gap-1 text-sky-400">
+            <div className="flex flex-col items-center rounded-xl border border-neon-2/20 bg-surface-3/50 backdrop-blur-lg px-4 py-2 transition-shadow duration-300 hover:shadow-glow-cyan">
+              <div className="flex items-center gap-1 text-cyan-300">
                 <Shield size={20} />
                 <span className="text-2xl font-bold">{user.streakShields}</span>
               </div>
@@ -81,26 +82,27 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser, onNavigate })
       </section>
 
       {/* Daily Quests */}
-      <section className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-        <div className="mb-3 flex items-center gap-2">
-          <Target size={18} className="text-secondary" />
-          <h2 className="text-lg font-bold text-white">今日任务</h2>
-          <span className="text-xs text-muted">
-            {doneCount}/{user.dailyQuests.length} 完成
-          </span>
-        </div>
+      <section className="page-enter" style={{ animationDelay: '80ms' }}>
+        <SectionTitle
+          className="mb-3"
+          title={<span className="flex items-center gap-2"><Target size={18} className="text-neon" />今日任务</span>}
+          right={<NeonBadge tone={questsCompletedAll ? 'cyan' : 'neon'}>{doneCount}/{user.dailyQuests.length} 完成</NeonBadge>}
+        />
         <div className="grid gap-3">
-          {user.dailyQuests.map((q) => {
+          {user.dailyQuests.map((q, i) => {
             const pct = Math.min(100, Math.round((q.current / q.target) * 100));
             return (
-              <div
+              <GlassCard
                 key={q.id}
-                className={`flex items-center gap-4 rounded-xl border p-4 transition-colors ${
-                  q.completed ? 'border-green-700/40 bg-green-900/10' : 'border-line bg-surface-2'
+                className={`page-enter flex items-center gap-4 p-4 ${
+                  q.completed ? 'border-green-400/25 shadow-[0_0_16px_-4px_rgba(74,222,128,0.35)]' : ''
                 }`}
+                style={{ animationDelay: `${120 + i * 60}ms` }}
               >
-                <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${
-                  q.completed ? 'bg-green-600/20 text-green-400' : 'bg-primary/15 text-primary'
+                <div className={`flex h-10 w-10 items-center justify-center rounded-lg transition-all duration-300 ${
+                  q.completed
+                    ? 'bg-green-500/15 text-green-400 shadow-[0_0_12px_rgba(74,222,128,0.4)]'
+                    : 'bg-neon/12 text-violet-300 shadow-glow-sm'
                 }`}>
                   {q.completed ? <CheckCircle2 size={20} /> : QUEST_ICON[q.kind]}
                 </div>
@@ -113,62 +115,60 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser, onNavigate })
                       {Math.min(q.current, q.target)}/{q.target}
                     </span>
                   </div>
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-line">
-                    <div className={`h-full transition-all duration-500 ${q.completed ? 'bg-green-500' : 'bg-primary'}`} style={{ width: `${pct}%` }} />
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-line/70">
+                    <div
+                      className={`h-full rounded-full transition-all duration-700 ease-out ${q.completed ? 'bg-green-500 shadow-[0_0_8px_rgba(74,222,128,0.6)]' : 'xp-bar'}`}
+                      style={{ width: `${pct}%` }}
+                    />
                   </div>
                 </div>
                 {!q.completed && (
-                  <button
-                    onClick={() => onNavigate(QUEST_TO_MODE[q.kind])}
-                    className="flex items-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-primary/80"
-                  >
+                  <NeonButton size="sm" onClick={() => onNavigate(QUEST_TO_MODE[q.kind])}>
                     去完成 <ArrowRight size={14} />
-                  </button>
+                  </NeonButton>
                 )}
                 {q.completed && (
-                  <span className="flex items-center gap-1 text-xs font-bold text-yellow-400">
-                    <Sparkles size={14} />+{q.rewardXP} XP
-                  </span>
+                  <NeonBadge tone="pink" className="whitespace-nowrap">
+                    <Sparkles size={13} />+{q.rewardXP} XP
+                  </NeonBadge>
                 )}
-              </div>
+              </GlassCard>
             );
           })}
         </div>
       </section>
 
       {/* Quick stats + review */}
-      <section className="grid gap-3 md:grid-cols-3">
-        <div className="flex items-center gap-3 rounded-xl border border-line bg-surface-2 p-4">
-          <BookOpen size={22} className="text-secondary" />
+      <section className="page-enter grid gap-3 md:grid-cols-3" style={{ animationDelay: '160ms' }}>
+        <GlassCard interactive={dueCount > 0} className="flex items-center gap-3 p-4" onClick={dueCount > 0 ? () => onNavigate(AppMode.Vocabulary) : undefined}>
+          <BookOpen size={22} className="text-violet-300 drop-shadow-[0_0_6px_rgba(139,92,246,0.7)]" />
           <div>
             <div className="text-xl font-bold text-white">{dueCount}</div>
             <div className="text-xs text-muted">待复习单词</div>
           </div>
           {dueCount > 0 && (
-            <button onClick={() => onNavigate(AppMode.Vocabulary)} className="ml-auto text-xs font-bold text-primary">
-              复习 →
-            </button>
+            <span className="ml-auto text-xs font-bold text-violet-300">复习 →</span>
           )}
-        </div>
-        <div className="flex items-center gap-3 rounded-xl border border-line bg-surface-2 p-4">
-          <Trophy size={22} className="text-yellow-400" />
+        </GlassCard>
+        <GlassCard className="flex items-center gap-3 p-4">
+          <Trophy size={22} className="text-yellow-400 drop-shadow-[0_0_6px_rgba(250,204,21,0.6)]" />
           <div>
             <div className="text-xl font-bold text-white">{weeklyOutput}</div>
             <div className="text-xs text-muted">本周输出字数</div>
           </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-xl border border-line bg-surface-2 p-4">
-          <Flame size={22} className="text-orange-400" />
+        </GlassCard>
+        <GlassCard className="flex items-center gap-3 p-4">
+          <Flame size={22} className="text-orange-400 flame-flicker" />
           <div>
             <div className="text-xl font-bold text-white">{user.maxStreak}</div>
             <div className="text-xs text-muted">最长连击</div>
           </div>
-        </div>
+        </GlassCard>
       </section>
 
       {/* Mode launcher */}
-      <section className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-        <h2 className="mb-3 text-lg font-bold text-white">随便练点什么</h2>
+      <section className="page-enter" style={{ animationDelay: '220ms' }}>
+        <SectionTitle className="mb-3" title="随便练点什么" />
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {[
             { mode: AppMode.RPG, label: '剧情对话', icon: <MessageSquare size={22} />, desc: '情景对话练口语' },
@@ -176,16 +176,18 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser, onNavigate })
             { mode: AppMode.Writing, label: '写作工坊', icon: <PenTool size={22} />, desc: 'AI 批改输出' },
             { mode: AppMode.InkQuest, label: '墨程', icon: <Feather size={22} />, desc: '微写作 + AI 教练' },
             { mode: AppMode.Import, label: '导入内容', icon: <BookOpen size={22} />, desc: '学你自己的材料' },
-          ].map((m) => (
-            <button
+          ].map((m, i) => (
+            <GlassCard
               key={m.mode}
+              interactive
               onClick={() => onNavigate(m.mode)}
-              className="group rounded-xl border border-line bg-surface-2 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:bg-surface-3"
+              className="page-enter group p-4 text-left"
+              style={{ animationDelay: `${260 + i * 50}ms` }}
             >
-              <div className="mb-2 text-primary transition-transform group-hover:scale-110">{m.icon}</div>
+              <div className="mb-2 text-violet-300 transition-all duration-300 group-hover:scale-110 group-hover:text-violet-200 group-hover:drop-shadow-[0_0_10px_rgba(139,92,246,0.9)]">{m.icon}</div>
               <div className="text-sm font-bold text-white">{m.label}</div>
               <div className="mt-0.5 text-xs text-muted">{m.desc}</div>
-            </button>
+            </GlassCard>
           ))}
         </div>
       </section>

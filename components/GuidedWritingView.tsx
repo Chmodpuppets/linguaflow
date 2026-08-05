@@ -137,10 +137,10 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
               key={m}
               onClick={() => switchMode(m)}
               disabled={!scaffoldAvailable && m === 'scaffold'}
-              className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-colors ${
+              className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-all duration-200 ${
                 mode === m
-                  ? 'bg-primary text-white border-primary'
-                  : 'bg-card border-line-strong text-gray-300 hover:border-secondary disabled:opacity-40 disabled:cursor-not-allowed'
+                  ? 'bg-gradient-to-r from-neon to-neon-2 text-white border-transparent shadow-glow-sm'
+                  : 'bg-surface-2/60 border-white/10 text-gray-300 hover:border-neon/40 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed'
               }`}
             >
               {MODE_INFO[m].name}
@@ -159,7 +159,7 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
       )}
 
       {/* 题目卡 */}
-      <div className="bg-card border border-line-strong rounded-2xl p-6">
+      <div className="glass-panel rounded-2xl p-6 shadow-card">
         {mode === 'scaffold' && (
           template ? (
             <div className="text-center">
@@ -168,7 +168,7 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
                 {template.template.split('___').map((part, i, arr) => (
                   <React.Fragment key={i}>
                     {part}
-                    {i < arr.length - 1 && <span className="text-secondary underline decoration-dotted px-1">＿＿＿</span>}
+                    {i < arr.length - 1 && <span className="text-violet-300 underline decoration-dotted px-1 drop-shadow-[0_0_6px_rgba(139,92,246,0.7)]">＿＿＿</span>}
                   </React.Fragment>
                 ))}
               </div>
@@ -189,7 +189,7 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
             ) : (
               <div className="flex flex-wrap justify-center gap-3">
                 {words.map((w, i) => (
-                  <div key={i} className="bg-dark/50 border border-line-strong rounded-xl px-4 py-3">
+                  <div key={i} className="bg-dark/50 border border-white/10 rounded-xl px-4 py-3 transition-all duration-300 hover:border-neon/40 hover:shadow-glow-sm hover:-translate-y-0.5">
                     <div className="text-xl font-bold text-white font-mono">{w.word}</div>
                     <div className="text-xs text-muted mt-1">{w.meaning}</div>
                   </div>
@@ -207,7 +207,7 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
         {mode === 'prompt' && (
           <div className="text-center">
             <div className="text-xs text-muted mb-2">情境（用目标语言写 1-3 句）</div>
-            <div className="text-lg text-white font-medium bg-dark/50 p-4 rounded-lg border-l-4 border-secondary">
+            <div className="text-lg text-white font-medium bg-dark/50 p-4 rounded-lg border-l-4 border-neon shadow-[inset_0_0_20px_rgba(139,92,246,0.06)]">
               {situation}
             </div>
           </div>
@@ -221,7 +221,7 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={user.learningLanguage === Language.Japanese ? '用日语写……（可输入罗马字，自动转假名）' : `用 ${user.learningLanguage} 写……`}
-            className="w-full bg-dark/50 border border-line-strong rounded-xl p-4 text-lg text-gray-200 outline-none focus:ring-2 focus:ring-secondary resize-none"
+            className="w-full bg-dark/50 border border-white/10 rounded-xl p-4 text-lg text-gray-200 outline-none focus:ring-2 focus:ring-neon/40 focus:border-neon/40 focus:shadow-glow-sm resize-none transition-all duration-300"
             rows={3}
             autoFocus
           />
@@ -240,7 +240,7 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
             <button
               onClick={submit}
               disabled={!input.trim() || analyzing}
-              className="flex-1 py-3 rounded-xl bg-gradient-to-r from-primary to-secondary text-white font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 py-3 rounded-xl bg-gradient-to-r from-neon to-neon-2 text-white font-bold shadow-glow-sm hover:brightness-110 hover:shadow-glow-neon active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {analyzing ? <><Sparkles className="animate-spin" size={18} /> 批改中</> : <><Wand2 size={18} /> 提交批改</>}
             </button>
@@ -257,7 +257,7 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
       {/* 反馈 */}
       {feedback && (
         <div className="space-y-4 animate-in slide-in-from-bottom-2">
-          <div className={`p-4 rounded-xl flex items-center gap-3 ${feedback.isCorrect ? 'bg-green-600/20 text-green-300' : 'bg-amber-600/20 text-amber-300'}`}>
+          <div className={`p-4 rounded-xl flex items-center gap-3 page-enter ${feedback.isCorrect ? 'bg-green-600/20 text-green-300 border border-green-500/30 shadow-[0_0_20px_-4px_rgba(74,222,128,0.45)]' : 'bg-amber-600/20 text-amber-300 border border-amber-500/30'}`}>
             {feedback.isCorrect ? <Check size={24} /> : <Lightbulb size={24} />}
             <div>
               <div className="font-bold text-lg">{feedback.isCorrect ? '✓ 不错！' : '✗ 再看看'}</div>
@@ -265,10 +265,10 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
             </div>
           </div>
 
-          <div className="bg-card rounded-xl border border-line-strong overflow-hidden">
-            <div className="p-3 bg-surface-2/50 border-b border-line-strong text-xs font-bold text-muted flex items-center gap-2">
+          <div className="glass-panel rounded-xl shadow-card overflow-hidden">
+            <div className="p-3 bg-surface-2/50 border-b border-white/[0.06] text-xs font-bold text-muted flex items-center gap-2">
               <Sparkles size={14} className="text-yellow-400" /> AI 改写
-              <button onClick={() => speak(feedback.correctedText)} className="ml-auto text-secondary hover:underline inline-flex items-center gap-1">
+              <button onClick={() => speak(feedback.correctedText)} className="ml-auto text-violet-300 hover:underline inline-flex items-center gap-1">
                 <Volume2 size={14} /> 听发音
               </button>
             </div>
@@ -279,7 +279,7 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
             <div className="space-y-2">
               <h4 className="text-white font-semibold text-sm">具体问题</h4>
               {feedback.issues.map((it, i) => (
-                <div key={i} className="bg-card p-3 rounded-xl border border-line-strong text-sm">
+                <div key={i} className="bg-surface-2/60 backdrop-blur-lg p-3 rounded-xl border border-white/[0.06] hover:border-neon/25 hover:shadow-glow-sm transition-all duration-300 text-sm">
                   <div className="flex items-center gap-3">
                     <span className="text-red-300 line-through flex-1">{it.original}</span>
                     <ArrowRight size={16} className="text-muted" />
@@ -301,7 +301,7 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
             </div>
           )}
 
-          <button onClick={next} className="w-full py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary/80 flex items-center justify-center gap-2">
+          <button onClick={next} className="w-full py-3 rounded-xl bg-gradient-to-r from-neon to-neon-2 text-white font-bold shadow-glow-sm hover:brightness-110 hover:shadow-glow-neon active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2">
             下一题 <ArrowRight size={18} />
           </button>
         </div>

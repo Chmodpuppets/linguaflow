@@ -99,10 +99,10 @@ const CompositionStudioView: React.FC<Props> = ({ user, onUpdateUser }) => {
   return (
     <div className="flex flex-col lg:flex-row h-[calc(100vh-180px)] gap-4">
       {/* 左：筛选 + 作文列表 */}
-      <div className="w-full lg:w-1/3 bg-card border border-line-strong rounded-xl flex flex-col overflow-hidden">
-        <div className="p-4 border-b border-line-strong bg-surface/50">
+      <div className="w-full lg:w-1/3 glass-panel rounded-xl flex flex-col overflow-hidden shadow-card">
+        <div className="p-4 border-b border-white/[0.06] bg-surface/40">
           <div className="flex items-center gap-2">
-            <Layers size={18} className="text-secondary" />
+            <Layers size={18} className="text-violet-300 drop-shadow-[0_0_6px_rgba(139,92,246,0.7)]" />
             <span className="font-bold text-gray-300">作文流水线</span>
             <span className="ml-auto text-xs text-muted">{flag} {lang} · {doneComps}/{totalComps}</span>
           </div>
@@ -114,13 +114,13 @@ const CompositionStudioView: React.FC<Props> = ({ user, onUpdateUser }) => {
             <div className="flex flex-wrap gap-1.5">
               <button
                 onClick={() => setGenreFilter('all')}
-                className={`text-[11px] px-2 py-1 rounded-full border ${genreFilter === 'all' ? 'bg-secondary/20 border-secondary/40 text-white' : 'border-line-strong text-muted hover:text-white'}`}
+                className={`text-[11px] px-2 py-1 rounded-full border transition-all duration-200 ${genreFilter === 'all' ? 'bg-neon/15 border-neon/50 text-white shadow-glow-sm' : 'border-white/10 text-muted hover:text-white hover:border-neon/30'}`}
               >全部</button>
               {(Object.keys(GENRE_LABELS) as CompositionGenre[]).map((g) => (
                 <button
                   key={g}
                   onClick={() => setGenreFilter(g)}
-                  className={`text-[11px] px-2 py-1 rounded-full border ${genreFilter === g ? 'bg-secondary/20 border-secondary/40 text-white' : 'border-line-strong text-muted hover:text-white'}`}
+                  className={`text-[11px] px-2 py-1 rounded-full border transition-all duration-200 ${genreFilter === g ? 'bg-neon/15 border-neon/50 text-white shadow-glow-sm' : 'border-white/10 text-muted hover:text-white hover:border-neon/30'}`}
                 >{GENRE_LABELS[g]}</button>
               ))}
             </div>
@@ -129,7 +129,7 @@ const CompositionStudioView: React.FC<Props> = ({ user, onUpdateUser }) => {
                 <button
                   key={s}
                   onClick={() => setStatusFilter(s)}
-                  className={`text-[11px] px-2 py-1 rounded-full border ${statusFilter === s ? 'bg-primary/20 border-primary/40 text-white' : 'border-line-strong text-muted hover:text-white'}`}
+                  className={`text-[11px] px-2 py-1 rounded-full border transition-all duration-200 ${statusFilter === s ? 'bg-neon-2/15 border-neon-2/50 text-white shadow-glow-cyan' : 'border-white/10 text-muted hover:text-white hover:border-neon-2/30'}`}
                 >{s === 'all' ? '全部状态' : s === 'available' ? '可写' : s === 'completed' ? '已完成' : '未解锁'}</button>
               ))}
             </div>
@@ -152,8 +152,8 @@ const CompositionStudioView: React.FC<Props> = ({ user, onUpdateUser }) => {
                     key={c.id}
                     disabled={locked}
                     onClick={() => setActiveId(c.id)}
-                    className={`w-full text-left p-2.5 rounded-lg mb-1 border transition-all flex items-center gap-2
-                      ${activeId === c.id ? 'bg-secondary/20 border-secondary/40' : 'border-transparent hover:bg-surface-3'}
+                    className={`w-full text-left p-2.5 rounded-lg mb-1 border transition-all duration-200 flex items-center gap-2
+                      ${activeId === c.id ? 'bg-neon/15 border-neon/40 shadow-glow-sm' : 'border-transparent hover:bg-surface-3/70 hover:translate-x-0.5'}
                       ${locked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
                   >
                     {c.completed ? (
@@ -181,7 +181,7 @@ const CompositionStudioView: React.FC<Props> = ({ user, onUpdateUser }) => {
       </div>
 
       {/* 右：作文编辑器 */}
-      <div className="flex-1 bg-card border border-line-strong rounded-xl flex flex-col overflow-hidden">
+      <div className="flex-1 glass-panel rounded-xl flex flex-col overflow-hidden shadow-card">
         {!active ? (
           <div className="flex-1 flex flex-col items-center justify-center text-muted">
             <Layers size={64} className="mb-4 opacity-20" />

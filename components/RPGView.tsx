@@ -435,7 +435,8 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
             <div className="max-w-6xl mx-auto h-[calc(100vh-140px)] flex flex-col items-center justify-start overflow-y-auto custom-scrollbar animate-in fade-in py-4">
                 <div className="text-center mb-10">
                     <h2 className="text-4xl font-bold text-white mb-4 flex items-center justify-center gap-3">
-                        <Gamepad2 size={40} className="text-secondary" /> 剧情对话
+                        <Gamepad2 size={40} className="text-violet-300 drop-shadow-[0_0_12px_rgba(139,92,246,0.8)]" />
+                        <span className="neon-text">剧情对话</span>
                     </h2>
                     <p className="text-muted max-w-lg mx-auto text-lg">
                         沉浸式角色扮演场景。选择一个场景，化身角色，通过对话完成任务。
@@ -452,7 +453,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                         {hasSavedSession && (
                             <button
                                 onClick={resumeSession}
-                                className="w-full mb-6 flex items-center justify-center gap-2 px-6 py-4 rounded-2xl bg-secondary/20 border border-secondary/50 text-secondary font-bold hover:bg-secondary/30 transition-colors"
+                                className="w-full mb-6 flex items-center justify-center gap-2 px-6 py-4 rounded-2xl bg-neon/15 border border-neon/40 text-violet-300 font-bold hover:bg-neon/25 hover:shadow-glow-sm transition-all duration-200"
                             >
                                 <RotateCcw size={18} /> 继续上次的对话
                             </button>
@@ -461,9 +462,9 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                         {/* 自定义剧情入口 */}
                         <button
                             onClick={() => setShowCustomForm(true)}
-                            className="w-full mb-8 flex items-center justify-center gap-3 px-6 py-5 rounded-2xl bg-gradient-to-r from-secondary/30 to-primary/30 border border-secondary/40 text-white font-bold hover:brightness-110 transition-all shadow-lg shadow-secondary/10"
+                            className="w-full mb-8 flex items-center justify-center gap-3 px-6 py-5 rounded-2xl bg-gradient-to-r from-neon/30 to-neon-2/20 border border-neon/40 text-white font-bold hover:brightness-125 hover:shadow-glow-neon transition-all duration-300 shadow-glow-sm"
                         >
-                            <Wand2 size={22} className="text-secondary" /> 自定义剧情 · 一键生成你的专属场景
+                            <Wand2 size={22} className="text-violet-300" /> 自定义剧情 · 一键生成你的专属场景
                         </button>
 
                         {/* 我的自定义剧本 */}
@@ -476,7 +477,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                                     {myScenarios.map(sc => (
-                                        <div key={sc.id} className="group relative bg-card border border-line-strong hover:border-primary p-4 rounded-xl transition-all">
+                                        <div key={sc.id} className="group relative bg-surface-2/60 backdrop-blur-lg border border-white/[0.07] hover:border-neon/50 hover:shadow-glow-sm p-4 rounded-xl transition-all duration-200">
                                             <button
                                                 onClick={() => handleStart(sc, '自定义剧情')}
                                                 className="text-left w-full"
@@ -521,7 +522,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                                             <button
                                                 key={sc.id}
                                                 onClick={() => handleStart(sc, pack.name)}
-                                                className="text-left bg-card border border-line-strong hover:border-secondary hover:bg-secondary/10 p-4 rounded-xl transition-all group"
+                                                className="text-left bg-surface-2/60 backdrop-blur-lg border border-white/[0.07] hover:border-neon/50 hover:shadow-glow-sm hover:-translate-y-0.5 p-4 rounded-xl transition-all duration-200 group"
                                             >
                                                 <div className="flex items-center justify-between gap-2">
                                                     <span className="font-bold text-gray-200 group-hover:text-white">{sc.title}</span>
@@ -547,7 +548,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                 {/* 自定义剧情弹窗 */}
                 {showCustomForm && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                        <div className="bg-card border border-secondary/40 p-6 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto custom-scrollbar">
+                        <div className="glass-panel border-neon/30 p-6 rounded-2xl shadow-glow-neon w-full max-w-lg max-h-[90vh] overflow-y-auto custom-scrollbar">
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="text-xl font-bold text-white flex items-center gap-2">
                                     <Wand2 size={20} className="text-secondary" /> 创建自定义剧情
@@ -698,7 +699,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
             {/* Victory Overlay */}
             {showVictoryModal && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-                    <div className="bg-card border border-secondary p-8 rounded-3xl shadow-[0_0_50px_rgba(168,85,247,0.3)] text-center max-w-sm mx-4 transform animate-in zoom-in-95 relative">
+                    <div className="glass-panel border-neon/40 p-8 rounded-3xl shadow-[0_0_60px_rgba(139,92,246,0.4)] text-center max-w-sm mx-4 transform animate-in zoom-in-95 relative">
                         {/* Close button for overlay */}
                         <button 
                             onClick={() => setShowVictoryModal(false)}
@@ -724,7 +725,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                                 退出
                             </button>
                             {currentDef && (
-                                <button onClick={() => handleStart(currentDef, scenario?.universe || '')} className="px-6 py-3 bg-secondary hover:bg-secondary/90 text-white rounded-xl font-bold flex items-center gap-2">
+                                <button onClick={() => handleStart(currentDef, scenario?.universe || '')} className="px-6 py-3 bg-gradient-to-r from-neon to-neon-2 hover:brightness-110 hover:shadow-glow-neon text-white rounded-xl font-bold flex items-center gap-2 transition-all duration-200">
                                     <RotateCcw size={18} /> 再玩一次
                                 </button>
                             )}
@@ -734,8 +735,8 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
             )}
 
             {/* Left Panel: Info & Objectives */}
-            <div className="w-full lg:w-1/4 bg-card border border-line-strong rounded-2xl flex flex-col overflow-hidden">
-                <div className="p-4 bg-surface/50 border-b border-line-strong">
+            <div className="w-full lg:w-1/4 glass-panel rounded-2xl flex flex-col overflow-hidden">
+                <div className="p-4 bg-surface/40 border-b border-white/5">
                     <button onClick={handleExitClick} className="text-xs text-muted hover:text-white flex items-center gap-1 mb-2">
                         <ArrowRight className="rotate-180" size={12} /> 退出任务
                     </button>
@@ -797,14 +798,14 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                 </div>
                 
                 {/* Progress Bar based on objectives */}
-                <div className="p-4 border-t border-line-strong bg-surface/30">
+                <div className="p-4 border-t border-white/5 bg-surface/20">
                     <div className="flex justify-between text-xs text-muted mb-1">
                         <span>进度</span>
                         <span>{Math.round((completedObjectives.size / scenario.objectives.length) * 100)}%</span>
                     </div>
-                    <div className="h-2 bg-surface-3 rounded-full overflow-hidden">
-                        <div 
-                            className="h-full bg-secondary transition-all duration-500" 
+                    <div className="h-2 bg-surface-3/70 rounded-full overflow-hidden">
+                        <div
+                            className="h-full xp-bar rounded-full transition-all duration-500"
                             style={{ width: `${(completedObjectives.size / scenario.objectives.length) * 100}%` }}
                         />
                     </div>
@@ -812,7 +813,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
             </div>
 
             {/* Right Panel: Chat Interface */}
-            <div className="flex-1 bg-card border border-line-strong rounded-2xl flex flex-col overflow-hidden relative">
+            <div className="flex-1 glass-panel rounded-2xl flex flex-col overflow-hidden relative">
                 
                 {/* Chat Area */}
                 <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
@@ -821,8 +822,12 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                         const isAudioActive = activeMessageId === msg.id;
 
                         return (
-                            <div key={msg.id} className={`flex ${isAi ? 'justify-start' : 'justify-end'}`}>
-                                <div className={`max-w-[85%] lg:max-w-[70%] rounded-2xl p-4 ${isAi ? 'bg-surface-2 rounded-tl-none' : 'bg-primary/20 border border-primary/30 rounded-tr-none'}`}>
+                            <div key={msg.id} className={`flex page-enter ${isAi ? 'justify-start' : 'justify-end'}`}>
+                                <div className={`max-w-[85%] lg:max-w-[70%] rounded-2xl p-4 backdrop-blur-lg ${
+                                    isAi
+                                        ? 'bg-surface-2/80 border border-white/[0.06] rounded-tl-none'
+                                        : 'bg-gradient-to-br from-neon/25 to-neon-2/10 border border-neon/30 shadow-glow-sm rounded-tr-none'
+                                }`}>
                                     {/* Header */}
                                     {isAi && (
                                         <div className="flex items-center justify-between mb-2">
@@ -901,11 +906,11 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                     })}
                     
                     {isProcessing && (
-                         <div className="flex justify-start">
-                             <div className="bg-surface-2 rounded-2xl rounded-tl-none p-4 flex items-center gap-2">
-                                 <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                                 <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                                 <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                         <div className="flex justify-start page-enter">
+                             <div className="bg-surface-2/80 backdrop-blur-lg border border-white/[0.06] rounded-2xl rounded-tl-none p-4 flex items-center gap-2">
+                                 <div className="w-2 h-2 bg-neon rounded-full animate-bounce shadow-glow-sm" style={{ animationDelay: '0ms' }} />
+                                 <div className="w-2 h-2 bg-neon rounded-full animate-bounce shadow-glow-sm" style={{ animationDelay: '150ms' }} />
+                                 <div className="w-2 h-2 bg-neon-2 rounded-full animate-bounce shadow-glow-cyan" style={{ animationDelay: '300ms' }} />
                              </div>
                          </div>
                     )}
@@ -927,7 +932,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                 )}
 
                 {/* Input Area */}
-                <div className="p-4 bg-surface border-t border-line-strong">
+                <div className="p-4 bg-surface/40 border-t border-white/5">
                     
                     {/* Hint Display */}
                     {showHint && currentSuggestion && (
@@ -957,7 +962,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                                     <button
                                         key={i}
                                         onClick={() => handleSend(c)}
-                                        className="text-sm px-3 py-2 rounded-xl bg-primary/10 hover:bg-primary/25 border border-primary/30 text-primary hover:text-white transition-colors text-left"
+                                        className="text-sm px-3 py-2 rounded-xl bg-neon/10 hover:bg-neon/25 border border-neon/30 text-violet-300 hover:text-white hover:shadow-glow-sm hover:-translate-y-0.5 transition-all duration-200 text-left"
                                     >
                                         {c}
                                     </button>
@@ -1005,12 +1010,12 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
                             placeholder={`以「${scenario.userRole}」的身份回复……`}
                             disabled={isProcessing || isFinished}
-                            className="w-full bg-dark border border-line-strong rounded-xl pl-4 pr-12 py-4 text-white placeholder-muted focus:ring-2 focus:ring-secondary focus:border-transparent outline-none disabled:opacity-50"
+                            className="w-full bg-dark/70 border border-white/10 rounded-xl pl-4 pr-12 py-4 text-white placeholder-muted focus:ring-2 focus:ring-neon/60 focus:border-neon/40 focus:shadow-glow-sm outline-none disabled:opacity-50 transition-shadow duration-300"
                         />
                         <button
                             onClick={handleSend}
                             disabled={!input.trim() || isProcessing || isFinished}
-                            className="absolute right-2 p-2 bg-secondary text-white rounded-lg hover:brightness-110 disabled:opacity-0 disabled:pointer-events-none transition-all"
+                            className="absolute right-2 p-2 bg-gradient-to-br from-neon to-neon-2 text-white rounded-lg hover:brightness-110 hover:shadow-glow-neon disabled:opacity-0 disabled:pointer-events-none transition-all duration-200"
                         >
                             <Send size={20} />
                         </button>

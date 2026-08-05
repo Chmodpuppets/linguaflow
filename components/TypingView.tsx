@@ -643,8 +643,8 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
               </div>
 
               <div className="relative w-full max-w-lg space-y-8 mt-4">
-                  {/* Vertical Line Connector */}
-                  <div className="absolute left-1/2 top-4 bottom-4 w-1 bg-surface-3 -translate-x-1/2 z-0 rounded-full"></div>
+                  {/* Vertical Line Connector：霓虹渐变光路 */}
+                  <div className="absolute left-1/2 top-4 bottom-4 w-1 -translate-x-1/2 z-0 rounded-full bg-gradient-to-b from-neon/50 via-neon-2/30 to-transparent"></div>
                   
                   {TYPING_STAGES.map((stage, index) => {
                       const isUnlocked = index <= unlockedStage;
@@ -663,11 +663,11 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                                   className={`
                                       group relative flex items-center justify-center rounded-full border-b-4 transition-all duration-200
                                       ${isBoss ? 'w-24 h-24' : 'w-20 h-20'}
-                                      ${isCompleted 
-                                          ? 'bg-green-500 border-green-700 text-white' 
-                                          : isCurrent 
-                                              ? 'bg-secondary border-purple-700 text-white animate-bounce-slight shadow-[0_0_20px_rgba(168,85,247,0.6)]' 
-                                              : 'bg-surface-3 border-line text-muted cursor-not-allowed grayscale'
+                                      ${isCompleted
+                                          ? 'bg-gradient-to-br from-green-500 to-emerald-600 border-green-700 text-white shadow-[0_0_18px_rgba(74,222,128,0.45)]'
+                                          : isCurrent
+                                              ? 'bg-gradient-to-br from-neon to-neon-2 border-purple-700 text-white animate-bounce-slight shadow-[0_0_26px_rgba(139,92,246,0.75)]'
+                                              : 'bg-surface-3/70 border-line text-muted cursor-not-allowed grayscale'
                                       }
                                   `}
                               >
@@ -681,14 +681,14 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                                   
                                   {/* Tooltip Card */}
                                   <div className={`
-                                      absolute top-full mt-3 bg-surface-2 border border-line-strong rounded-xl p-3 w-48 text-center shadow-xl opacity-0 scale-95 pointer-events-none transition-all
+                                      absolute top-full mt-3 glass-panel rounded-xl p-3 w-48 text-center shadow-glow-neon opacity-0 scale-95 pointer-events-none transition-all
                                       group-hover:opacity-100 group-hover:scale-100 group-hover:z-50
                                   `}>
                                       <div className="font-bold text-white text-sm mb-1">{stage.title}</div>
                                       <div className="text-xs text-muted mb-2">{stage.description}</div>
                                       <div className="flex justify-center gap-2 text-[10px] font-mono uppercase bg-surface/50 p-1 rounded">
-                                          <span className="text-secondary">{stage.cefr}</span>
-                                          <span className="text-blue-400">{stage.minWpm} WPM</span>
+                                          <span className="text-violet-300">{stage.cefr}</span>
+                                          <span className="text-cyan-300">{stage.minWpm} WPM</span>
                                       </div>
                                   </div>
                               </button>
@@ -708,11 +708,11 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
       
       {/* HEADER CONTROLS (Only visible when drilling) */}
       {content && (
-        <div className="bg-card p-4 rounded-xl border border-line-strong animate-in slide-in-from-top-4 space-y-4">
+        <div className="glass-panel p-4 rounded-xl animate-in slide-in-from-top-4 space-y-4 shadow-card">
             {/* 标题 / 等级 / 统计 / 退出 */}
             <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-3 min-w-0">
-                    <span className="px-3 py-1 rounded-full bg-primary/20 text-primary text-sm font-bold border border-primary/30 shrink-0">
+                    <span className="px-3 py-1 rounded-full bg-neon/15 text-violet-300 text-sm font-bold border border-neon/30 shadow-glow-sm shrink-0">
                         {activeStage ? activeStage.cefr : "练习"}
                     </span>
                     <div className="min-w-0">
@@ -743,10 +743,10 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                 </div>
             </div>
 
-            {/* 进度条 */}
-            <div className="h-1.5 w-full bg-surface-2 rounded-full overflow-hidden">
+            {/* 进度条：霓虹流光 */}
+            <div className="h-1.5 w-full bg-surface-2/70 rounded-full overflow-hidden">
                 <div
-                    className="h-full bg-secondary transition-all duration-200"
+                    className="h-full xp-bar rounded-full transition-all duration-200"
                     style={{ width: `${Math.min(100, (inputValue.length / content.text.length) * 100)}%` }}
                 />
             </div>
@@ -847,8 +847,8 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
       <div className="relative">
       
       {isLoading ? (
-          <div className="bg-dark rounded-2xl p-12 border border-line shadow-2xl min-h-[300px] flex items-center justify-center flex-col gap-4">
-             <div className="w-12 h-12 border-4 border-secondary border-t-transparent rounded-full animate-spin"></div>
+          <div className="glass-panel rounded-2xl p-12 shadow-card min-h-[300px] flex items-center justify-center flex-col gap-4">
+             <div className="w-12 h-12 border-4 border-neon border-t-transparent rounded-full animate-spin shadow-glow-neon"></div>
              <p className="text-muted animate-pulse">正在生成专属练习……</p>
              {errorMsg && (
                  <div className="mt-4 p-3 bg-red-900/20 border border-red-800 text-red-300 rounded-lg text-sm max-w-sm text-center">
@@ -859,35 +859,35 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
           </div>
         ) : !content ? (
             // Setup Screen
-            <div className="bg-dark rounded-2xl p-6 md:p-8 border border-line shadow-2xl min-h-[400px]">
+            <div className="glass-panel rounded-2xl p-6 md:p-8 shadow-card min-h-[400px]">
                  <div className="text-center mb-8">
-                     <h3 className="text-2xl font-bold text-white mb-2">打字闯关</h3>
+                     <h3 className="text-2xl font-bold mb-2 neon-text">打字闯关</h3>
                      <p className="text-muted">选择一种模式开始训练。</p>
                  </div>
 
                  {/* Mode Tabs */}
                  <div className="flex flex-wrap justify-center gap-4 mb-8">
-                     <button 
+                     <button
                         onClick={() => setActiveTab('campaign')}
-                        className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold transition-all ${activeTab === 'campaign' ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-105' : 'bg-surface-2 text-muted hover:bg-surface-3'}`}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'campaign' ? 'bg-gradient-to-r from-neon to-neon-2 text-white shadow-glow-neon scale-105' : 'bg-surface-2/70 text-muted hover:bg-surface-3 hover:text-white'}`}
                      >
                         <Swords size={18} /> 闯关 <span className="text-[10px] bg-black/30 px-1.5 py-0.5 rounded text-white/70">硬核</span>
                      </button>
-                     <button 
+                     <button
                         onClick={() => setActiveTab('practice')}
-                        className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold transition-all ${activeTab === 'practice' ? 'bg-surface-3 text-white shadow-lg border border-line-strong' : 'bg-surface-2 text-muted hover:bg-surface-3'}`}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'practice' ? 'bg-surface-3 text-white shadow-glow-sm border border-neon/40' : 'bg-surface-2/70 text-muted hover:bg-surface-3 hover:text-white'}`}
                      >
                         <LayoutGrid size={18} /> AI 练习
                      </button>
-                    <button 
+                    <button
                         onClick={() => setActiveTab('memory')}
-                        className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold transition-all ${activeTab === 'memory' ? 'bg-secondary text-white shadow-lg shadow-secondary/20' : 'bg-surface-2 text-muted hover:bg-surface-3'}`}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'memory' ? 'bg-gradient-to-r from-neon to-neon-2 text-white shadow-glow-neon' : 'bg-surface-2/70 text-muted hover:bg-surface-3 hover:text-white'}`}
                     >
                         <Book size={18} /> 记忆库
                     </button>
-                    <button 
+                    <button
                         onClick={() => setActiveTab('typinglib')}
-                        className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold transition-all ${activeTab === 'typinglib' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-surface-2 text-muted hover:bg-surface-3'}`}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'typinglib' ? 'bg-gradient-to-r from-neon to-neon-2 text-white shadow-glow-neon' : 'bg-surface-2/70 text-muted hover:bg-surface-3 hover:text-white'}`}
                     >
                         <Library size={18} /> 打字库
                     </button>
@@ -902,7 +902,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                              <button
                                 key={topic.id}
                                 onClick={() => fetchPracticeContent(topic.label)}
-                                className="flex flex-col items-center justify-center gap-2 p-4 bg-surface-2/50 hover:bg-surface-3 hover:scale-105 border border-line-strong hover:border-primary/50 rounded-xl transition-all group"
+                                className="flex flex-col items-center justify-center gap-2 p-4 bg-surface-2/50 hover:bg-surface-3/80 hover:scale-105 border border-white/[0.06] hover:border-neon/50 hover:shadow-glow-sm rounded-xl transition-all duration-200 group"
                              >
                                  <span className="text-3xl grayscale group-hover:grayscale-0 transition-all">{topic.icon}</span>
                                  <span className="text-sm font-medium text-gray-300 group-hover:text-white">{topic.label}</span>
@@ -911,7 +911,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                          {/* Random Button */}
                          <button
                             onClick={() => fetchPracticeContent('random daily topic')}
-                            className="flex flex-col items-center justify-center gap-2 p-4 bg-gradient-to-br from-surface-2 to-surface-3 hover:brightness-110 border border-line-strong hover:border-white/30 rounded-xl transition-all"
+                            className="flex flex-col items-center justify-center gap-2 p-4 bg-gradient-to-br from-neon/15 to-neon-2/10 hover:brightness-125 border border-neon/25 hover:border-neon/60 hover:shadow-glow-neon rounded-xl transition-all duration-200"
                          >
                              <Sparkles size={32} className="text-yellow-400" />
                              <span className="text-sm font-bold text-white">随机来一个</span>
@@ -932,7 +932,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                                      <button
                                         key={item.id}
                                         onClick={() => handleUseLibraryItem(item)}
-                                        className="text-left p-4 bg-surface-2/50 hover:bg-surface-3 border border-line-strong hover:border-secondary/50 rounded-xl transition-all group"
+                                        className="text-left p-4 bg-surface-2/50 hover:bg-surface-3/80 border border-white/[0.06] hover:border-neon/45 hover:shadow-glow-sm rounded-xl transition-all duration-200 group"
                                      >
                                          <h4 className="font-bold text-gray-200 group-hover:text-white mb-1 truncate">{item.title}</h4>
                                          <p className="text-xs text-muted truncate">{item.content}</p>
@@ -955,7 +955,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                                  {typingLib.map(item => (
                                      <div
                                         key={item.id}
-                                        className="p-4 bg-surface-2/50 hover:bg-surface-3 border border-line-strong hover:border-primary/50 rounded-xl transition-all group"
+                                        className="p-4 bg-surface-2/50 hover:bg-surface-3/80 border border-white/[0.06] hover:border-neon/45 hover:shadow-glow-sm rounded-xl transition-all duration-200 group"
                                      >
                                          <div className="flex items-start justify-between gap-2 mb-1">
                                              <h4 className="font-bold text-gray-200 group-hover:text-white truncate">{item.topic}</h4>
@@ -989,7 +989,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
             </div>
         ) : (
           <div
-            className="bg-gradient-to-b from-surface to-surface rounded-2xl p-6 md:p-10 border border-line/80 shadow-2xl min-h-[260px] cursor-text relative"
+            className="glass-panel rounded-2xl p-6 md:p-10 min-h-[260px] cursor-text relative shadow-card transition-shadow duration-500 focus-within:shadow-glow-neon focus-within:border-neon/25"
             onClick={() => inputRef.current?.focus()}
           >
             <div
@@ -1033,9 +1033,9 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
 
       {/* Success State */}
       {finished && (
-        <div className="bg-green-900/20 border border-green-800 rounded-xl p-6 flex flex-col md:flex-row items-center justify-between gap-4 animate-in fade-in zoom-in duration-300">
+        <div className="glass-panel border-green-400/30 shadow-[0_0_28px_-6px_rgba(74,222,128,0.5)] rounded-xl p-6 flex flex-col md:flex-row items-center justify-between gap-4 animate-in fade-in zoom-in duration-300">
             <div className="flex items-center gap-4">
-                <div className="p-3 bg-green-500 rounded-full text-dark">
+                <div className="p-3 bg-gradient-to-br from-green-400 to-emerald-600 rounded-full text-dark shadow-[0_0_18px_rgba(74,222,128,0.7)] animate-[pop_0.45s_ease-out]">
                     {passedStage ? <Crown size={24} fill="currentColor" /> : <Zap size={24} fill="currentColor" />}
                 </div>
                 <div>
@@ -1076,10 +1076,10 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
       {!isLoading && content && content.keyVocabulary?.length > 0 && !isStrictMode && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
               {(content.keyVocabulary || []).map((item, idx) => (
-                  <div key={idx} className="bg-card/50 p-4 rounded-xl border border-line hover:border-line-strong transition-colors group relative">
+                  <div key={idx} className="glass-panel p-4 rounded-xl transition-all duration-300 hover:border-neon/30 hover:shadow-glow-sm hover:-translate-y-0.5 group relative">
                       <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
-                            <BookOpen size={14} className="text-secondary" />
+                            <BookOpen size={14} className="text-violet-300" />
                             <span className="text-xs text-muted uppercase font-semibold">{item.partOfSpeech}</span>
                           </div>
                           <button 

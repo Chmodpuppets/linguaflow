@@ -171,7 +171,7 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
           </div>
         )}
         {node.register && (
-          <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-500/15 border border-purple-500/30 text-xs text-purple-200">
+          <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-neon/15 border border-neon/30 text-xs text-neon">
             <span className="opacity-70">要求语气</span>
             <span className="font-semibold">{REGISTER_LABELS[node.register]}</span>
           </div>
@@ -182,7 +182,7 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
           <select
             value={genre}
             onChange={(e) => handleGenreChange(e.target.value as CompositionGenre)}
-            className="bg-dark/50 border border-line-strong rounded-lg px-2 py-1 text-sm text-gray-200 outline-none focus:ring-2 focus:ring-secondary"
+            className="bg-dark/60 border border-line-strong rounded-lg px-2 py-1 text-sm text-gray-200 outline-none focus:ring-2 focus:ring-neon"
           >
             {(Object.keys(GENRE_LABELS) as CompositionGenre[]).map((g) => (
               <option key={g} value={g}>{GENRE_LABELS[g]}</option>
@@ -196,7 +196,7 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
       <div className="mb-4">
         <button
           onClick={() => setShowOutline((v) => !v)}
-          className="text-xs text-muted hover:text-secondary inline-flex items-center gap-1"
+          className="text-xs text-muted hover:text-neon inline-flex items-center gap-1"
         >
           <BookOpen size={14} /> {showOutline ? '收起提纲' : '查看提纲骨架'}
         </button>
@@ -206,11 +206,11 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
               const w = countWords(s.content, user.learningLanguage);
               const pct = Math.min(100, Math.round((w / s.targetWords) * 100));
               return (
-                <div key={s.id} className="bg-dark/40 border border-line-strong rounded-lg p-2 text-center">
+                <div key={s.id} className="bg-dark/40 border border-line-strong hover:border-neon/30 rounded-lg p-2 text-center transition-colors">
                   <div className="text-xs text-gray-300 truncate">{s.title}</div>
                   <div className="text-[10px] text-muted mt-1">{w}/{s.targetWords} 词</div>
                   <div className="h-1.5 bg-surface-3 rounded-full mt-1 overflow-hidden">
-                    <div className="h-full bg-secondary" style={{ width: `${pct}%` }} />
+                    <div className="h-full bg-neon" style={{ width: `${pct}%` }} />
                   </div>
                 </div>
               );
@@ -231,7 +231,7 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
               value={s.content}
               onChange={(e) => setSectionContent(i, e.target.value)}
               placeholder={`用 ${user.learningLanguage} 写这一段……`}
-              className="w-full bg-dark/50 border border-line-strong rounded-xl p-3 text-base text-gray-200 outline-none focus:ring-2 focus:ring-secondary resize-none"
+              className="w-full bg-dark/60 border border-line-strong rounded-xl p-3 text-base text-gray-200 outline-none focus:ring-2 focus:ring-neon resize-none"
               rows={4}
             />
           </div>
@@ -242,14 +242,14 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
         <button
           onClick={submit}
           disabled={!essayText.trim() || analyzing}
-          className="flex-1 min-w-[140px] py-3 rounded-xl bg-gradient-to-r from-primary to-secondary text-white font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-1 min-w-[140px] py-3 rounded-xl bg-gradient-to-r from-neon to-neon-2 text-white font-bold flex items-center justify-center gap-2 shadow-glow-neon disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {analyzing ? <><Sparkles className="animate-spin" size={18} /> 批改中</> : <><Wand2 size={18} /> 提交批改</>}
         </button>
         <button
           onClick={handleGenerateReference}
           disabled={genRef}
-          className="px-4 py-3 rounded-xl bg-indigo-600/40 text-indigo-200 border border-indigo-500/40 font-bold hover:bg-indigo-600/60 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-4 py-3 rounded-xl bg-neon-2/15 text-neon-2 border border-neon-2/40 font-bold hover:bg-neon-2/25 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {genRef ? <><Sparkles className="animate-spin" size={18} /> 生成中</> : <><BookOpen size={18} /> 生成参考范文</>}
         </button>
@@ -278,7 +278,7 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
             <h4 className="text-white font-semibold text-sm">参考范文 · {GENRE_LABELS[genre]}</h4>
             <button
               onClick={() => speak(reference.essay)}
-              className="text-indigo-300 hover:underline inline-flex items-center gap-1 text-xs"
+              className="text-neon-2 hover:underline inline-flex items-center gap-1 text-xs"
             >
               <Volume2 size={14} /> 听发音
             </button>
@@ -307,10 +307,10 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
             <div className="bg-dark/30 border border-line-strong rounded-xl p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-gray-300 font-medium">{structCfg.label}</span>
-                <span className="text-sm text-secondary font-bold">{structVal} / {structCfg.max}</span>
+                <span className="text-sm text-neon font-bold">{structVal} / {structCfg.max}</span>
               </div>
               <div className="h-2 bg-surface-3 rounded-full overflow-hidden">
-                <div className="h-full bg-secondary" style={{ width: `${Math.min(100, Math.round((structVal / structCfg.max) * 100))}%` }} />
+                <div className="h-full bg-neon" style={{ width: `${Math.min(100, Math.round((structVal / structCfg.max) * 100))}%` }} />
               </div>
               {structFb && <p className="text-xs text-muted mt-2">{structFb}</p>}
             </div>
@@ -319,7 +319,7 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
           <div className="bg-dark/30 border border-line-strong rounded-xl p-4">
             <div className="text-xs text-muted mb-1 flex items-center gap-2">
               AI 改写 / 参考
-              <button onClick={() => speak(feedback.correctedText)} className="text-secondary hover:underline inline-flex items-center gap-1">
+              <button onClick={() => speak(feedback.correctedText)} className="text-neon-2 hover:underline inline-flex items-center gap-1">
                 <Volume2 size={14} /> 听发音
               </button>
             </div>
@@ -342,19 +342,19 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
             </div>
           )}
 
-          <div className="bg-secondary/10 border border-secondary/30 rounded-xl p-4 text-sm text-gray-200">
-            <span className="font-bold text-secondary">教练的话：</span>{feedback.generalComment}
+          <div className="bg-neon/10 border border-neon/30 rounded-xl p-4 text-sm text-gray-200">
+            <span className="font-bold text-neon">教练的话：</span>{feedback.generalComment}
           </div>
 
           {feedback.registerNote && (
-            <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4 text-sm text-gray-200">
-              <span className="font-bold text-purple-300">语体点评：</span>{feedback.registerNote}
+            <div className="bg-neon/10 border border-neon/30 rounded-xl p-4 text-sm text-gray-200">
+              <span className="font-bold text-neon">语体点评：</span>{feedback.registerNote}
             </div>
           )}
 
           <button
             onClick={onComplete}
-            className="w-full py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary/80 flex items-center justify-center gap-2"
+            className="w-full py-3 rounded-xl bg-neon text-white font-bold hover:bg-neon/80 shadow-glow-neon flex items-center justify-center gap-2"
           >
             完成作文 <ArrowRight size={18} />
           </button>

@@ -176,8 +176,8 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
             <div key={node.id}>
               <div
                 onClick={() => (isLeaf ? selectNode(node.id) : toggleExpand(node.id))}
-                className={`group flex items-center gap-2 p-2 rounded-lg cursor-pointer text-sm mb-1 select-none transition-all border
-                  ${activeId === node.id ? 'bg-secondary/20 text-white border-secondary/30' : 'text-muted hover:bg-surface-3 border-transparent'}
+                className={`group flex items-center gap-2 p-2 rounded-lg cursor-pointer text-sm mb-1 select-none transition-all duration-200 border
+                  ${activeId === node.id ? 'bg-neon/15 text-white border-neon/40 shadow-glow-sm' : 'text-muted hover:bg-surface-3/70 hover:text-white border-transparent hover:translate-x-0.5'}
                   ${locked ? 'opacity-40 cursor-not-allowed' : ''}`}
               >
                 {!isLeaf && (
@@ -240,9 +240,9 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
     <WritingLanguageGate user={user} onUpdateUser={onUpdateUser} featureName="写作树">
     <div className="flex flex-col lg:flex-row h-[calc(100vh-140px)] gap-4">
       {/* 左：成长树 */}
-      <div className="w-full lg:w-1/3 bg-card border border-line-strong rounded-xl flex flex-col overflow-hidden">
-        <div className="p-4 border-b border-line-strong flex items-center gap-2 bg-surface/50">
-          <PenLine size={18} className="text-secondary" />
+      <div className="w-full lg:w-1/3 glass-panel rounded-xl flex flex-col overflow-hidden shadow-card">
+        <div className="p-4 border-b border-white/[0.06] flex items-center gap-2 bg-surface/40">
+          <PenLine size={18} className="text-violet-300 drop-shadow-[0_0_6px_rgba(139,92,246,0.7)]" />
           <span className="font-bold text-gray-300">写作成长树</span>
           <span className="ml-auto text-xs text-muted">
             {completedCount} / {totalCount} 完成
@@ -252,7 +252,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
       </div>
 
       {/* 右：编辑器 */}
-      <div className="flex-1 bg-card border border-line-strong rounded-xl flex flex-col overflow-hidden">
+      <div className="flex-1 glass-panel rounded-xl flex flex-col overflow-hidden shadow-card">
         {!active ? (
           <div className="flex-1 flex flex-col items-center justify-center text-muted">
             <PenLine size={64} className="mb-4 opacity-20" />
@@ -289,7 +289,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                     <React.Fragment key={i}>
                       {part}
                       {i < arr.length - 1 && (
-                        <span className="text-secondary underline decoration-dotted px-1">＿＿＿</span>
+                        <span className="text-violet-300 underline decoration-dotted px-1 drop-shadow-[0_0_6px_rgba(139,92,246,0.7)]">＿＿＿</span>
                       )}
                     </React.Fragment>
                   ))}
@@ -314,7 +314,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                       ? '用日语写……（可输入罗马字，自动转假名）'
                       : `用 ${user.learningLanguage} 写……`
                   }
-                  className="w-full bg-dark/50 border border-line-strong rounded-xl p-4 text-lg text-gray-200 outline-none focus:ring-2 focus:ring-secondary resize-none"
+                  className="w-full bg-dark/50 border border-white/10 rounded-xl p-4 text-lg text-gray-200 outline-none focus:ring-2 focus:ring-neon/40 focus:border-neon/40 focus:shadow-glow-sm resize-none transition-all duration-300"
                   rows={3}
                   autoFocus
                 />
@@ -334,7 +334,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                 <button
                   onClick={submit}
                   disabled={!input.trim() || analyzing}
-                  className="w-full py-3 rounded-xl bg-gradient-to-r from-primary to-secondary text-white font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-neon to-neon-2 text-white font-bold shadow-glow-sm hover:brightness-110 hover:shadow-glow-neon active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {analyzing ? (
                     <>
@@ -350,8 +350,8 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
             ) : (
               <div className="space-y-4 animate-in slide-in-from-bottom-2">
                 <div
-                  className={`p-4 rounded-xl flex items-center gap-3 ${
-                    feedback.isCorrect ? 'bg-green-600/20 text-green-300' : 'bg-amber-600/20 text-amber-300'
+                  className={`p-4 rounded-xl flex items-center gap-3 page-enter ${
+                    feedback.isCorrect ? 'bg-green-600/20 text-green-300 border border-green-500/30 shadow-[0_0_20px_-4px_rgba(74,222,128,0.45)]' : 'bg-amber-600/20 text-amber-300 border border-amber-500/30'
                   }`}
                 >
                   {feedback.isCorrect ? <CheckCircle2 size={24} /> : <AlertCircle size={24} />}
@@ -404,7 +404,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
 
                 <button
                   onClick={() => completeTask(active.id)}
-                  className="w-full py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary/80 flex items-center justify-center gap-2"
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-neon to-neon-2 text-white font-bold shadow-glow-sm hover:brightness-110 hover:shadow-glow-neon active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2"
                 >
                   完成并解锁下一题 <ArrowRight size={18} />
                 </button>

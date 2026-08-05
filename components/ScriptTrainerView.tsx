@@ -28,7 +28,7 @@ const HintBlock: React.FC<{ prompt: string; onSpeak: () => void }> = ({ prompt, 
 const NextButton: React.FC<{ onClick: () => void; isLast: boolean }> = ({ onClick, isLast }) => (
   <button
     onClick={onClick}
-    className="w-full py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary/80 flex items-center justify-center gap-2"
+    className="w-full py-3 rounded-xl bg-gradient-to-r from-neon to-neon-2 text-white font-bold shadow-glow-sm hover:brightness-110 hover:shadow-glow-neon active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2"
   >
     {isLast ? '完成' : '下一个'} <ArrowRight size={18} />
   </button>
@@ -212,10 +212,10 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
               <button
                 key={p.id}
                 onClick={() => selectPack(p.id)}
-                className={`px-4 py-2 rounded-xl text-sm font-bold border transition-colors ${
+                className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all duration-200 ${
                   p.id === selectedPack.id
-                    ? 'bg-primary text-white border-primary'
-                    : 'bg-card border-line-strong text-gray-300 hover:border-secondary'
+                    ? 'bg-gradient-to-r from-neon to-neon-2 text-white border-transparent shadow-glow-sm'
+                    : 'bg-surface-2/60 border-white/10 text-gray-300 hover:border-neon/40 hover:text-white'
                 }`}
               >
                 {isCustom ? `✏️ 我的自建 (${customItems.length})` : p.name}
@@ -232,7 +232,7 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
         </div>
 
         {sessionDone && (
-          <div className="bg-card border border-line-strong rounded-2xl p-8 text-center mb-6">
+          <div className="glass-panel rounded-2xl p-8 text-center mb-6 shadow-card page-enter">
             <div className="text-3xl mb-2">{stats.correct === stats.reviewed ? '🎉' : '💪'}</div>
             <div className="text-xl font-bold text-white mb-1">本轮完成</div>
             <p className="text-muted text-sm mb-4">
@@ -240,7 +240,7 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
             </p>
             <button
               onClick={() => startGroup(group)}
-              className="px-6 py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary/80 flex items-center justify-center gap-2 mx-auto"
+              className="px-6 py-3 rounded-xl bg-gradient-to-r from-neon to-neon-2 text-white font-bold shadow-glow-sm hover:brightness-110 hover:shadow-glow-neon active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2 mx-auto"
             >
               <RotateCcw size={18} /> 再来一轮
             </button>
@@ -254,9 +254,9 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
               <button
                 key={g}
                 onClick={() => startGroup(g)}
-                className="bg-card border border-line-strong hover:border-secondary rounded-2xl p-6 text-left transition-colors group"
+                className="glass-panel hover:border-neon/45 hover:shadow-glow-sm hover:-translate-y-0.5 rounded-2xl p-6 text-left transition-all duration-200 group"
               >
-                <div className="text-lg font-bold text-white mb-1 group-hover:text-secondary transition-colors">{g}</div>
+                <div className="text-lg font-bold text-white mb-1 group-hover:text-violet-300 transition-colors">{g}</div>
                 <div className="text-xs text-muted">{count} 个字形</div>
               </button>
             );
@@ -276,16 +276,16 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
         </button>
         <div className="flex items-center gap-2">
           {/* 输入方式：键盘 / 手写（与听音模式正交） */}
-          <div className="flex rounded-lg border border-line-strong overflow-hidden">
+          <div className="flex rounded-lg border border-white/10 overflow-hidden">
             <button
               onClick={() => setInputMode('keyboard')}
-              className={`px-2.5 py-1 text-xs ${inputMode === 'keyboard' ? 'bg-primary text-white' : 'text-muted hover:text-white'}`}
+              className={`px-2.5 py-1 text-xs transition-all duration-200 ${inputMode === 'keyboard' ? 'bg-neon/25 text-white shadow-glow-sm' : 'text-muted hover:text-white'}`}
             >
               键盘
             </button>
             <button
               onClick={() => setInputMode('handwrite')}
-              className={`px-2.5 py-1 text-xs flex items-center gap-1 ${inputMode === 'handwrite' ? 'bg-primary text-white' : 'text-muted hover:text-white'}`}
+              className={`px-2.5 py-1 text-xs flex items-center gap-1 transition-all duration-200 ${inputMode === 'handwrite' ? 'bg-neon/25 text-white shadow-glow-sm' : 'text-muted hover:text-white'}`}
             >
               <Hand size={13} /> 手写
             </button>
@@ -293,7 +293,7 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
           <button
             onClick={() => setListenMode((m) => !m)}
             title="开启后隐藏文字线索，仅靠听音写出字形"
-            className={`px-3 py-1 rounded-lg border transition-colors ${listenMode ? 'border-secondary text-secondary bg-secondary/10' : 'border-line-strong text-muted hover:text-white'}`}
+            className={`px-3 py-1 rounded-lg border transition-all duration-200 ${listenMode ? 'border-neon-2/60 text-cyan-300 bg-neon-2/10 shadow-glow-cyan' : 'border-white/10 text-muted hover:text-white'}`}
           >
             {listenMode ? '🔊 听音' : '🔈 看字'}
           </button>
@@ -301,7 +301,7 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
         </div>
       </div>
 
-      <div className="bg-card border border-line-strong rounded-2xl p-8 text-center">
+      <div className="glass-panel rounded-2xl p-8 text-center shadow-card">
         <div className="text-xs text-muted mb-2">
           {listenMode
             ? '听音写出对应字形（已隐藏文字线索）'
@@ -313,7 +313,7 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
           <button
             onClick={() => speak(current.audioText || current.answer)}
             title="点击听发音"
-            className="mx-auto mb-4 flex flex-col items-center justify-center w-24 h-24 rounded-full bg-secondary/20 border-2 border-secondary text-secondary hover:bg-secondary/30 transition-colors"
+            className="mx-auto mb-4 flex flex-col items-center justify-center w-24 h-24 rounded-full bg-neon/15 border-2 border-neon/60 text-violet-300 hover:bg-neon/25 hover:shadow-glow-neon transition-all duration-300 logo-glow"
           >
             <Volume2 size={36} />
             <span className="text-xs mt-1">点击听音</span>
@@ -344,7 +344,7 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
                 onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
                 placeholder="输入罗马字 / 拉丁字母"
                 autoFocus
-                className="w-full bg-dark border border-line-strong rounded-lg px-4 py-3 text-center text-2xl text-white font-mono outline-none focus:border-secondary"
+                className="w-full bg-dark border border-white/10 rounded-lg px-4 py-3 text-center text-2xl text-white font-mono outline-none focus:border-neon/50 focus:ring-2 focus:ring-neon/30 focus:shadow-glow-sm transition-all duration-300"
               />
             ) : (
               <div className="text-sm text-muted py-2">该文字无简单拉丁映射，请用下方键盘点按字形。</div>
@@ -353,7 +353,7 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
               <button
                 onClick={submit}
                 disabled={!input.trim() && hasTransliterate}
-                className="flex-1 py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary/80 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 py-3 rounded-xl bg-gradient-to-r from-neon to-neon-2 text-white font-bold shadow-glow-sm hover:brightness-110 hover:shadow-glow-neon active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 <Check size={18} /> 提交
               </button>
@@ -375,7 +375,7 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
             />
             <button
               onClick={finishHandwrite}
-              className="w-full py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary/80 flex items-center justify-center gap-2"
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-neon to-neon-2 text-white font-bold shadow-glow-sm hover:brightness-110 hover:shadow-glow-neon active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2"
             >
               <Check size={18} /> 完成手写
             </button>
@@ -385,7 +385,7 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
         {/* 已揭示 */}
         {revealKind === 'correct' && (
           <div className="space-y-4">
-            <div className="p-4 rounded-xl text-2xl font-bold bg-green-600/20 text-green-300">✓ 正确！</div>
+            <div className="p-4 rounded-xl text-2xl font-bold bg-green-600/20 text-green-300 border border-green-500/30 shadow-[0_0_20px_-4px_rgba(74,222,128,0.45)] page-enter">✓ 正确！</div>
             <HintBlock prompt={current.prompt} onSpeak={() => speak(current.audioText || current.answer)} />
             <NextButton onClick={next} isLast={idx + 1 >= queue.length} />
           </div>
@@ -452,7 +452,7 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
                 key={k}
                 onClick={() => setInput(prev => prev + k)}
                 disabled={!!revealKind}
-                className="w-11 h-11 rounded-lg bg-dark border border-line-strong text-lg text-white hover:border-secondary disabled:opacity-40 transition-colors"
+                className="w-11 h-11 rounded-lg bg-dark border border-white/10 text-lg text-white hover:border-neon/60 hover:shadow-glow-sm hover:-translate-y-0.5 disabled:opacity-40 transition-all duration-200"
               >
                 {k}
               </button>

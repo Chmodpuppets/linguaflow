@@ -291,7 +291,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
     <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
       
       {/* Header Profile Card */}
-      <div className="bg-gradient-to-r from-surface-2 to-surface border border-line-strong p-6 md:p-8 rounded-3xl relative overflow-hidden shadow-2xl">
+      <div className="bg-gradient-to-r from-neon/20 to-neon-2/10 border border-neon/30 p-6 md:p-8 rounded-3xl relative overflow-hidden shadow-glow-neon">
         <div className="absolute top-0 right-0 p-8 opacity-10">
             <Trophy size={200} />
         </div>
@@ -307,17 +307,17 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
         </div>
         
         <div className="flex flex-col md:flex-row items-center gap-8 relative z-10">
-            <div className="w-24 h-24 md:w-28 md:h-28 bg-surface-3 rounded-full flex items-center justify-center text-4xl md:text-5xl border-4 border-secondary shadow-lg">
+            <div className="w-24 h-24 md:w-28 md:h-28 bg-white/5 rounded-full flex items-center justify-center text-4xl md:text-5xl border-4 border-neon shadow-glow-sm">
                 {getLanguageFlag(user.learningLanguage)}
             </div>
             
             <div className="text-center md:text-left flex-1">
                 <h2 className="text-3xl font-bold text-white mb-2">{user.username}</h2>
                 <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-gray-300">
-                    <span className="flex items-center gap-1 bg-surface-3/50 px-3 py-1 rounded-full text-sm">
+                    <span className="flex items-center gap-1 bg-white/5 px-3 py-1 rounded-full text-sm border border-white/10">
                         <Calendar size={14} /> 加入于 {new Date(user.joinedDate).toLocaleDateString()}
                     </span>
-                    <span className="flex items-center gap-1 bg-surface-3/50 px-3 py-1 rounded-full text-sm border border-secondary/30">
+                    <span className="flex items-center gap-1 bg-white/5 px-3 py-1 rounded-full text-sm border border-neon/30">
                         {user.learningLanguage} • {currentProgress.cefrLevel}
                     </span>
                 </div>
@@ -325,12 +325,12 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                 {/* Level / XP Bar for CURRENT language */}
                 <div className="mt-6 max-w-md w-full">
                     <div className="flex justify-between text-sm mb-1 font-semibold">
-                        <span className="text-secondary">等级 {currentProgress.level}</span>
+                        <span className="text-neon-2">等级 {currentProgress.level}</span>
                         <span className="text-muted">{currentProgress.xp} 经验</span>
                     </div>
-                    <div className="h-3 bg-surface-3 rounded-full overflow-hidden w-full">
+                    <div className="h-3 bg-white/10 rounded-full overflow-hidden w-full">
                         <div 
-                            className="h-full bg-gradient-to-r from-primary to-secondary" 
+                            className="h-full bg-gradient-to-r from-neon to-neon-2 shadow-glow-neon" 
                             style={{ width: `${getLevelInfo(currentProgress.xp).pct}%` }} 
                         />
                     </div>
@@ -347,16 +347,16 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-4 border-b border-line-strong pb-1">
+      <div className="flex gap-4 border-b border-white/10 pb-1">
           <button 
             onClick={() => setActiveTab('overview')}
-            className={`px-4 py-2 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'overview' ? 'border-secondary text-white' : 'border-transparent text-muted hover:text-gray-300'}`}
+            className={`px-4 py-2 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'overview' ? 'border-neon text-white' : 'border-transparent text-muted hover:text-gray-300'}`}
           >
             <Activity size={16} /> 概览
           </button>
           <button 
             onClick={() => setActiveTab('settings')}
-            className={`px-4 py-2 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'settings' ? 'border-secondary text-white' : 'border-transparent text-muted hover:text-gray-300'}`}
+            className={`px-4 py-2 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'settings' ? 'border-neon text-white' : 'border-transparent text-muted hover:text-gray-300'}`}
           >
             <Settings size={16} /> 学习设置
           </button>
@@ -368,23 +368,23 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
             <div className="space-y-6">
                 
                 {/* Multi-Language Stats Card */}
-                <div className="bg-card border border-line-strong rounded-2xl p-6">
+                <div className="glass-panel border-white/10 rounded-2xl p-6">
                     <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                        <Globe size={20} className="text-blue-400" /> 语言进度
+                        <Globe size={20} className="text-neon-2" /> 语言进度
                     </h3>
                     <div className="space-y-3">
                         {activeLanguages.map(([lang, prog]) => (
-                            <div key={lang} className={`flex items-center gap-3 p-3 rounded-xl border ${lang === user.learningLanguage ? 'bg-secondary/10 border-secondary/30' : 'bg-dark/50 border-line'}`}>
+                            <div key={lang} className={`flex items-center gap-3 p-3 rounded-xl border ${lang === user.learningLanguage ? 'bg-neon/10 border-neon/30' : 'bg-white/5 border-white/10'}`}>
                                 <div className="text-2xl">{getLanguageFlag(lang)}</div>
                                 <div className="flex-1">
                                     <div className="flex justify-between items-center mb-1">
                                         <span className={`font-semibold text-sm ${lang === user.learningLanguage ? 'text-white' : 'text-muted'}`}>
                                             {getLanguageLabel(lang)}
                                         </span>
-                                        <span className="text-xs font-bold text-secondary">等级 {prog.level}</span>
+                                        <span className="text-xs font-bold text-neon-2">等级 {prog.level}</span>
                                     </div>
-                                    <div className="w-full h-1.5 bg-surface-2 rounded-full overflow-hidden">
-                                        <div className="h-full bg-secondary" style={{ width: `${getLevelInfo(prog.xp).pct}%` }}></div>
+                                    <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                                        <div className="h-full bg-neon" style={{ width: `${getLevelInfo(prog.xp).pct}%` }}></div>
                                     </div>
                                     <div className="text-[10px] text-muted mt-1 flex justify-between">
                                         <span>{prog.totalWordsTyped} 字已输入</span>
@@ -397,13 +397,13 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                 </div>
 
                 {/* Calendar */}
-                <div className="bg-card border border-line-strong rounded-2xl p-6">
+                <div className="glass-panel border-white/10 rounded-2xl p-6">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                            <Calendar size={20} className="text-primary" /> {analytics.monthName}
+                            <Calendar size={20} className="text-neon" /> {analytics.monthName}
                         </h3>
                         <div className="text-xs text-muted flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-secondary"></span> 已活跃
+                            <span className="w-2 h-2 rounded-full bg-neon"></span> 已活跃
                         </div>
                     </div>
                     
@@ -417,7 +417,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                                 className={`
                                     aspect-square rounded-lg flex items-center justify-center text-xs relative
                                     ${!d.dayNum ? 'invisible' : ''}
-                                    ${d.active ? 'bg-secondary text-white font-bold shadow-lg shadow-secondary/20' : 'bg-surface-2/50 text-muted'}
+                                    ${d.active ? 'bg-neon text-white font-bold shadow-glow-sm shadow-neon/20' : 'bg-white/10 text-muted'}
                                     ${d.future ? 'opacity-30' : ''}
                                 `}
                             >
@@ -435,20 +435,20 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                 {/* Habit Trends Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* 30 Day Avg */}
-                    <div className="bg-card border border-line-strong p-5 rounded-2xl flex flex-col justify-between h-32">
+                    <div className="glass-panel border-white/10 p-5 rounded-2xl flex flex-col justify-between h-32">
                         <div className="flex justify-between items-start">
                             <div>
                                 <p className="text-xs text-muted uppercase font-bold tracking-wider">30 天平均输出量</p>
                                 <p className="text-3xl font-bold text-white mt-2">{analytics.avgWordsDaily} <span className="text-base font-normal text-muted">字/天</span></p>
                             </div>
-                            <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400">
+                            <div className="p-2 bg-neon-2/10 rounded-lg text-neon-2">
                                 <Activity size={24} />
                             </div>
                         </div>
                     </div>
 
                     {/* Error Rate Trend */}
-                    <div className="bg-card border border-line-strong p-5 rounded-2xl flex flex-col justify-between h-32">
+                    <div className="glass-panel border-white/10 p-5 rounded-2xl flex flex-col justify-between h-32">
                         <div className="flex justify-between items-start">
                             <div>
                                 <p className="text-xs text-muted uppercase font-bold tracking-wider">错误率（每周）</p>
@@ -470,7 +470,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                 </div>
 
                 {/* Accuracy Graph (Simple Visual) */}
-                <div className="bg-card border border-line-strong p-6 rounded-2xl">
+                <div className="glass-panel border-white/10 p-6 rounded-2xl">
                     <h3 className="text-lg font-bold text-white mb-6">近期准确率趋势</h3>
                     <div className="h-32 flex items-end justify-between gap-2">
                         {analytics.accuracyTrend.length === 0 ? (
@@ -478,7 +478,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                         ) : (
                             analytics.accuracyTrend.map((item, i) => (
                                 <div key={i} className="flex-1 flex flex-col items-center gap-2 group relative">
-                                    <div className="absolute -top-8 bg-surface-2 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                                    <div className="absolute -top-8 bg-white/10 text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
                                         {item.acc}%
                                     </div>
                                     <div 
@@ -493,7 +493,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                 </div>
 
                 {/* Recent History List */}
-                <div className="bg-card border border-line-strong rounded-2xl overflow-hidden">
+                <div className="glass-panel border-white/10 rounded-2xl overflow-hidden">
                     <div className="p-4 border-b border-line-strong font-bold text-white flex items-center gap-2">
                         <Clock size={18} className="text-muted" /> 近期记录
                     </div>
@@ -532,9 +532,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in duration-300">
               
               {/* Language Settings Card */}
-              <div className="bg-card border border-line-strong rounded-2xl p-6 h-fit">
+              <div className="glass-panel border-white/10 rounded-2xl p-6 h-fit">
                   <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-                      <User size={20} className="text-secondary" /> 语言设置
+                      <User size={20} className="text-neon-2" /> 语言设置
                   </h3>
 
                   <div className="space-y-6">
@@ -545,7 +545,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                             <select 
                                 value={user.learningLanguage}
                                 onChange={(e) => handleLanguageSwitch(e.target.value as Language)}
-                                className="w-full appearance-none bg-dark border border-line-strong text-white rounded-xl py-3 pl-4 pr-10 focus:ring-2 focus:ring-secondary focus:border-transparent outline-none cursor-pointer text-lg"
+                                className="w-full appearance-none bg-dark border border-line-strong text-white rounded-xl py-3 pl-4 pr-10 focus:ring-2 focus:ring-neon focus:border-transparent outline-none cursor-pointer text-lg"
                             >
                                 {SUPPORTED_LANGUAGES.map(l => {
                                     const hasProgress = user.progress[l.id];
@@ -568,7 +568,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                             <select 
                                 value={currentProgress.cefrLevel}
                                 onChange={(e) => handleLevelChange(e.target.value as CEFRLevel)}
-                                className="w-full appearance-none bg-dark border border-line-strong text-white rounded-xl py-3 pl-4 pr-10 focus:ring-2 focus:ring-secondary focus:border-transparent outline-none cursor-pointer text-lg"
+                                className="w-full appearance-none bg-dark border border-line-strong text-white rounded-xl py-3 pl-4 pr-10 focus:ring-2 focus:ring-neon focus:border-transparent outline-none cursor-pointer text-lg"
                             >
                                 {Object.values(CEFRLevel).map(l => (
                                     <option key={l} value={l}>{l}</option>
@@ -586,7 +586,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                             <select
                                 value={user.targetExam ?? 'none'}
                                 onChange={(e) => handleTargetExamChange(e.target.value as TargetExam)}
-                                className="w-full appearance-none bg-dark border border-line-strong text-white rounded-xl py-3 pl-4 pr-10 focus:ring-2 focus:ring-secondary focus:border-transparent outline-none cursor-pointer text-lg"
+                                className="w-full appearance-none bg-dark border border-line-strong text-white rounded-xl py-3 pl-4 pr-10 focus:ring-2 focus:ring-neon focus:border-transparent outline-none cursor-pointer text-lg"
                             >
                                 {examOptions.map(o => (
                                     <option key={o.value} value={o.value}>{o.label}</option>
@@ -602,7 +602,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                           <p className="text-sm text-gray-300 mb-3">不确定自己的水平？</p>
                           <button 
                              onClick={() => setShowAssessment(true)}
-                             className="w-full py-3 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-600/50 rounded-xl font-bold transition-all flex items-center justify-center gap-2"
+                             className="w-full py-3 bg-neon/20 hover:bg-neon/30 text-neon border border-neon/50 rounded-xl font-bold transition-all flex items-center justify-center gap-2"
                           >
                               <Zap size={18} /> 进行 AI 水平测试
                           </button>
@@ -611,9 +611,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
               </div>
 
               {/* Personalization Card */}
-              <div className="bg-card border border-line-strong rounded-2xl p-6 h-fit">
+              <div className="glass-panel border-white/10 rounded-2xl p-6 h-fit">
                 <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
-                  <User size={20} className="text-secondary" /> AI 导师与兴趣
+                  <User size={20} className="text-neon-2" /> AI 导师与兴趣
                 </h3>
                 <div className="space-y-6">
                   <div>
@@ -623,7 +623,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                         <button
                           key={m.id}
                           onClick={() => handleMentorChange(m.id)}
-                          className={`p-2.5 rounded-xl border text-left transition-all ${user.mentorPersona === m.id ? 'bg-primary/20 border-primary' : 'bg-dark border-line-strong hover:border-line-strong'}`}
+                          className={`p-2.5 rounded-xl border text-left transition-all ${user.mentorPersona === m.id ? 'bg-neon/20 border-neon' : 'bg-white/5 border-white/10 hover:border-neon/40'}`}
                         >
                           <div className="text-sm font-bold text-white">{m.emoji} {m.label}</div>
                           <div className="text-[10px] text-muted mt-0.5 leading-snug">{m.description}</div>
@@ -639,7 +639,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                         <button
                           key={t.id}
                           onClick={() => handleTopicToggle(t.id)}
-                          className={`px-3 py-1.5 rounded-full text-sm border transition-all ${user.preferredTopics.includes(t.id) ? 'bg-secondary/20 border-secondary text-secondary' : 'bg-dark border-line-strong text-muted hover:border-line-strong'}`}
+                          className={`px-3 py-1.5 rounded-full text-sm border transition-all ${user.preferredTopics.includes(t.id) ? 'bg-neon-2/20 border-neon-2 text-neon-2' : 'bg-white/5 border-white/10 text-muted hover:border-neon/40'}`}
                         >
                           {t.icon} {t.label}
                         </button>
@@ -653,7 +653,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                       value={user.aiMemory.goals.join('\n')}
                       onChange={(e) => handleGoalsChange(e.target.value)}
                       placeholder={"例如：\n能去咖啡店点单\n通过雅思口语6.5\n看懂无字幕美剧"}
-                      className="w-full bg-dark border border-line-strong rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-secondary resize-none h-24"
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white outline-none focus:border-neon resize-none h-24"
                     />
                   </div>
 
@@ -675,11 +675,11 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                         onChange={(e) => setNewWeakPoint(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleAddWeakPoint()}
                         placeholder="如：过去时态、发音 r/l"
-                        className="flex-1 bg-dark border border-line-strong rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-secondary"
+                        className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-neon"
                       />
                       <button
                         onClick={handleAddWeakPoint}
-                        className="px-3 py-2 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/80"
+                        className="px-3 py-2 rounded-lg bg-neon text-white text-sm font-bold hover:bg-neon/80 shadow-glow-sm"
                       >
                         添加
                       </button>
@@ -689,9 +689,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
               </div>
 
               {/* Model Settings Card */}
-              <div className="bg-card border border-line-strong rounded-2xl p-6 h-fit">
+              <div className="glass-panel border-white/10 rounded-2xl p-6 h-fit">
                 <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                  <Settings size={20} className="text-purple-400" /> 模型设置
+                  <Settings size={20} className="text-neon" /> 模型设置
                 </h3>
                 <p className="text-xs text-muted mb-4 leading-relaxed">
                   切换驱动 AI 的底层模型。保存后，打字、写作批改、RPG 对话等所有 AI 功能都会使用所选模型。
@@ -708,7 +708,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                     <button
                       key={p.id}
                       onClick={() => setModelCfg({ ...modelCfg, active: p.id })}
-                      className={`p-2.5 rounded-xl border text-left transition-all ${modelCfg.active === p.id ? 'bg-primary/20 border-primary' : 'bg-dark border-line-strong hover:border-line-strong'}`}
+                      className={`p-2.5 rounded-xl border text-left transition-all ${modelCfg.active === p.id ? 'bg-neon/20 border-neon' : 'bg-white/5 border-white/10 hover:border-neon/40'}`}
                     >
                       <div className="text-sm font-bold text-white">{p.label}</div>
                       <div className="text-[10px] text-muted mt-0.5 leading-snug">{p.desc}</div>
@@ -724,7 +724,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                         value={modelCfg[modelCfg.active as 'glm' | 'custom'].baseUrl}
                         onChange={(e) => updateActiveProvider({ baseUrl: e.target.value })}
                         placeholder="https://open.bigmodel.cn/api/paas/v4"
-                        className="w-full bg-dark border border-line-strong rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-secondary"
+                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-neon"
                       />
                     </div>
                     <div>
@@ -733,7 +733,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                         value={modelCfg[modelCfg.active as 'glm' | 'custom'].model}
                         onChange={(e) => updateActiveProvider({ model: e.target.value })}
                         placeholder="GLM-4.7-Flash"
-                        className="w-full bg-dark border border-line-strong rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-secondary"
+                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-neon"
                       />
                     </div>
                     <div>
@@ -743,7 +743,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                         value={modelCfg[modelCfg.active as 'glm' | 'custom'].apiKey}
                         onChange={(e) => updateActiveProvider({ apiKey: e.target.value })}
                         placeholder={modelCfg.active === 'glm' && GLM_ENV_API_KEY ? '已配置 .env 中的 GLM_API_KEY（可留空）' : '留空则使用 .env 密钥'}
-                        className="w-full bg-dark border border-line-strong rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-secondary"
+                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-neon"
                       />
                     </div>
                   </div>
@@ -756,7 +756,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                 {/* --- 语音音色（Qwen3-TTS，一个音色通吃中英日韩俄） --- */}
                 <div className="border-t border-line-strong pt-4 mb-4">
                   <label className="text-sm font-bold text-muted mb-2 flex items-center gap-2">
-                    <Volume2 size={16} className="text-secondary" /> 朗读音色
+                    <Volume2 size={16} className="text-neon-2" /> 朗读音色
                   </label>
                   <p className="text-xs text-muted mb-3 leading-relaxed">
                     打字、字形特训、单词卡等所有「朗读」按钮共用此音色。任一音色都能读中/英/日/韩/俄。
@@ -764,7 +764,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                   <select
                     value={modelCfg.ttsVoice}
                     onChange={(e) => setModelCfg({ ...modelCfg, ttsVoice: e.target.value })}
-                    className="w-full bg-dark border border-line-strong rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-secondary mb-2"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-neon mb-2"
                   >
                     {TTS_VOICES.map((v) => (
                       <option key={v.id} value={v.id}>{v.label} — {v.desc}</option>
@@ -773,7 +773,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                   <button
                     onClick={handlePreviewVoice}
                     disabled={voiceTest.status === 'playing'}
-                    className="w-full py-2 rounded-lg bg-dark hover:bg-surface-3 text-gray-200 border border-line-strong text-xs font-bold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    className="w-full py-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-200 border border-white/10 text-xs font-bold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     <Volume2 size={14} /> {voiceTest.status === 'playing' ? '生成中…' : '试听这个声音'}
                   </button>
@@ -785,14 +785,14 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                 <div className="flex gap-2">
                   <button
                     onClick={handleSaveModel}
-                    className="flex-1 py-2.5 rounded-xl bg-primary hover:bg-primary/80 text-white text-sm font-bold transition-colors"
+                    className="flex-1 py-2.5 rounded-xl bg-neon hover:bg-neon/80 text-white text-sm font-bold transition-colors shadow-glow-sm"
                   >
                     保存
                   </button>
                   <button
                     onClick={handleTestModel}
                     disabled={modelTest.status === 'testing'}
-                    className="flex-1 py-2.5 rounded-xl bg-dark hover:bg-surface-3 text-gray-200 border border-line-strong text-sm font-bold transition-colors disabled:opacity-50"
+                    className="flex-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-200 border border-white/10 text-sm font-bold transition-colors disabled:opacity-50"
                   >
                     {modelTest.status === 'testing' ? '测试中…' : '测试连接'}
                   </button>
@@ -805,9 +805,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
               </div>
 
               {/* Data & Backup Card */}
-              <div className="bg-card border border-line-strong rounded-2xl p-6 h-fit">
+              <div className="glass-panel border-white/10 rounded-2xl p-6 h-fit">
                 <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                  <Database size={20} className="text-blue-400" /> 数据备份与同步
+                  <Database size={20} className="text-neon-2" /> 数据备份与同步
                 </h3>
                 <p className="text-xs text-muted mb-4 leading-relaxed">
                   LinguaFlow 默认<b className="text-white">纯本地</b>存储，隐私不出本机。导出备份可在换设备时恢复；云端同步（多端实时同步、无限存储）是计划中的增值功能。
@@ -815,13 +815,13 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                 <div className="flex flex-col gap-2">
                   <button
                     onClick={exportBackup}
-                    className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-600/50 font-bold transition-colors"
+                    className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-neon/20 hover:bg-neon/30 text-neon border border-neon/50 font-bold transition-colors"
                   >
                     <Download size={16} /> 导出本地备份
                   </button>
                   <button
                     onClick={() => fileRef.current?.click()}
-                    className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-dark hover:bg-surface-3 text-gray-200 border border-line-strong font-bold transition-colors"
+                    className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-200 border border-white/10 font-bold transition-colors"
                   >
                     <Upload size={16} /> 导入备份恢复
                   </button>
@@ -852,7 +852,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
 
               {/* Assessment Area */}
               {showAssessment ? (
-                  <div className="bg-card border border-line-strong rounded-2xl p-6 animate-in slide-in-from-right duration-500">
+                  <div className="glass-panel border-white/10 rounded-2xl p-6 animate-in slide-in-from-right duration-500">
                        <div className="flex justify-between items-center mb-4">
                            <h3 className="font-bold text-white">水平评估</h3>
                            <button onClick={() => setShowAssessment(false)} className="text-muted hover:text-white text-sm">取消</button>
@@ -860,7 +860,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                        <AssessmentView language={user.learningLanguage} onLevelSet={handleLevelChange} />
                   </div>
               ) : (
-                  <div className="flex flex-col items-center justify-center text-center p-8 bg-surface/30 border border-dashed border-line rounded-2xl">
+                  <div className="flex flex-col items-center justify-center text-center p-8 bg-white/5 border border-dashed border-white/10 rounded-2xl">
                       <Zap size={48} className="text-muted mb-4" />
                       <p className="text-muted max-w-xs">
                           做一次水平测试，让 AI 分析你的写作并自动设定 CEFR 等级。
@@ -873,7 +873,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
       {/* Logout confirmation modal */}
       {showLogoutModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-card border border-line-strong rounded-2xl p-6 shadow-2xl">
+          <div className="w-full max-w-md glass-panel border-white/10 rounded-2xl p-6 shadow-glow-neon">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-amber-500/15 flex items-center justify-center shrink-0">
                 <AlertTriangle size={20} className="text-amber-400" />
@@ -888,7 +888,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
               想彻底清空、重新开始，请勾选下方选项。
             </p>
 
-            <label className="flex items-start gap-3 p-3 rounded-xl bg-dark border border-line-strong cursor-pointer mb-6 hover:border-line-strong transition-colors">
+            <label className="flex items-start gap-3 p-3 rounded-xl bg-white/5 border border-white/10 cursor-pointer mb-6 hover:border-neon/40 transition-colors">
               <input
                 type="checkbox"
                 checked={clearDataOnLogout}
@@ -904,7 +904,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
             <div className="flex gap-3">
               <button
                 onClick={() => { setShowLogoutModal(false); setClearDataOnLogout(false); }}
-                className="flex-1 py-2.5 rounded-xl bg-dark hover:bg-surface-3 text-gray-200 border border-line-strong font-bold transition-colors"
+                className="flex-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-200 border border-white/10 font-bold transition-colors"
               >
                 取消
               </button>

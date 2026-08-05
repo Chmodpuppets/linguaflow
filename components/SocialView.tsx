@@ -54,7 +54,7 @@ const SocialView: React.FC<SocialViewProps> = ({ user }) => {
     <div className="max-w-3xl mx-auto space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          <Users size={22} className="text-primary" /> 学习搭子
+          <Users size={22} className="text-neon" /> 学习搭子
         </h1>
         <p className="text-muted text-sm mt-1">
           语言学习最怕一个人放弃。找个水平相近的搭子，互相打卡、共闯任务，坚持率翻倍。
@@ -69,7 +69,7 @@ const SocialView: React.FC<SocialViewProps> = ({ user }) => {
       </div>
 
       {/* 学习卡片 */}
-      <div className="rounded-2xl border border-line bg-gradient-to-br from-primary/20 to-secondary/10 p-6">
+      <div className="rounded-2xl border border-neon/30 bg-gradient-to-br from-neon/20 to-neon-2/10 p-6 shadow-glow-sm">
         <div className="flex items-center justify-between">
           <div>
             <div className="text-xl font-bold text-white">{user.username}</div>
@@ -81,41 +81,41 @@ const SocialView: React.FC<SocialViewProps> = ({ user }) => {
           </div>
         </div>
         <div className="grid grid-cols-3 gap-3 mt-5 text-center">
-          <div className="bg-surface/50 rounded-xl py-3">
+          <div className="bg-white/5 rounded-xl py-3">
             <div className="text-2xl font-bold text-white">Lv.{progress?.level}</div>
             <div className="text-[10px] text-muted uppercase">等级</div>
           </div>
-          <div className="bg-surface/50 rounded-xl py-3">
+          <div className="bg-white/5 rounded-xl py-3">
             <div className="text-2xl font-bold text-white">{weeklyOutput}</div>
             <div className="text-[10px] text-muted uppercase">本周输出</div>
           </div>
-          <div className="bg-surface/50 rounded-xl py-3">
+          <div className="bg-white/5 rounded-xl py-3">
             <div className="text-2xl font-bold text-white">{user.maxStreak}</div>
             <div className="text-[10px] text-muted uppercase">最长连击</div>
           </div>
         </div>
         <button
           onClick={() => copy(shareText)}
-          className="mt-5 w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm font-bold"
+          className="mt-5 w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-neon/20 hover:bg-neon/30 text-white text-sm font-bold shadow-glow-neon"
         >
           <Share2 size={16} /> {copied ? '已复制分享文案' : '复制分享文案'}
         </button>
       </div>
 
       {/* 搭子码 */}
-      <div className="p-4 rounded-xl border border-line bg-card">
+      <div className="p-4 rounded-xl border border-white/10 glass-panel">
         <div className="flex items-center gap-2 mb-2">
-          <Copy size={16} className="text-secondary" />
+          <Copy size={16} className="text-neon-2" />
           <span className="text-sm font-bold text-white">我的搭子码</span>
         </div>
         <p className="text-xs text-muted mb-2">把这段代码发给朋友，对方在「导入搭子码」即可建立本地搭档关系（演示）。</p>
         <div className="flex gap-2">
-          <code className="flex-1 text-[11px] text-muted bg-surface/70 rounded p-2 break-all max-h-20 overflow-auto">
+          <code className="flex-1 text-[11px] text-muted bg-white/5 rounded p-2 break-all max-h-20 overflow-auto">
             {buddyCode}
           </code>
           <button
             onClick={() => copy(buddyCode)}
-            className="px-3 py-2 rounded-lg bg-primary text-white text-xs font-bold self-start"
+            className="px-3 py-2 rounded-lg bg-neon text-white text-xs font-bold self-start shadow-glow-sm"
           >
             复制
           </button>
@@ -123,7 +123,7 @@ const SocialView: React.FC<SocialViewProps> = ({ user }) => {
       </div>
 
       {/* 个人最佳 */}
-      <div className="p-4 rounded-xl border border-line bg-card">
+      <div className="p-4 rounded-xl border border-white/10 glass-panel">
         <div className="flex items-center gap-2 mb-3">
           <Trophy size={16} className="text-yellow-400" />
           <span className="text-sm font-bold text-white">个人最佳（本地）</span>

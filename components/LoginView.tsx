@@ -34,14 +34,14 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-dark text-white p-4">
-      <div className="w-full max-w-2xl bg-card/70 backdrop-blur-xl border border-line-strong/40 rounded-3xl p-8 md:p-10 shadow-2xl shadow-black/40 relative overflow-hidden">
+      <div className="w-full max-w-3xl glass-panel rounded-3xl p-8 md:p-10 shadow-glow-neon relative overflow-y-auto max-h-[92vh]">
         {/* Background blobs */}
-        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-32 h-32 bg-secondary/20 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2 pointer-events-none" />
+        <div className="absolute top-6 right-6 w-32 h-32 bg-neon/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-6 left-6 w-32 h-32 bg-neon-2/20 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10">
           <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-gradient-to-br from-primary to-secondary rounded-2xl mx-auto flex items-center justify-center text-3xl font-bold shadow-lg mb-4">
+            <div className="w-16 h-16 bg-gradient-to-br from-neon to-neon-2 rounded-2xl mx-auto flex items-center justify-center text-3xl font-bold shadow-glow-neon logo-glow mb-4">
               L
             </div>
             <h1 className="text-2xl font-bold">欢迎使用 LinguaFlow</h1>
@@ -57,7 +57,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="输入你的昵称"
-                  className="w-full bg-dark border border-line-strong rounded-xl px-4 py-3 text-body placeholder:text-muted focus:ring-2 focus:ring-primary outline-none transition-all"
+                  className="w-full bg-dark border border-line-strong rounded-xl px-4 py-3 text-body placeholder:text-muted focus:ring-2 focus:ring-neon outline-none transition-all"
                   autoFocus
                 />
               </div>
@@ -76,7 +76,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
               <button
                 onClick={() => setStep(2)}
                 disabled={!username.trim()}
-                className="w-full py-3 bg-white text-dark font-bold rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full py-3 bg-gradient-to-r from-neon to-neon-2 text-white font-bold rounded-xl shadow-glow-neon hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 下一步 <ArrowRight size={18} />
               </button>
@@ -104,7 +104,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                         <button
                             key={l}
                             onClick={() => setLevel(l)}
-                            className={`py-2 rounded-lg border text-sm font-semibold transition-all ${level === l ? 'bg-primary border-primary text-white' : 'bg-dark border-line-strong text-muted hover:border-line-strong'}`}
+                            className={`py-2 rounded-lg border text-sm font-semibold transition-all ${level === l ? 'bg-neon border-neon text-white shadow-glow-sm' : 'bg-dark border-line-strong text-muted hover:border-line-strong'}`}
                         >
                             {l}
                         </button>
@@ -113,7 +113,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
               </div>
               <button
                 onClick={() => setStep(3)}
-                className="w-full py-3 bg-white text-dark font-bold rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                className="w-full py-3 bg-gradient-to-r from-neon to-neon-2 text-white font-bold rounded-xl shadow-glow-neon hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 下一步 <ArrowRight size={18} />
               </button>
@@ -132,7 +132,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                     <button
                       key={m.id}
                       onClick={() => setMentor(m.id)}
-                      className={`p-3 rounded-xl border text-left transition-all ${mentor === m.id ? 'bg-primary/20 border-primary' : 'bg-dark border-line-strong hover:border-line-strong'}`}
+                      className={`p-3 rounded-xl border text-left transition-all ${mentor === m.id ? 'bg-neon/20 border-neon' : 'bg-dark border-line-strong hover:border-line-strong'}`}
                     >
                       <div className="text-lg font-bold text-white flex items-center gap-1">{m.emoji} {m.label}</div>
                       <div className="text-[11px] text-muted mt-1 leading-snug">{m.description}</div>
@@ -147,7 +147,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
                     <button
                       key={t.id}
                       onClick={() => toggleTopic(t.id)}
-                      className={`px-3 py-1.5 rounded-full text-sm border transition-all ${topics.includes(t.id) ? 'bg-secondary/20 border-secondary text-secondary' : 'bg-dark border-line-strong text-muted hover:border-line-strong'}`}
+                      className={`px-3 py-1.5 rounded-full text-sm border transition-all ${topics.includes(t.id) ? 'bg-neon-2/20 border-neon-2 text-neon-2' : 'bg-dark border-line-strong text-muted hover:border-line-strong'}`}
                     >
                       {t.icon} {t.label}
                     </button>
@@ -156,7 +156,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
               </div>
               <button
                 onClick={handleRegister}
-                className="w-full py-3 bg-gradient-to-r from-primary to-secondary text-white font-bold rounded-xl shadow-lg shadow-purple-900/30 hover:brightness-110 transition-all flex items-center justify-center gap-2"
+                className="w-full py-3 bg-gradient-to-r from-neon to-neon-2 text-white font-bold rounded-xl shadow-glow-neon hover:brightness-110 transition-all flex items-center justify-center gap-2"
               >
                 开始学习 <Sparkles size={18} />
               </button>

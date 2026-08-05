@@ -34,9 +34,9 @@ const AssessmentView: React.FC<AssessmentViewProps> = ({ language, onLevelSet })
 
   return (
     <div className="max-w-3xl mx-auto space-y-8">
-      <div className="bg-card p-6 rounded-2xl border border-line-strong/50">
+      <div className="glass-panel p-6 rounded-2xl border border-white/10">
         <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
-          <span className="text-secondary">AI</span> 水平测试
+          <span className="text-neon-2">AI</span> 水平测试
         </h2>
         <p className="text-muted mb-6">
           用{language}写一小段关于你自己、爱好或日常的文字（30–100 词）。
@@ -44,7 +44,7 @@ const AssessmentView: React.FC<AssessmentViewProps> = ({ language, onLevelSet })
         </p>
 
         <textarea
-          className="w-full h-48 bg-dark/50 border border-line-strong rounded-xl p-4 text-gray-200 focus:ring-2 focus:ring-secondary focus:border-transparent outline-none resize-none transition-all"
+          className="w-full h-48 bg-dark/60 border border-line-strong rounded-xl p-4 text-gray-200 focus:ring-2 focus:ring-neon focus:border-transparent outline-none resize-none transition-all"
           placeholder={`在这里用 ${language} 写点什么……`}
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
@@ -61,7 +61,7 @@ const AssessmentView: React.FC<AssessmentViewProps> = ({ language, onLevelSet })
           <button
             onClick={handleAssessment}
             disabled={isLoading}
-            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-secondary to-blue-600 hover:from-secondary/90 hover:to-blue-600/90 text-white font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-900/20"
+            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-neon to-neon-2 hover:from-neon/90 hover:to-neon-2/90 text-white font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-glow-neon"
           >
             {isLoading ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}
             {isLoading ? '分析中……' : '分析我的等级'}
@@ -70,10 +70,10 @@ const AssessmentView: React.FC<AssessmentViewProps> = ({ language, onLevelSet })
       </div>
 
       {result && (
-        <div className="bg-gradient-to-br from-surface-2 to-surface p-8 rounded-2xl border border-line-strong animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="glass-panel p-8 rounded-2xl border border-neon/30 shadow-glow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="flex flex-col md:flex-row gap-8 items-center md:items-start">
             <div className="flex-shrink-0 text-center">
-              <div className="w-32 h-32 rounded-full border-4 border-secondary flex items-center justify-center bg-secondary/10 shadow-[0_0_30px_rgba(168,85,247,0.3)]">
+              <div className="w-32 h-32 rounded-full border-4 border-neon flex items-center justify-center bg-neon/10 shadow-glow-neon">
                 <span className="text-5xl font-bold text-white">{result.level}</span>
               </div>
               <p className="mt-3 text-sm text-muted font-medium tracking-wider uppercase">CEFR 等级</p>
@@ -87,19 +87,19 @@ const AssessmentView: React.FC<AssessmentViewProps> = ({ language, onLevelSet })
                 <div className="bg-dark/40 p-3 rounded-lg border border-line-strong/50">
                     <div className="flex justify-between items-end mb-1">
                         <span className="text-xs text-muted">词汇</span>
-                        <span className="text-secondary font-bold">{result.vocabularyScore}%</span>
+                        <span className="text-neon font-bold">{result.vocabularyScore}%</span>
                     </div>
                     <div className="h-2 bg-surface-3 rounded-full overflow-hidden">
-                        <div className="h-full bg-secondary transition-all duration-1000" style={{ width: `${result.vocabularyScore}%` }}></div>
+                        <div className="h-full bg-neon transition-all duration-1000" style={{ width: `${result.vocabularyScore}%` }}></div>
                     </div>
                 </div>
                 <div className="bg-dark/40 p-3 rounded-lg border border-line-strong/50">
                     <div className="flex justify-between items-end mb-1">
                         <span className="text-xs text-muted">语法</span>
-                        <span className="text-blue-500 font-bold">{result.grammarScore}%</span>
+                        <span className="text-neon-2 font-bold">{result.grammarScore}%</span>
                     </div>
                     <div className="h-2 bg-surface-3 rounded-full overflow-hidden">
-                        <div className="h-full bg-blue-500 transition-all duration-1000" style={{ width: `${result.grammarScore}%` }}></div>
+                        <div className="h-full bg-neon-2 transition-all duration-1000" style={{ width: `${result.grammarScore}%` }}></div>
                     </div>
                 </div>
               </div>

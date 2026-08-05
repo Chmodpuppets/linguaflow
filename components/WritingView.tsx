@@ -28,13 +28,13 @@ const scoreColor100 = (n: number): string =>
 
 // 0-100 维度小卡（带进度条 + 反馈）
 const ExamBar: React.FC<{ label: string; val: number; feedback: string }> = ({ label, val, feedback }) => (
-  <div className="bg-dark/50 border border-line-strong rounded-lg p-3">
+  <div className="bg-dark/50 border border-white/10 rounded-lg p-3 transition-all duration-300 hover:border-neon/25 hover:shadow-glow-sm">
     <div className="flex items-baseline justify-between">
       <span className="text-xs text-muted">{label}</span>
       <span className={`text-xl font-bold ${scoreColor100(val)}`}>{val}</span>
     </div>
     <div className="h-1.5 bg-surface-2 rounded-full mt-1 overflow-hidden">
-      <div className="h-full bg-secondary" style={{ width: `${Math.min(100, Math.max(0, val))}%` }} />
+      <div className="h-full xp-bar rounded-full" style={{ width: `${Math.min(100, Math.max(0, val))}%` }} />
     </div>
     <p className="text-xs text-muted mt-1 leading-snug">{feedback}</p>
   </div>
@@ -129,7 +129,7 @@ const renderExamPanel = (scores: ExamScores, exam: TargetExam, generalComment: s
   }
 
   return (
-    <div className="bg-card p-6 rounded-xl border border-line-strong space-y-4">
+    <div className="glass-panel p-6 rounded-xl shadow-card space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-muted text-sm font-medium">{title}</h3>
@@ -245,13 +245,13 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
       <div className="flex gap-2 mb-4">
         <button
           onClick={() => setMode('free')}
-          className={`px-4 py-2 rounded-xl text-sm font-bold border transition-colors ${mode === 'free' ? 'bg-primary text-white border-primary' : 'bg-card border-line-strong text-gray-300 hover:border-secondary'}`}
+          className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all duration-200 ${mode === 'free' ? 'bg-gradient-to-r from-neon to-neon-2 text-white border-transparent shadow-glow-sm' : 'bg-surface-2/60 border-white/10 text-gray-300 hover:border-neon/40 hover:text-white'}`}
         >
           自由写作
         </button>
         <button
           onClick={() => setMode('guided')}
-          className={`px-4 py-2 rounded-xl text-sm font-bold border transition-colors ${mode === 'guided' ? 'bg-primary text-white border-primary' : 'bg-card border-line-strong text-gray-300 hover:border-secondary'}`}
+          className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all duration-200 ${mode === 'guided' ? 'bg-gradient-to-r from-neon to-neon-2 text-white border-transparent shadow-glow-sm' : 'bg-surface-2/60 border-white/10 text-gray-300 hover:border-neon/40 hover:text-white'}`}
         >
           引导练习（A1 友好）
         </button>
@@ -267,24 +267,24 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
       {/* Left Column: Input Area */}
       <div className="flex flex-col space-y-4 h-full">
         {/* Topic Suggestion Carousel */}
-        <div className="bg-card p-4 rounded-xl border border-line-strong">
+        <div className="glass-panel p-4 rounded-xl shadow-card">
             <h3 className="text-xs font-bold text-muted uppercase tracking-wider mb-3">写作题目（{userLevel} 级）</h3>
             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
                 {currentTopics.map((t, i) => (
-                    <button 
-                        key={i} 
+                    <button
+                        key={i}
                         onClick={() => useTopic(t)}
-                        className={`whitespace-nowrap px-3 py-1.5 rounded-full text-sm border transition-all ${activeTopic === t ? 'bg-secondary text-white border-secondary' : 'bg-dark border-line-strong text-muted hover:border-line-strong'}`}
+                        className={`whitespace-nowrap px-3 py-1.5 rounded-full text-sm border transition-all duration-200 ${activeTopic === t ? 'bg-neon/20 text-white border-neon/50 shadow-glow-sm' : 'bg-dark/60 border-white/10 text-muted hover:border-neon/35 hover:text-white'}`}
                     >
                         {t.text.slice(0, 22)}…
                     </button>
                 ))}
             </div>
             {activeTopicResolved && (
-                <div className="mt-3 text-white font-medium bg-dark/50 p-3 rounded-lg border-l-4 border-secondary">
+                <div className="mt-3 text-white font-medium bg-dark/50 p-3 rounded-lg border-l-4 border-neon shadow-[inset_0_0_20px_rgba(139,92,246,0.06)]">
                     {activeTopicResolved.text}
                     <span className="block mt-2">
-                        <span className="inline-block text-[11px] px-2 py-0.5 rounded-full bg-secondary/20 text-secondary">要求语气：{REGISTER_LABELS[activeTopicResolved.register]}</span>
+                        <span className="inline-block text-[11px] px-2 py-0.5 rounded-full bg-neon/15 text-violet-300 border border-neon/30">要求语气：{REGISTER_LABELS[activeTopicResolved.register]}</span>
                     </span>
                 </div>
             )}
@@ -295,7 +295,7 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder={`用 ${user.learningLanguage} 写点什么……`}
-                className="flex-grow w-full bg-dark/50 border border-line-strong rounded-xl p-6 text-lg leading-relaxed text-gray-200 focus:ring-2 focus:ring-secondary focus:border-transparent outline-none resize-none transition-all"
+                className="flex-grow w-full bg-dark/50 border border-white/10 rounded-xl p-6 text-lg leading-relaxed text-gray-200 focus:ring-2 focus:ring-neon/40 focus:border-neon/40 focus:shadow-glow-sm outline-none resize-none transition-all duration-300"
             />
             <div className="absolute bottom-4 right-4 text-muted text-sm font-mono">
                 {text.length} 字
@@ -305,7 +305,7 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
         <button
             onClick={() => handleAnalyze(isRevising)}
             disabled={isAnalyzing || text.length < 10}
-            className="w-full py-4 bg-gradient-to-r from-primary to-secondary hover:brightness-110 text-white font-bold rounded-xl shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full py-4 bg-gradient-to-r from-neon to-neon-2 hover:brightness-110 hover:shadow-glow-neon active:scale-[0.99] text-white font-bold rounded-xl shadow-glow-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
             {isAnalyzing ? (
                 <>分析中 <Sparkles className="animate-spin" size={18} /></>
@@ -348,7 +348,7 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
                 {feedback && !revisionResult && !isRevising && (
                   <button
                     onClick={() => setIsRevising(true)}
-                    className="w-full py-3 rounded-xl border border-secondary/50 text-secondary font-bold hover:bg-secondary/10 transition-all flex items-center justify-center gap-2"
+                    className="w-full py-3 rounded-xl border border-neon/50 text-violet-300 font-bold hover:bg-neon/15 hover:shadow-glow-sm transition-all duration-200 flex items-center justify-center gap-2"
                   >
                     按批改重写二稿 <ArrowRight size={18} />
                   </button>
@@ -360,7 +360,7 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
                   </div>
                 )}
                 {revisionResult && (
-                  <div className="bg-card p-4 rounded-xl border border-line-strong space-y-3">
+                  <div className="glass-panel p-4 rounded-xl shadow-card space-y-3">
                     <div className="flex items-center gap-2">
                       <h4 className="font-bold text-white">二稿对比</h4>
                       <span className={`text-xs px-2 py-0.5 rounded-full ${revisionResult.improved ? 'bg-green-900/30 text-green-300' : 'bg-amber-900/30 text-amber-300'}`}>{revisionResult.improved ? '有进步' : '仍需努力'}</span>
@@ -387,7 +387,7 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
                 {feedback.examScores && user.targetExam ? (
                   renderExamPanel(feedback.examScores, user.targetExam, feedback.generalComment, feedback.cefrEstimation)
                 ) : (
-                  <div className="bg-card p-6 rounded-xl border border-line-strong flex items-center justify-between">
+                  <div className="glass-panel p-6 rounded-xl shadow-card flex items-center justify-between">
                     <div>
                         <h3 className="text-muted text-sm font-medium">预估等级</h3>
                         <p className="text-3xl font-bold text-white mt-1">{feedback.cefrEstimation}</p>
@@ -406,8 +406,8 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
                 )}
 
                 {/* Corrections */}
-                <div className="bg-card rounded-xl border border-line-strong overflow-hidden">
-                    <div className="p-4 bg-surface-2/50 border-b border-line-strong font-semibold text-white flex items-center gap-2">
+                <div className="glass-panel rounded-xl shadow-card overflow-hidden">
+                    <div className="p-4 bg-surface-2/50 border-b border-white/[0.06] font-semibold text-white flex items-center gap-2">
                         <Sparkles size={16} className="text-yellow-400" />
                         AI 润色版
                     </div>
@@ -426,7 +426,7 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
                         <p className="text-muted italic">没有发现具体错误，写得真好！</p>
                     ) : (
                         feedback.suggestions.map((item, idx) => (
-                            <div key={idx} className="bg-card p-4 rounded-xl border border-line-strong hover:border-line-strong transition-colors">
+                            <div key={idx} className="bg-surface-2/60 backdrop-blur-lg p-4 rounded-xl border border-white/[0.06] hover:border-neon/30 hover:shadow-glow-sm transition-all duration-300">
                                 <div className="flex items-start gap-4">
                                     <div className="w-1/2 p-3 bg-red-900/10 border border-red-900/30 rounded-lg text-red-200 line-through decoration-red-500/50">
                                         {item.original}

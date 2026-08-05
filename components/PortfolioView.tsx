@@ -31,7 +31,7 @@ const PortfolioView: React.FC<Props> = ({ user }) => {
   return (
     <div className="max-w-5xl mx-auto">
       <div className="flex items-center gap-2 mb-1">
-        <GalleryVerticalEnd size={22} className="text-secondary" />
+        <GalleryVerticalEnd size={22} className="text-neon-2" />
         <h2 className="text-2xl font-bold text-white">作品集</h2>
         <span className="ml-2 text-sm text-muted">已完成作文合集</span>
       </div>
@@ -40,7 +40,7 @@ const PortfolioView: React.FC<Props> = ({ user }) => {
       </p>
 
       {compositions.length === 0 ? (
-        <div className="flex flex-col items-center justify-center text-muted py-20 border border-dashed border-line-strong rounded-2xl">
+        <div className="flex flex-col items-center justify-center text-muted py-20 border border-dashed border-line-strong rounded-2xl bg-surface-2/40 hover:border-neon/40 transition-colors">
           <FileText size={48} className="mb-3 opacity-30" />
           <p className="text-lg">还没有已完成的作文</p>
           <p className="text-sm opacity-60 mt-1">去「写作树」或「作文流水线」完成一篇作文，就会出现在这里</p>
@@ -51,7 +51,7 @@ const PortfolioView: React.FC<Props> = ({ user }) => {
             const isOpen = expanded === c.id;
             const wc = c.wordCount ?? 0;
             return (
-              <div key={c.id} className="bg-card border border-line-strong rounded-2xl p-5 flex flex-col">
+              <div key={c.id} className="glass-panel rounded-2xl p-5 flex flex-col hover:border-neon/40 transition-all">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <CheckCircle2 size={18} className="text-green-400 flex-shrink-0" />
@@ -65,14 +65,14 @@ const PortfolioView: React.FC<Props> = ({ user }) => {
                     {c.genre ? GENRE_LABELS[c.genre] : '作文'}
                   </span>
                   {c.cefrLevel && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-surface-3/60 text-gray-300">{c.cefrLevel}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-gray-300">{c.cefrLevel}</span>
                   )}
                   {c.register && (
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-200">
                       {REGISTER_LABELS[c.register]}
                     </span>
                   )}
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-surface-3/60 text-gray-300">{wc} 词</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-gray-300">{wc} 词</span>
                 </div>
 
                 <div
@@ -86,13 +86,13 @@ const PortfolioView: React.FC<Props> = ({ user }) => {
                 <div className="flex items-center gap-3 mt-3 pt-3 border-t border-line">
                   <button
                     onClick={() => setExpanded(isOpen ? null : c.id)}
-                    className="text-xs text-muted hover:text-secondary inline-flex items-center gap-1"
+                    className="text-xs text-muted hover:text-neon-2 inline-flex items-center gap-1"
                   >
                     {isOpen ? <><ChevronUp size={14} /> 收起</> : <><ChevronDown size={14} /> 展开全文</>}
                   </button>
                   <button
                     onClick={() => speak(c.content)}
-                    className="text-xs text-secondary hover:underline inline-flex items-center gap-1 ml-auto"
+                    className="text-xs text-neon-2 hover:underline inline-flex items-center gap-1 ml-auto"
                   >
                     <Volume2 size={14} /> 听发音
                   </button>
