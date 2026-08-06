@@ -617,10 +617,29 @@ const QUEST_TEMPLATES: Array<{ kind: QuestKind; label: string; target: number; r
     { kind: 'script_practice', label: '字形特训：练熟 10 个字形', target: 10, rewardXP: 15 },
 ];
 
+// 错误模式类型 → 每日任务第三项模板索引（dictation_miss 无独立每日任务，不映射 → 回退日期轮换）
+const WEAK_QUEST_TEMPLATE: Partial<Record<ErrorPatternType, number>> = {
+    kana_dakuon: 4, kana_youon: 4, kana_confusion: 4, // 字形类弱项 → 字形特训
+    spelling: 3, tense: 3, particle: 3, word_order: 3, collocation: 3, register: 3, agreement: 3, other: 3, // 写作类弱项 → 写作练习
+};
+
+// 弱项优先：取 Top 弱项中第一个能映射到每日任务模板的，作为第三项；都映射不到则返回 null
+const pickWeaknessQuest = (lang: Language) => {
+    for (const w of getTopErrorPatterns(lang, 3)) {
+        const idx = WEAK_QUEST_TEMPLATE[w.type];
+        if (idx !== undefined) return QUEST_TEMPLATES[idx];
+    }
+    return null;
+};
+
 export const generateDailyQuests = (lang: Language): DailyQuest[] => {
-    // 固定两项：打字 + 词汇复习；第三项在「口语 / 写作 / 字形特训」间按日期轮换，保证每日多样性
-    const dayMod = parseInt(getTodayString().slice(-1), 10) % 3;
-    const third = [QUEST_TEMPLATES[2], QUEST_TEMPLATES[3], QUEST_TEMPLATES[4]][dayMod];
+    // 固定两项：打字 + 词汇复习
+    // 第三项：优先从个人错误模式引擎的弱项挑对应模块（字形类→字形特训，写作类→写作练习）；
+    // 无弱项或弱项无对应任务时，回退到「口语 / 写作 / 字形特训」按日期轮换，保证多样性
+    const third = pickWeaknessQuest(lang)
+        ?? [QUEST_TEMPLATES[2], QUEST_TEMPLATES[3], QUEST_TEMPLATES[4]][
+            parseInt(getTodayString().slice(-1), 10) % 3
+        ];
     const picks = [QUEST_TEMPLATES[0], QUEST_TEMPLATES[1], third];
     return picks.map((t) => ({
         id: crypto.randomUUID(),
