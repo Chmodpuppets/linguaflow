@@ -18,6 +18,7 @@ import ImportView from './components/ImportView';
 import SocialView from './components/SocialView';
 import ScriptTrainerView from './components/ScriptTrainerView';
 import ErrorBookView from './components/ErrorBookView';
+import ErrorPatternsView from './components/ErrorPatternsView';
 import WritingProgressView from './components/WritingProgressView';
 import InkQuestView from './components/InkQuestView';
 import ContentRepoView from './components/ContentRepoView';
@@ -26,7 +27,7 @@ import { GraduationCap, ChevronDown, Menu, Flame, Star } from 'lucide-react';
 // 侧边栏导航分组（信息架构：降低 15 个一级入口的视觉过载）
 const NAV_GROUPS: { label: string; items: string[] }[] = [
   { label: '学习', items: ['daily', 'typing', 'writing', 'rpg'] },
-  { label: '精进', items: ['writing_tree', 'composition_studio', 'ink_quest', 'script_trainer', 'vocabulary', 'errorbook'] },
+  { label: '精进', items: ['writing_tree', 'composition_studio', 'ink_quest', 'script_trainer', 'vocabulary', 'errorbook', 'error_patterns'] },
   { label: '资源', items: ['library', 'content_repo', 'import', 'trend', 'portfolio'] },
   { label: '社区', items: ['social', 'profile'] },
 ];
@@ -161,6 +162,13 @@ const App: React.FC = () => {
       case AppMode.ErrorBook:
         return (
             <ErrorBookView
+                user={user}
+                onUpdateUser={handleUserUpdate}
+            />
+        );
+      case AppMode.ErrorPatterns:
+        return (
+            <ErrorPatternsView
                 user={user}
                 onUpdateUser={handleUserUpdate}
             />

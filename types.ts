@@ -115,6 +115,7 @@ export enum AppMode {
   Social = 'social',
   ScriptTrainer = 'script_trainer',
   ErrorBook = 'errorbook',
+  ErrorPatterns = 'error_patterns',
   Trend = 'trend',
   Portfolio = 'portfolio',
   CompositionStudio = 'composition_studio',

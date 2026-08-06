@@ -291,6 +291,17 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
     // 听写模式：走本地 LCS 即时对照（零 API 调用、零等待），并落库 attempts + 发少量 XP
     if (mode === 'dictation' && dictationSentence) {
       const c = buildComparison(dictationSentence, text, lang);
+      // 听写漏写/错写 → 沉淀到个人错误模式引擎（闭合「听」侧学习回路）
+      const missedTokens = c.origTok.filter((_, i) => !c.matched[i]);
+      if (missedTokens.length > 0) {
+        bumpErrorPattern(
+          lang,
+          'dictation_miss',
+          '听写漏写/错写',
+          missedTokens.join(' ') || dictationSentence,
+          ['dictation']
+        );
+      }
       if (currentListeningId) {
         updateInkQuestListeningAttempt(currentListeningId, {
           text: text.trim(),

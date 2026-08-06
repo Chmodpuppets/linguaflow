@@ -61,6 +61,7 @@ export const NAV_ITEMS = [
   { id: 'library', label: '记忆库', icon: <Book size={20} /> },
   { id: 'vocabulary', label: '词汇', icon: <BookA size={20} /> },
   { id: 'errorbook', label: '错题本', icon: <BookX size={20} /> },
+  { id: 'error_patterns', label: '错误模式', icon: <Target size={20} /> },
   { id: 'portfolio', label: '作品集', icon: <GalleryVerticalEnd size={20} /> },
   { id: 'trend', label: '写作趋势', icon: <LineChart size={20} /> },
   { id: 'script_trainer', label: '文字特训', icon: <PenLine size={20} /> },
