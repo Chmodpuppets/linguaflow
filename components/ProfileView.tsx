@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState, useRef } from 'react';
 import { UserProfile, ActivityLog, Language, LanguageProgress, CEFRLevel, MentorPersona, TargetExam } from '../types';
-import { getLogs, ensureLanguageProgress, saveUser, getAIConfig, saveAIConfig, clearAllLearningData, AIConfig, getLevelInfo } from '../services/storageService';
+import { getLogs, ensureLanguageProgress, saveUser, getAIConfig, saveAIConfig, clearAllLearningData, AIConfig, getLevelInfo, ALL_STORAGE_KEYS } from '../services/storageService';
 import { testModelConnection, GLM_ENV_API_KEY, TTS_VOICES, previewVoice } from '../services/aiService';
 import { Trophy, Flame, Calendar, Clock, PenTool, Type, Zap, TrendingUp, TrendingDown, Activity, Check, Globe, Settings, GraduationCap, ChevronDown, User, LogOut, Download, Upload, Database, Crown, AlertTriangle, Volume2 } from 'lucide-react';
 import { SUPPORTED_LANGUAGES, MENTOR_PERSONAS, TOPIC_PACKAGES } from '../constants';
@@ -238,11 +238,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
 
   // --- Local backup / restore (Phase 3 云同步占位) ---
   const fileRef = useRef<HTMLInputElement>(null);
-  const BACKUP_KEYS = [
-    'linguaflow_user', 'linguaflow_logs', 'linguaflow_library',
-    'linguaflow_writing_tree', 'linguaflow_vocabulary', 'linguaflow_rpg_session',
-    'linguaflow_errorbook', 'linguaflow_writing_history',
-  ];
+  // 直接复用 storageService 的权威 key 集合，确保导出/导入不遗漏任何模块数据
+  const BACKUP_KEYS = ALL_STORAGE_KEYS;
 
   const exportBackup = () => {
     const data: Record<string, string | null> = {};

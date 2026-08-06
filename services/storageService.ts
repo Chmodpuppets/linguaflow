@@ -1,6 +1,7 @@
 
 import { UserProfile, ActivityLog, Language, CEFRLevel, UserContent, LanguageProgress, WritingNode, VocabularyItem, DailyQuest, QuestKind, MentorPersona, AIMemory, ScriptItem, ScriptCardProgress, ErrorCard, WritingScoreRecord, TypingContent, ErrorPattern, ErrorPatternType, FlywheelStep, DailyFlywheel } from '../types';
 import { createDefaultGrowthTree, CEFR_RANK } from '../data/growthTree';
+import { getScriptPackForLanguage } from '../data/scriptPacks';
 
 const STORAGE_KEY_USER = 'linguaflow_user';
 const STORAGE_KEY_LOGS = 'linguaflow_logs';
@@ -17,6 +18,17 @@ const STORAGE_KEY_INKQUEST_LISTENING = 'linguaflow_inkquest_listening';
 const STORAGE_KEY_TYPING_LIBRARY = 'linguaflow_typing_library';
 const STORAGE_KEY_ERROR_PATTERNS = 'linguaflow_error_patterns';
 const STORAGE_KEY_FLYWHEEL = 'linguaflow_daily_flywheel';
+
+// 所有持久化 key 的权威集合（本地备份/恢复用）。集中维护，避免新增模块后备份遗漏、静默丢数据。
+// 用字面量以避免引用下方靠后声明的 const 触发 TDZ。
+export const ALL_STORAGE_KEYS: string[] = [
+  'linguaflow_user', 'linguaflow_logs', 'linguaflow_library', 'linguaflow_writing_tree',
+  'linguaflow_vocabulary', 'linguaflow_ai_config', 'linguaflow_script_progress', 'linguaflow_errorbook',
+  'linguaflow_writing_history', 'linguaflow_inkquest', 'linguaflow_inkquest_story',
+  'linguaflow_inkquest_listening', 'linguaflow_typing_library', 'linguaflow_error_patterns',
+  'linguaflow_daily_flywheel', 'linguaflow_custom_script', 'linguaflow_custom_writing',
+  'linguaflow_rpg_session', 'linguaflow_rpg_custom',
+];
 
 // --- Runtime AI model configuration (switcher in Settings -> 模型设置) ---
 // Keys are stored ONLY in localStorage (browser), never committed to source.
@@ -237,7 +249,9 @@ const buildFlywheelReflection = (lang: Language): string => {
 export const markFlywheelStep = (step: FlywheelStep, lang?: Language): DailyFlywheel => {
   const fw = ensureDailyFlywheel();
   fw.steps[step] = true;
-  const allDone = fw.steps.writing && fw.steps.dictation && fw.steps.script;
+  // 无字形包的语言（EN/ES/FR/DE/IT/ZH 等）不应被 script 步卡住：该步视为已满足，仅需写作 + 听写即可完成飞轮
+  const needsScript = lang ? !!getScriptPackForLanguage(lang) : true;
+  const allDone = fw.steps.writing && fw.steps.dictation && (!needsScript || fw.steps.script);
   fw.allDone = allDone;
   if (allDone) fw.reflection = lang ? buildFlywheelReflection(lang) : '今日产出线完成 🎉';
   localStorage.setItem(STORAGE_KEY_FLYWHEEL, JSON.stringify(fw));

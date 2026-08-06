@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, AppMode, QuestKind, ActivityLog, DailyFlywheel, FlywheelStep } from '../types';
 import { getDueVocabulary, getLogs, getDailyFlywheel, commitDailyStreak } from '../services/storageService';
+import { getScriptPackForLanguage } from '../data/scriptPacks';
 import { Flame, Shield, CheckCircle2, ArrowRight, Sparkles, Target, BookOpen, MessageSquare, PenTool, Type, Trophy, PenLine, Feather, Headphones } from 'lucide-react';
 import { GlassCard, NeonButton, NeonBadge, SectionTitle } from './ui';
 
@@ -33,6 +34,14 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser, onNavigate })
   const [weeklyOutput, setWeeklyOutput] = useState(0);
   const [doneCount, setDoneCount] = useState(0);
   const [flywheel, setFlywheel] = useState<DailyFlywheel | null>(null);
+
+  // 当前学习语言是否有字形包：决定飞轮是否要求 script 步（无包语言仅需写作 + 听写）
+  const needsScript = !!getScriptPackForLanguage(user.learningLanguage);
+  const requiredSteps: FlywheelStep[] = needsScript
+    ? ['writing', 'dictation', 'script']
+    : ['writing', 'dictation'];
+  const flywheelDone = flywheel ? requiredSteps.filter((s) => flywheel.steps[s]).length : 0;
+  const flywheelTotal = requiredSteps.length;
 
   useEffect(() => {
     setDueCount(getDueVocabulary().length);
@@ -93,7 +102,7 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser, onNavigate })
         <SectionTitle
           className="mb-3"
           title={<span className="flex items-center gap-2"><Sparkles size={18} className="text-neon" />今日产出线</span>}
-          right={<NeonBadge tone={flywheel?.allDone ? 'cyan' : 'neon'}>{flywheel ? `${Object.values(flywheel.steps).filter(Boolean).length}/3 完成` : '—'}</NeonBadge>}
+          right={<NeonBadge tone={flywheel?.allDone ? 'cyan' : 'neon'}>{flywheel ? `${flywheelDone}/${flywheelTotal} 完成` : '—'}</NeonBadge>}
         />
         {flywheel && (
           <GlassCard className="p-5">
@@ -109,6 +118,19 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser, onNavigate })
                 { step: 'script', label: '文字特训', mode: AppMode.ScriptTrainer, icon: <PenLine size={16} /> },
               ] as const).map((m) => {
                 const done = flywheel.steps[m.step as FlywheelStep];
+                const na = m.step === 'script' && !needsScript;
+                if (na) {
+                  return (
+                    <div
+                      key={m.step}
+                      className="flex items-center gap-2 rounded-xl border border-dashed border-line-strong bg-surface-2/20 p-3 text-faint"
+                      title="当前语言无字形包，文字特训步骤自动免修"
+                    >
+                      <PenLine size={16} />
+                      <span className="text-sm font-semibold">文字特训 · 免修</span>
+                    </div>
+                  );
+                }
                 return (
                   <button
                     key={m.step}
@@ -127,7 +149,7 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser, onNavigate })
               </div>
             )}
             {!flywheel.allDone && (
-              <p className="mt-3 text-xs text-muted">完成写作 + 听写 + 字形三路，即可点亮今日连胜 🔥</p>
+              <p className="mt-3 text-xs text-muted">{needsScript ? '完成写作 + 听写 + 字形三路，即可点亮今日连胜 🔥' : '完成写作 + 听写两路，即可点亮今日连胜 🔥'}</p>
             )}
           </GlassCard>
         )}
