@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { UserProfile, AppMode, QuestKind, ActivityLog } from '../types';
-import { getDueVocabulary, getLogs } from '../services/storageService';
-import { Flame, Shield, CheckCircle2, ArrowRight, Sparkles, Target, BookOpen, MessageSquare, PenTool, Type, Trophy, PenLine, Feather } from 'lucide-react';
+import { UserProfile, AppMode, QuestKind, ActivityLog, DailyFlywheel, FlywheelStep } from '../types';
+import { getDueVocabulary, getLogs, getDailyFlywheel, commitDailyStreak } from '../services/storageService';
+import { Flame, Shield, CheckCircle2, ArrowRight, Sparkles, Target, BookOpen, MessageSquare, PenTool, Type, Trophy, PenLine, Feather, Headphones } from 'lucide-react';
 import { GlassCard, NeonButton, NeonBadge, SectionTitle } from './ui';
 
 interface DailyViewProps {
@@ -32,6 +32,7 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser, onNavigate })
   const [dueCount, setDueCount] = useState(0);
   const [weeklyOutput, setWeeklyOutput] = useState(0);
   const [doneCount, setDoneCount] = useState(0);
+  const [flywheel, setFlywheel] = useState<DailyFlywheel | null>(null);
 
   useEffect(() => {
     setDueCount(getDueVocabulary().length);
@@ -41,6 +42,12 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser, onNavigate })
     const out = weekLogs.reduce((acc, l) => acc + (l.details.wordCount || 0), 0);
     setWeeklyOutput(out);
     setDoneCount(user.dailyQuests.filter((q) => q.completed).length);
+    const fw = getDailyFlywheel();
+    setFlywheel(fw);
+    // 若今日产出线已完成但连胜尚未计入，补记（commitDailyStreak 内部防重）
+    if (fw && fw.allDone && user.lastStreakDate !== todayStr()) {
+      onUpdateUser(commitDailyStreak(user));
+    }
   }, [user]);
 
   const questsCompletedAll = user.dailyQuests.length > 0 && user.dailyQuests.every((q) => q.completed);
@@ -79,6 +86,51 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser, onNavigate })
             </div>
           </div>
         </div>
+      </section>
+
+      {/* 今日产出线（Daily Flywheel） */}
+      <section className="page-enter" style={{ animationDelay: '40ms' }}>
+        <SectionTitle
+          className="mb-3"
+          title={<span className="flex items-center gap-2"><Sparkles size={18} className="text-neon" />今日产出线</span>}
+          right={<NeonBadge tone={flywheel?.allDone ? 'cyan' : 'neon'}>{flywheel ? `${Object.values(flywheel.steps).filter(Boolean).length}/3 完成` : '—'}</NeonBadge>}
+        />
+        {flywheel && (
+          <GlassCard className="p-5">
+            <div className="mb-3">
+              <div className="text-xs text-muted">今日主题</div>
+              <div className="text-lg font-bold text-white">{flywheel.theme}</div>
+              <div className="text-xs text-muted mt-0.5">{flywheel.themePrompt}</div>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {([
+                { step: 'writing', label: '墨程 · 自由写', mode: AppMode.InkQuest, icon: <PenTool size={16} /> },
+                { step: 'dictation', label: '墨程 · 听写', mode: AppMode.InkQuest, icon: <Headphones size={16} /> },
+                { step: 'script', label: '文字特训', mode: AppMode.ScriptTrainer, icon: <PenLine size={16} /> },
+              ] as const).map((m) => {
+                const done = flywheel.steps[m.step as FlywheelStep];
+                return (
+                  <button
+                    key={m.step}
+                    onClick={() => onNavigate(m.mode)}
+                    className={`flex items-center gap-2 rounded-xl border p-3 text-left transition-all duration-200 ${done ? 'border-green-400/30 bg-green-500/10 text-green-300' : 'border-line-strong bg-surface-2/40 text-gray-300 hover:border-neon/40 hover:text-white'}`}
+                  >
+                    {done ? <CheckCircle2 size={16} /> : m.icon}
+                    <span className="text-sm font-semibold">{m.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {flywheel.allDone && flywheel.reflection && (
+              <div className="mt-3 rounded-lg border border-neon/30 bg-neon/10 px-3 py-2 text-xs text-violet-200">
+                {flywheel.reflection}
+              </div>
+            )}
+            {!flywheel.allDone && (
+              <p className="mt-3 text-xs text-muted">完成写作 + 听写 + 字形三路，即可点亮今日连胜 🔥</p>
+            )}
+          </GlassCard>
+        )}
       </section>
 
       {/* Daily Quests */}

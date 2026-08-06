@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { UserProfile, ScriptPack, ScriptItem } from '../types';
+import { UserProfile, ScriptPack, ScriptItem, ErrorPatternType } from '../types';
 import { getScriptPacks, getScriptPackForLanguage } from '../data/scriptPacks';
-import { getDueScriptItems, getCustomScriptItems, reviewScriptCard, addActivity } from '../services/storageService';
+import { getDueScriptItems, getCustomScriptItems, reviewScriptCard, addActivity, bumpErrorPattern, getErrorPatterns, markFlywheelStep, commitDailyStreak } from '../services/storageService';
 import { generateSpeech } from '../services/aiService';
 import HandwritePad from './HandwritePad';
 import { PenLine, Volume2, Check, RotateCcw, Keyboard, ArrowRight, Eye, HelpCircle, Hand } from 'lucide-react';
@@ -33,6 +33,15 @@ const NextButton: React.FC<{ onClick: () => void; isLast: boolean }> = ({ onClic
     {isLast ? '完成' : '下一个'} <ArrowRight size={18} />
   </button>
 );
+
+// 把分组标签映射成错误模式类型（用于「个人错误模式引擎」聚合）
+const groupToErrorType = (group: string): { type: ErrorPatternType; label: string } => {
+  const g = group || '';
+  if (g.includes('浊音') || g.includes('半浊音')) return { type: 'kana_dakuon', label: '浊音/半浊音混淆' };
+  if (g.includes('拗音')) return { type: 'kana_youon', label: '拗音混淆' };
+  if (g.includes('片假名') || g.includes('平假名')) return { type: 'kana_confusion', label: '假名形近混淆' };
+  return { type: 'other', label: '字形产出' };
+};
 
 const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUser }) => {
   const packs = useMemo(() => getScriptPacks(), []);
@@ -98,8 +107,12 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
     const items = selectedPack.items.filter(it => it.group === g);
     let due = getDueScriptItems(selectedPack.id, items);
     if (due.length === 0) due = items; // 全部已熟也可整体复习
+    // 错误模式加权：把「近期高权重错误类型命中本组」的卡片前置，强化弱项
+    const patterns = getErrorPatterns(selectedPack.language);
+    const weakTags = new Set(patterns.filter((p) => p.count > 0).map((p) => p.tags || []).flat());
+    const weighted = [...due].sort((a, b) => (weakTags.has(b.group) ? 1 : 0) - (weakTags.has(a.group) ? 1 : 0));
     setGroup(g);
-    setQueue(due);
+    setQueue(weighted);
     setIdx(0);
     setInput('');
     setLastCorrect(null);
@@ -127,6 +140,10 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
     if (!input.trim()) return;
     const ok = evaluate(input);
     reviewScriptCard(selectedPack.id, current.id, ok);
+    if (!ok) {
+      const { type, label } = groupToErrorType(current.group);
+      bumpErrorPattern(selectedPack.language, type, label, `${input.trim()}→${current.answer}`, [current.group]);
+    }
     setLastCorrect(ok);
     setRevealKind(ok ? 'correct' : 'wrong');
     if (ok) correctRef.current += 1;
@@ -184,7 +201,10 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
       `字形特训：${selectedPack.name} · ${group} 共 ${rev} 个，正确 ${cor}`,
       { count: rev }
     );
-    onUpdateUser(updated);
+    const fw = markFlywheelStep('script', selectedPack.language);
+    let afterUser = updated;
+    if (fw.allDone) afterUser = commitDailyStreak(updated);
+    onUpdateUser(afterUser);
   };
 
   const speak = (text: string) => {

@@ -226,6 +226,9 @@ export interface InkQuestCoachFeedback {
   rewrite: string;
   scores: { grammar: number; fluency: number; vocabulary: number; task: number };
   comment: string;
+  // 结构化的错误模式标签，用于驱动「个人错误模式引擎」后续出题优先级。
+  // tag 限定枚举：tense/particle/word_order/collocation/spelling/register/agreement/kana_dakuon/kana_youon/kana_confusion/other
+  errorTags?: Array<{ tag: string; original: string; correction: string; reasonZh: string }>;
 }
 
 const INKQUEST_COACH_FALLBACK: InkQuestCoachFeedback = {
@@ -235,6 +238,7 @@ const INKQUEST_COACH_FALLBACK: InkQuestCoachFeedback = {
   rewrite: '',
   scores: { grammar: 3, fluency: 3, vocabulary: 3, task: 3 },
   comment: '已收到你的练习，继续加油！',
+  errorTags: [],
 };
 
 export const getInkQuestCoachFeedback = async (
@@ -256,6 +260,7 @@ export const getInkQuestCoachFeedback = async (
     `  "fixReasonZh": "用中文解释为什么不够好，并给一个更地道/正确的说法",\n` +
     `  "rewrite": "把学生整段改写成更自然的一版（保留原意与当前难度）",\n` +
     `  "scores": { "grammar": 0到5的整数, "fluency": 0到5的整数, "vocabulary": 0到5的整数, "task": 0到5的整数 },\n` +
+    `  "errorTags": [ { "tag": "错误类型枚举(tense/particle/word_order/collocation/spelling/register/agreement/kana_dakuon/kana_youon/kana_confusion/other)", "original": "学生原句中写错的那一小段", "correction": "正确写法", "reasonZh": "一句中文说明为什么错" } ],\n` +
     `  "comment": "一句鼓励向的中文总评"\n` +
     `}\n` +
     `评分满分 5 分，对初学者请宽松善意；若 fix 确实没有大问题，可写"整体很棒，挑不出毛病"。`;

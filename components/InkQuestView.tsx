@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { UserProfile, CEFRLevel, Language } from '../types';
+import { UserProfile, CEFRLevel, Language, ErrorPatternType } from '../types';
 import {
   addActivity,
   getInkQuestCards,
@@ -16,6 +16,10 @@ import {
   InkQuestListeningItem,
   CustomWritingPrompt,
   getCustomWritingPrompts,
+  bumpErrorPattern,
+  getTopErrorPatterns,
+  markFlywheelStep,
+  commitDailyStreak,
 } from '../services/storageService';
 import {
   getInkQuestCoachFeedback,
@@ -306,7 +310,10 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
         `墨程·听写：${submitTheme}（匹配 ${c.pct}%）`,
         { wordCount: wc }
       );
-      onUpdateUser(updated);
+      const fw = markFlywheelStep('dictation', lang);
+      let afterUser = updated;
+      if (fw.allDone) afterUser = commitDailyStreak(updated);
+      onUpdateUser(afterUser);
       analyzedRef.current = true;
       return;
     }
@@ -318,6 +325,13 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
       const fb = await getInkQuestCoachFeedback(user, text.trim(), submitTheme, lang, user.nativeLanguage, level);
       setFeedback(fb);
       analyzedRef.current = true;
+      // 错误模式沉淀：把 AI 教练识别出的错误类型写入个人错误模式引擎
+      if (fb.errorTags && fb.errorTags.length) {
+        fb.errorTags.forEach((t) => {
+          const type = (t.tag as ErrorPatternType) || 'other';
+          bumpErrorPattern(lang, type, type === 'other' ? '写作错误' : t.tag, `${t.original}→${t.correction}`, [t.tag]);
+        });
+      }
 
       const wc = countWords(text, lang);
       const xp = 20 + Math.min(80, wc);
@@ -329,7 +343,10 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
         `墨程：${submitTheme}（${wc} 字）`,
         { wordCount: wc }
       );
-      onUpdateUser(updated);
+      const fw = markFlywheelStep('writing', lang);
+      let afterUser = updated;
+      if (fw.allDone) afterUser = commitDailyStreak(updated);
+      onUpdateUser(afterUser);
     } catch (e) {
       console.error(e);
       setError('教练开小差了，稍后重试一下～');
@@ -604,6 +621,21 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
                 ? `建议 ${activeCard.minSentences}–${activeCard.maxSentences} 句 · 用 ${lang} 自由写，不需要完美`
                 : `点「生成听写句」→ 听 AI 朗读 → 用 ${lang} 把听到的写下来`}
             </p>
+            {/* 今日注意：展示个人错误模式引擎里近期权重最高的 2 个弱项 */}
+            {(() => {
+              const weak = getTopErrorPatterns(lang, 2);
+              if (!weak.length) return null;
+              return (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5 rounded-lg border border-amber-400/25 bg-amber-400/10 px-3 py-1.5">
+                  <span className="text-[11px] font-semibold text-amber-300">⚠️ 今日注意</span>
+                  {weak.map((w) => (
+                    <span key={w.id} className="rounded-full bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-200">
+                      {w.label}
+                    </span>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
 
           {mode === 'free' && (

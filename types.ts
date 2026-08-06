@@ -275,6 +275,47 @@ export interface ErrorCard {
   lapses: number;          // 再次犯错次数
 }
 
+// --- Personal Error Pattern Engine（个人错误模式引擎）---
+// 捕捉用户在产出练习中的高频错误类型，按 (language, type) 聚合，用于驱动后续出题优先级。
+export type ErrorPatternType =
+  | 'kana_dakuon'      // 浊音/半浊音混淆（日语）
+  | 'kana_youon'       // 拗音混淆（日语）
+  | 'kana_confusion'   // 假名形近混淆（シ/ツ、ソ/ン 等）
+  | 'spelling'         // 拼写错误
+  | 'tense'            // 时态
+  | 'particle'         // 助词/介词
+  | 'word_order'       // 语序
+  | 'collocation'      // 搭配/用词
+  | 'register'         // 语体/敬语
+  | 'agreement'        // 一致性（性数格）
+  | 'dictation_miss'   // 听写漏写/错写
+  | 'other';
+
+export interface ErrorPattern {
+  id: string;            // `${language}:${type}`
+  type: ErrorPatternType;
+  language: Language;
+  label: string;         // 人类可读，如「浊音混淆」
+  examples: string[];    // 具体犯错例子（"きゃ→ぎゃ" 等），去重、限长
+  count: number;         // 累计权重
+  lastSeen: number;      // 最近一次时间戳
+  tags?: string[];       // 关联维度（如 ScriptItem.group），用于出题命中
+}
+
+// --- Daily Production Flywheel（每日产出飞轮）---
+// 每天一个统一主题，把核心产出模块串成一条线；跑完才计连胜。
+export type FlywheelStep = 'writing' | 'dictation' | 'script';
+
+export interface DailyFlywheel {
+  date: string;                       // YYYY-MM-DD
+  themeId: string;
+  theme: string;                      // 主题（中文）
+  themePrompt: string;                // 给各模块的统一引导
+  steps: Record<FlywheelStep, boolean>;
+  allDone: boolean;
+  reflection?: string;
+}
+
 // --- Script / Alphabet Production Trainer (跨语言通用，数据驱动) ---
 // 设计铁律：生成式练习——给声音/意思/罗马字提示，绝不直接显示答案字形；
 // 用户必须主动从记忆里产出字形（打字或虚拟键盘），答错才揭示答案并降级。
@@ -468,6 +509,7 @@ export interface UserProfile {
   maxStreak: number;
   lastActiveDate: string; // YYYY-MM-DD
   streakShields: number;  // 断签保护卡数量（Phase 1）
+  lastStreakDate: string; // YYYY-MM-DD，最近一次「完成产出飞轮」计入连胜的日期
   
   // Daily Quests (Phase 1)
   dailyQuests: DailyQuest[];

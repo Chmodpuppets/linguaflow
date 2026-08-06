@@ -1,5 +1,5 @@
 
-import { UserProfile, ActivityLog, Language, CEFRLevel, UserContent, LanguageProgress, WritingNode, VocabularyItem, DailyQuest, QuestKind, MentorPersona, AIMemory, ScriptItem, ScriptCardProgress, ErrorCard, WritingScoreRecord, TypingContent } from '../types';
+import { UserProfile, ActivityLog, Language, CEFRLevel, UserContent, LanguageProgress, WritingNode, VocabularyItem, DailyQuest, QuestKind, MentorPersona, AIMemory, ScriptItem, ScriptCardProgress, ErrorCard, WritingScoreRecord, TypingContent, ErrorPattern, ErrorPatternType, FlywheelStep, DailyFlywheel } from '../types';
 import { createDefaultGrowthTree, CEFR_RANK } from '../data/growthTree';
 
 const STORAGE_KEY_USER = 'linguaflow_user';
@@ -15,6 +15,8 @@ const STORAGE_KEY_INKQUEST = 'linguaflow_inkquest';
 const STORAGE_KEY_INKQUEST_STORY = 'linguaflow_inkquest_story';
 const STORAGE_KEY_INKQUEST_LISTENING = 'linguaflow_inkquest_listening';
 const STORAGE_KEY_TYPING_LIBRARY = 'linguaflow_typing_library';
+const STORAGE_KEY_ERROR_PATTERNS = 'linguaflow_error_patterns';
+const STORAGE_KEY_FLYWHEEL = 'linguaflow_daily_flywheel';
 
 // --- Runtime AI model configuration (switcher in Settings -> 模型设置) ---
 // Keys are stored ONLY in localStorage (browser), never committed to source.
@@ -71,6 +73,7 @@ const normalizeUser = (u: any): UserProfile => ({
   preferredTopics: Array.isArray(u.preferredTopics) ? u.preferredTopics : [],
   aiMemory: u.aiMemory ?? { goals: [], weakPoints: [], interests: [], notes: '' },
   premium: !!u.premium,
+  lastStreakDate: u.lastStreakDate ?? u.lastActiveDate ?? getTodayString(),
 });
 
 export const getUser = (): UserProfile | null => {
@@ -123,6 +126,142 @@ export const clearAllLearningData = () => {
     localStorage.removeItem(STORAGE_KEY_INKQUEST_STORY);
     localStorage.removeItem(STORAGE_KEY_INKQUEST_LISTENING);
     localStorage.removeItem(STORAGE_KEY_TYPING_LIBRARY);
+    localStorage.removeItem(STORAGE_KEY_ERROR_PATTERNS);
+    localStorage.removeItem(STORAGE_KEY_FLYWHEEL);
+};
+
+// --- 个人错误模式引擎（Error Pattern Engine）---
+// 捕捉用户在产出练习中的错误类型，按 (language, type) 聚合，用于出题优先级。
+
+export const getErrorPatterns = (lang?: Language): ErrorPattern[] => {
+  const data = localStorage.getItem(STORAGE_KEY_ERROR_PATTERNS);
+  const all: ErrorPattern[] = data ? JSON.parse(data) : [];
+  return lang ? all.filter((p) => p.language === lang) : all;
+};
+
+export const bumpErrorPattern = (
+  lang: Language,
+  type: ErrorPatternType,
+  label: string,
+  example?: string,
+  tags?: string[]
+): ErrorPattern => {
+  const all = getErrorPatterns();
+  const id = `${lang}:${type}`;
+  const idx = all.findIndex((p) => p.id === id);
+  if (idx >= 0) {
+    const p = all[idx];
+    if (example && !p.examples.includes(example)) {
+      p.examples = [...p.examples, example].slice(-5);
+    }
+    p.count += 1;
+    p.lastSeen = Date.now();
+    if (tags && tags.length) p.tags = Array.from(new Set([...(p.tags || []), ...tags]));
+    all[idx] = p;
+  } else {
+    all.push({ id, type, language: lang, label, examples: example ? [example] : [], count: 1, lastSeen: Date.now(), tags: tags || [] });
+  }
+  localStorage.setItem(STORAGE_KEY_ERROR_PATTERNS, JSON.stringify(all));
+  return all.find((p) => p.id === id)!;
+};
+
+export const getTopErrorPatterns = (lang: Language, n = 3): ErrorPattern[] =>
+  getErrorPatterns(lang).sort((a, b) => b.count - a.count).slice(0, n);
+
+// --- 每日产出飞轮（Daily Production Flywheel）---
+// 每天一个统一主题，串起写作/听写/字形三路产出；跑完才计连胜。
+
+interface FlywheelTheme { id: string; theme: string; prompt: string; }
+
+const FLYWHEEL_THEMES: FlywheelTheme[] = [
+  { id: 'd1', theme: '今天的一件小事', prompt: '用目标语言写下/练出今天发生的一件小事' },
+  { id: 'd2', theme: '我的日常 routine', prompt: '描述你平常的一天' },
+  { id: 'd3', theme: '最爱的一道食物', prompt: '写/练你最喜欢的食物' },
+  { id: 'd4', theme: '周末想做的事', prompt: '说说你这个周末想做什么' },
+  { id: 'd5', theme: '一个熟悉的人', prompt: '描述一个你熟悉的人' },
+  { id: 'd6', theme: '最近学到的新词', prompt: '用最近学到的新词造点句子' },
+  { id: 'd7', theme: '我住的地方', prompt: '描述你住的地方' },
+  { id: 'd8', theme: '一次难忘的旅行', prompt: '回忆一次难忘的旅行' },
+  { id: 'd9', theme: '我的小目标', prompt: '写写你最近的小目标' },
+  { id: 'd10', theme: '天气与心情', prompt: '结合今天的天气说说心情' },
+  { id: 'd11', theme: '一部喜欢的电影', prompt: '聊聊你喜欢的电影' },
+  { id: 'd12', theme: '童年记忆', prompt: '写一段童年记忆' },
+  { id: 'd13', theme: '我的爱好', prompt: '介绍你的爱好' },
+  { id: 'd14', theme: '明天的计划', prompt: '计划一下明天' },
+  { id: 'd15', theme: '一种动物', prompt: '描述一种你喜欢的动物' },
+  { id: 'd16', theme: '购物清单', prompt: '列一份购物清单并说明用途' },
+  { id: 'd17', theme: '一封短信', prompt: '用目标语言写一封短小的信' },
+  { id: 'd18', theme: '城市的声音', prompt: '写写城市里你熟悉的声音' },
+  { id: 'd19', theme: '一次小失败', prompt: '说说一次小失败和收获' },
+  { id: 'd20', theme: '我的理想周末', prompt: '描绘你的理想周末' },
+  { id: 'd21', theme: '一道家乡菜', prompt: '介绍一道家乡菜的做法或味道' },
+  { id: 'd22', theme: '交通工具', prompt: '聊聊你常用的交通工具' },
+  { id: 'd23', theme: '夜晚的街', prompt: '描写夜晚的街道' },
+  { id: 'd24', theme: '给一年后的自己', prompt: '写一句话给一年后的自己' },
+];
+
+const pickFlywheelTheme = (date: string): FlywheelTheme => {
+  let h = 0;
+  for (let i = 0; i < date.length; i++) h = (h * 31 + date.charCodeAt(i)) >>> 0;
+  return FLYWHEEL_THEMES[h % FLYWHEEL_THEMES.length];
+};
+
+export const getDailyFlywheel = (): DailyFlywheel | null => {
+  const data = localStorage.getItem(STORAGE_KEY_FLYWHEEL);
+  return data ? JSON.parse(data) : null;
+};
+
+export const ensureDailyFlywheel = (): DailyFlywheel => {
+  const today = getTodayString();
+  const existing = getDailyFlywheel();
+  if (existing && existing.date === today) return existing;
+  const th = pickFlywheelTheme(today);
+  const fw: DailyFlywheel = {
+    date: today,
+    themeId: th.id,
+    theme: th.theme,
+    themePrompt: th.prompt,
+    steps: { writing: false, dictation: false, script: false },
+    allDone: false,
+  };
+  localStorage.setItem(STORAGE_KEY_FLYWHEEL, JSON.stringify(fw));
+  return fw;
+};
+
+const buildFlywheelReflection = (lang: Language): string => {
+  const top = getTopErrorPatterns(lang, 1)[0];
+  if (top) return `今日产出线完成 🎉 写作/听写/字形三路打通。你近期常卡在「${top.label}」，明天可以专门多练练。`;
+  return '今日产出线完成 🎉 写作/听写/字形三路打通，保持这个节奏！';
+};
+
+export const markFlywheelStep = (step: FlywheelStep, lang?: Language): DailyFlywheel => {
+  const fw = ensureDailyFlywheel();
+  fw.steps[step] = true;
+  const allDone = fw.steps.writing && fw.steps.dictation && fw.steps.script;
+  fw.allDone = allDone;
+  if (allDone) fw.reflection = lang ? buildFlywheelReflection(lang) : '今日产出线完成 🎉';
+  localStorage.setItem(STORAGE_KEY_FLYWHEEL, JSON.stringify(fw));
+  return fw;
+};
+
+// 连胜仅在「完成产出飞轮」时累加（取代原 addActivity 内任何活动即 +1 的逻辑）。
+export const commitDailyStreak = (user: UserProfile): UserProfile => {
+  const today = getTodayString();
+  if (user.lastStreakDate === today) return user; // 今天已计入，防重
+  let updated: UserProfile = { ...user };
+  if (!updated.lastStreakDate) {
+    updated.currentStreak = 1;
+  } else {
+    const last = new Date(updated.lastStreakDate);
+    const curr = new Date(today);
+    const diffDays = Math.ceil(Math.abs(curr.getTime() - last.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays === 1) updated.currentStreak += 1;
+    else updated.currentStreak = 1;
+  }
+  if (updated.currentStreak > updated.maxStreak) updated.maxStreak = updated.currentStreak;
+  updated.lastStreakDate = today;
+  saveUser(updated);
+  return updated;
 };
 
 // --- 墨程 InkQuest 手帐（独立于 UserProfile，避免 addActivity 频繁序列化大数组） ---
@@ -402,6 +541,7 @@ export const registerUser = (username: string, nativeLanguage: Language, learnin
     maxStreak: 1,
     lastActiveDate: getTodayString(),
     streakShields: 1,
+    lastStreakDate: getTodayString(),
     dailyQuests: generateDailyQuests(learningLanguage),
     lastQuestDate: getTodayString(),
     mentorPersona: 'encourager',
@@ -487,6 +627,8 @@ export const rolloverDailyQuests = (user: UserProfile): UserProfile => {
         user.lastQuestDate = today;
         saveUser(user);
     }
+    // 确保今日产出飞轮存在（跨天刷新时重置为新主题）
+    ensureDailyFlywheel();
     return user;
 };
 
@@ -515,14 +657,14 @@ export const progressQuests = (user: UserProfile, kind: QuestKind, amount: numbe
     return user;
 };
 
-// 加载时校验 streak：若已超过一天未活跃且无机动（保护卡），真实归零
+// 加载时校验 streak：连胜以「完成产出飞轮」为基准（lastStreakDate），断签则清零/消耗护盾
 export const checkStreakOnLoad = (user: UserProfile): UserProfile => {
     const today = getTodayString();
-    if (user.lastActiveDate === today) return user;
+    if (user.lastStreakDate === today) return user;        // 今天已完成飞轮并计入
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const yStr = yesterday.toISOString().split('T')[0];
-    if (user.lastActiveDate === yStr) return user; // 昨天活跃过，今天尚未练习，streak 仍有效
+    if (user.lastStreakDate === yStr) return user;          // 昨天完成过，今天尚未完成，连胜仍有效
     if (user.currentStreak > 0) {
         if (user.streakShields > 0) {
             user.streakShields -= 1; // 消耗一张断签保护卡
@@ -623,22 +765,9 @@ export const addActivity = (
 
   updatedUser.progress[language] = langProgress;
 
-  // Global Streak Logic
+  // 连胜逻辑已迁移到「完成产出飞轮」时由 commitDailyStreak 累加（见 DailyFlywheel）。
+  // 此处仅记录今日活跃日期，连胜数值不再随任意活动自动 +1。
   if (isNewDay) {
-      // Check if consecutive day
-      const last = new Date(user.lastActiveDate);
-      const curr = new Date(today);
-      const diffTime = Math.abs(curr.getTime() - last.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-
-      if (diffDays === 1) {
-          updatedUser.currentStreak += 1;
-          if (updatedUser.currentStreak > updatedUser.maxStreak) {
-              updatedUser.maxStreak = updatedUser.currentStreak;
-          }
-      } else if (diffDays > 1) {
-          updatedUser.currentStreak = 1;
-      }
       updatedUser.lastActiveDate = today;
   }
 
