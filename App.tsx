@@ -32,11 +32,15 @@ const NAV_GROUPS: { label: string; items: string[] }[] = [
   { label: '社区', items: ['social', 'profile'] },
 ];
 
+const GITHUB_REPO = 'Chmodpuppets/linguaflow';
+const GITHUB_STARS_KEY = 'linguaflow_github_stars';
+
 const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [mode, setMode] = useState<AppMode>(AppMode.Daily);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [typingInitialData, setTypingInitialData] = useState<{text: string; title: string; notes?: string} | null>(null);
+  const [stars, setStars] = useState<number | null>(null);
 
   // Initial Load
   useEffect(() => {
@@ -45,6 +49,27 @@ const App: React.FC = () => {
       const refreshed = rolloverDailyQuests(checkStreakOnLoad(loadedUser));
       setUser(refreshed);
     }
+  }, []);
+
+  // GitHub stars：侧栏卡片实时展示，缓存到 localStorage 每天刷新一次（公开 API，无需鉴权）
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+      const cached = JSON.parse(localStorage.getItem(GITHUB_STARS_KEY) || 'null');
+      if (cached && cached.date === today && typeof cached.count === 'number') {
+        setStars(cached.count);
+        return;
+      }
+    } catch {}
+    fetch(`https://api.github.com/repos/${GITHUB_REPO}`, { headers: { Accept: 'application/vnd.github+json' } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d && typeof d.stargazers_count === 'number') {
+          setStars(d.stargazers_count);
+          try { localStorage.setItem(GITHUB_STARS_KEY, JSON.stringify({ count: d.stargazers_count, date: today })); } catch {}
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // HOOK 必须在 early return 之前无条件调用，否则登录前后 hook 数量不一致
@@ -329,6 +354,20 @@ const App: React.FC = () => {
                 </div>
             ))}
         </nav>
+
+        {/* GitHub Star 卡片：侧栏底部，实时展示 stars 数 + 仓库链接 */}
+        <a
+          href={`https://github.com/${GITHUB_REPO}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="m-4 flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-gray-300 transition-colors hover:border-neon/40 hover:text-white"
+        >
+          <Star size={16} className="text-amber-300" />
+          <span className="flex-1 truncate">Star on GitHub</span>
+          <span className="rounded-full bg-amber-400/15 px-2 py-0.5 text-xs font-semibold text-amber-300">
+            {stars != null ? stars : '—'}
+          </span>
+        </a>
       </aside>
 
       {/* Main Content */}
