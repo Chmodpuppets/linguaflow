@@ -21,7 +21,8 @@ import {
   GalleryVerticalEnd,
   Layers,
   Feather,
-  Warehouse
+  Warehouse,
+  Music
 } from 'lucide-react';
 
 export const SUPPORTED_LANGUAGES = [
@@ -68,6 +69,7 @@ export const NAV_ITEMS = [
   { id: 'ink_quest', label: '墨程', icon: <Feather size={20} /> },
   { id: 'content_repo', label: '内容仓库', icon: <Warehouse size={20} /> },
   { id: 'import', label: '导入', icon: <Upload size={20} /> },
+  { id: 'song_lab', label: '歌曲跟打', icon: <Music size={20} /> },
   { id: 'social', label: '学习搭子', icon: <Users size={20} /> },
   { id: 'profile', label: '我的资料', icon: <User size={20} /> },
 ];

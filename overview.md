@@ -104,3 +104,9 @@ Wave 3 资源工具（记忆库 / 内容仓库 / 词汇 / 错题本 / 作品集 
 - 统一迁移映射：`bg-card`→`glass-panel`、`text-secondary`→`text-neon-2`、`bg-primary/secondary`→`bg-neon/neon-2`、`border-primary/secondary`→`border-neon/neon-2`、`focus:ring-secondary`→`focus:ring-neon`、`from-primary to-secondary`→`from-neon to-neon-2 shadow-glow-neon`。
 - 功能/逻辑/状态零改动，`prefers-reduced-motion` 下动效自动降级。
 - 预览：http://localhost:5174
+
+## 歌曲跟打（Song Lab）迭代
+- 新增「歌曲跟打」模块（LRC/纯文本 + mp3 → 自动切句 → 逐句打字练习），含本地 `kanaToRomaji` 注音、`translateText` AI 翻译、IndexedDB 存音频。
+- 本地 Python 工具链（用户本地运行，独立工程）：`scripts/song_segmenter.py`（librosa 自动断句出 segments.json）、`scripts/song_clipper.py`（ffmpeg 按时间戳切出逐句 mp3 片段 + 带 clip/start/end 的 segments.json，可 --package 打包）。
+- 前端接收剪辑包：SongLab「导入 segments.json」+「附带每句音频」→ 保存时写 IndexedDB 每句片段 → 播放器每句「精听」只播该片段 → 跳打字 flow。
+- 验证：tsc --noEmit ✓、vite build ✓、预览 http://localhost:5174（200）。

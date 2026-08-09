@@ -207,6 +207,19 @@ export const chatCompletionWithSystem = async (system: string, prompt: string, t
     throw lastErr;
 };
 
+// --- 翻译：复用通用 chat 接口，把源语言文本译为母语。失败时抛出，由调用方降级（留空）。 ---
+export const translateText = async (text: string, srcLang: Language, dstLang: Language): Promise<string> => {
+  if (!text.trim()) return '';
+  const system = `You are a precise subtitle/lyric translator. Translate the user's ${srcLang} text into ${dstLang}. Output ONLY the translation itself — no quotes, no explanation, no extra lines. Preserve meaning and tone.`;
+  try {
+    const r = await chatCompletionWithSystem(system, text, 0.3);
+    return r.trim();
+  } catch (e) {
+    console.error('[LinguaFlow] translateText failed', e);
+    throw e;
+  }
+};
+
 // One-off connectivity test using the given (or currently stored) config's
 // primary provider. Returns the raw model reply (e.g. "OK") on success.
 export const testModelConnection = async (config?: AIConfig): Promise<string> => {

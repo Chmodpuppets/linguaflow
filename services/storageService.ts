@@ -1,5 +1,5 @@
 
-import { UserProfile, ActivityLog, Language, CEFRLevel, UserContent, LanguageProgress, WritingNode, VocabularyItem, DailyQuest, QuestKind, MentorPersona, AIMemory, ScriptItem, ScriptCardProgress, ErrorCard, WritingScoreRecord, TypingContent, ErrorPattern, ErrorPatternType, FlywheelStep, DailyFlywheel } from '../types';
+import { UserProfile, ActivityLog, Language, CEFRLevel, UserContent, LanguageProgress, WritingNode, VocabularyItem, DailyQuest, QuestKind, MentorPersona, AIMemory, ScriptItem, ScriptCardProgress, ErrorCard, WritingScoreRecord, TypingContent, ErrorPattern, ErrorPatternType, FlywheelStep, DailyFlywheel, SongPack } from '../types';
 import { createDefaultGrowthTree, CEFR_RANK } from '../data/growthTree';
 import { getScriptPackForLanguage } from '../data/scriptPacks';
 
@@ -27,7 +27,7 @@ export const ALL_STORAGE_KEYS: string[] = [
   'linguaflow_writing_history', 'linguaflow_inkquest', 'linguaflow_inkquest_story',
   'linguaflow_inkquest_listening', 'linguaflow_typing_library', 'linguaflow_error_patterns',
   'linguaflow_daily_flywheel', 'linguaflow_custom_script', 'linguaflow_custom_writing',
-  'linguaflow_rpg_session', 'linguaflow_rpg_custom',
+  'linguaflow_rpg_session', 'linguaflow_rpg_custom', 'linguaflow_song_packs',
 ];
 
 // --- Runtime AI model configuration (switcher in Settings -> 模型设置) ---
@@ -1092,4 +1092,157 @@ export const getWritingHistoryByLang = (lang: Language): WritingScoreRecord[] =>
     return getWritingHistory()
         .filter((r) => r.language === lang)
         .sort((a, b) => a.timestamp - b.timestamp);
+};
+
+// --- Song Lab（歌曲跟打）---
+// 歌词包元数据存 localStorage（体积小）；音频 blob 体积大，单独存 IndexedDB，避免超限。
+
+const STORAGE_KEY_SONG_PACKS = 'linguaflow_song_packs';
+
+export const getSongPacks = (): SongPack[] => {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY_SONG_PACKS);
+        return raw ? JSON.parse(raw) : [];
+    } catch {
+        return [];
+    }
+};
+
+export const getSongPack = (id: string): SongPack | null => {
+    return getSongPacks().find((p) => p.id === id) ?? null;
+};
+
+export const saveSongPack = (pack: SongPack): SongPack[] => {
+    const all = getSongPacks();
+    const next = [pack, ...all.filter((p) => p.id !== pack.id)].sort((a, b) => b.createdAt - a.createdAt);
+    localStorage.setItem(STORAGE_KEY_SONG_PACKS, JSON.stringify(next));
+    return next;
+};
+
+export const deleteSongPack = async (id: string): Promise<SongPack[]> => {
+    const pack = getSongPack(id);
+    if (pack?.audioId) {
+        try { await deleteSongAudio(pack.audioId); } catch { /* 音频删除失败不影响元数据清理 */ }
+    }
+    if (pack?.hasClips) {
+        try { await deleteSongClips(id); } catch { /* 片段清理失败不影响元数据 */ }
+    }
+    const next = getSongPacks().filter((p) => p.id !== id);
+    localStorage.setItem(STORAGE_KEY_SONG_PACKS, JSON.stringify(next));
+    return next;
+};
+
+// --- 音频 blob：IndexedDB 封装（独立于 localStorage 的 key 空间）---
+const SONG_AUDIO_DB = 'linguaflow_song_audio';
+const SONG_AUDIO_STORE = 'audio';
+
+const openSongAudioDB = (): Promise<IDBDatabase> =>
+    new Promise((resolve, reject) => {
+        const req = indexedDB.open(SONG_AUDIO_DB, 1);
+        req.onupgradeneeded = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains(SONG_AUDIO_STORE)) {
+                db.createObjectStore(SONG_AUDIO_STORE);
+            }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+
+export const saveSongAudio = async (id: string, blob: Blob): Promise<void> => {
+    const db = await openSongAudioDB();
+    try {
+        await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction(SONG_AUDIO_STORE, 'readwrite');
+            tx.objectStore(SONG_AUDIO_STORE).put(blob, id);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    } finally {
+        db.close();
+    }
+};
+
+export const getSongAudio = async (id: string): Promise<Blob | null> => {
+    const db = await openSongAudioDB();
+    try {
+        return await new Promise<Blob | null>((resolve, reject) => {
+            const tx = db.transaction(SONG_AUDIO_STORE, 'readonly');
+            const req = tx.objectStore(SONG_AUDIO_STORE).get(id);
+            req.onsuccess = () => resolve((req.result as Blob) ?? null);
+            req.onerror = () => reject(req.error);
+        });
+    } finally {
+        db.close();
+    }
+};
+
+export const deleteSongAudio = async (id: string): Promise<void> => {
+    const db = await openSongAudioDB();
+    try {
+        await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction(SONG_AUDIO_STORE, 'readwrite');
+            tx.objectStore(SONG_AUDIO_STORE).delete(id);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    } finally {
+        db.close();
+    }
+};
+
+// --- 每句音频片段：IndexedDB（key 形如 clip:${packId}:${idx}）---
+const SONG_CLIP_PREFIX = 'clip:';
+
+export const saveSongClips = async (
+    packId: string,
+    clips: { idx: number; blob: Blob }[],
+): Promise<void> => {
+    const db = await openSongAudioDB();
+    try {
+        await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction(SONG_AUDIO_STORE, 'readwrite');
+            const store = tx.objectStore(SONG_AUDIO_STORE);
+            for (const c of clips) store.put(c.blob, `${SONG_CLIP_PREFIX}${packId}:${c.idx}`);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    } finally {
+        db.close();
+    }
+};
+
+export const getSongClip = async (packId: string, idx: number): Promise<Blob | null> => {
+    const db = await openSongAudioDB();
+    try {
+        return await new Promise<Blob | null>((resolve, reject) => {
+            const tx = db.transaction(SONG_AUDIO_STORE, 'readonly');
+            const req = tx.objectStore(SONG_AUDIO_STORE).get(`${SONG_CLIP_PREFIX}${packId}:${idx}`);
+            req.onsuccess = () => resolve((req.result as Blob) ?? null);
+            req.onerror = () => reject(req.error);
+        });
+    } finally {
+        db.close();
+    }
+};
+
+export const deleteSongClips = async (packId: string): Promise<void> => {
+    const db = await openSongAudioDB();
+    try {
+        await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction(SONG_AUDIO_STORE, 'readwrite');
+            const store = tx.objectStore(SONG_AUDIO_STORE);
+            const req = store.openCursor();
+            req.onsuccess = () => {
+                const cur = req.result;
+                if (cur) {
+                    if (String(cur.key).startsWith(`${SONG_CLIP_PREFIX}${packId}:`)) cur.delete();
+                    cur.continue();
+                } else resolve();
+            };
+            req.onerror = () => reject(req.error);
+        });
+    } finally {
+        db.close();
+    }
 };

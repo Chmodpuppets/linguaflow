@@ -15,6 +15,7 @@ import VocabularyView from './components/VocabularyView';
 import RPGView from './components/RPGView';
 import DailyView from './components/DailyView';
 import ImportView from './components/ImportView';
+import SongLabView from './components/SongLabView';
 import SocialView from './components/SocialView';
 import ScriptTrainerView from './components/ScriptTrainerView';
 import ErrorBookView from './components/ErrorBookView';
@@ -28,7 +29,7 @@ import { GraduationCap, ChevronDown, Menu, Flame, Star } from 'lucide-react';
 const NAV_GROUPS: { label: string; items: string[] }[] = [
   { label: '学习', items: ['daily', 'typing', 'writing', 'rpg'] },
   { label: '精进', items: ['writing_tree', 'composition_studio', 'ink_quest', 'script_trainer', 'vocabulary', 'errorbook', 'error_patterns'] },
-  { label: '资源', items: ['library', 'content_repo', 'import', 'trend', 'portfolio'] },
+  { label: '资源', items: ['library', 'content_repo', 'import', 'song_lab', 'trend', 'portfolio'] },
   { label: '社区', items: ['social', 'profile'] },
 ];
 
@@ -245,6 +246,14 @@ const App: React.FC = () => {
             <ImportView
                 user={user}
                 onUpdateUser={handleUserUpdate}
+            />
+        );
+      case AppMode.SongLab:
+        return (
+            <SongLabView
+                user={user}
+                onUpdateUser={handleUserUpdate}
+                onPractice={handlePracticeFromLibrary}
             />
         );
       case AppMode.Social:

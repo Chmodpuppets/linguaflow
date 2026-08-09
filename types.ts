@@ -120,7 +120,8 @@ export enum AppMode {
   Portfolio = 'portfolio',
   CompositionStudio = 'composition_studio',
   InkQuest = 'ink_quest',
-  ContentRepo = 'content_repo'
+  ContentRepo = 'content_repo',
+  SongLab = 'song_lab'
 }
 
 // --- Personalization (Phase 2/3) ---
@@ -163,6 +164,32 @@ export interface TypingContent {
     meaning: string;
     partOfSpeech: string;
   }>;
+}
+
+// --- Song Lab（歌曲跟打）---
+// 用户粘贴 LRC / 纯文本歌词 + 可选上传 mp3，自动切割成逐句，逐句做打字练习。
+// 音频 blob 存 IndexedDB（避免 localStorage 超限），SongPack 仅存 audioId 引用。
+export interface SongLine {
+  id: string;
+  time?: number;          // LRC 时间戳（秒）。纯文本无时间戳则为 undefined
+  start?: number;         // 剪辑片段起止（秒），来自本地剪辑包
+  end?: number;
+  clip?: string;          // 该句音频片段文件名（如 01.mp3），相对剪辑包
+  text: string;           // 原句（目标语言，例如日语歌词）
+  translation?: string;   // 中译（可选，AI 生成或手动）
+  romaji?: string;        // 注音（日语 romaji 等，本地生成或手动）
+}
+
+export interface SongPack {
+  id: string;
+  title: string;          // 歌名
+  artist?: string;        // 歌手（可选）
+  language: Language;
+  lines: SongLine[];
+  source: 'lrc' | 'plain';
+  audioId?: string;       // 对应 IndexedDB 中的整首音频 blob key
+  hasClips?: boolean;     // 是否带每句音频片段（来自剪辑包）
+  createdAt: number;
 }
 
 export interface WritingFeedback {

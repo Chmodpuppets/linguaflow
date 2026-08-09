@@ -135,10 +135,16 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser, onNavigate })
                   <button
                     key={m.step}
                     onClick={() => onNavigate(m.mode)}
-                    className={`flex items-center gap-2 rounded-xl border p-3 text-left transition-all duration-200 ${done ? 'border-green-400/30 bg-green-500/10 text-green-300' : 'border-line-strong bg-surface-2/40 text-gray-300 hover:border-neon/40 hover:text-white'}`}
+                    className={`group flex items-center gap-2 rounded-2xl border p-3 text-left backdrop-blur-xl transition-all duration-300 ${
+                      done
+                        ? 'border-green-400/30 bg-green-500/10 text-green-300 shadow-[0_0_16px_-4px_rgba(74,222,128,0.35)]'
+                        : 'border-white/[0.07] bg-surface-2/70 shadow-card hover:-translate-y-0.5 hover:border-neon/35 hover:shadow-glow-neon'
+                    }`}
                   >
-                    {done ? <CheckCircle2 size={16} /> : m.icon}
-                    <span className="text-sm font-semibold">{m.label}</span>
+                    <span className={`transition-all duration-300 ${done ? '' : 'text-violet-300 group-hover:scale-110 group-hover:text-violet-200 group-hover:drop-shadow-[0_0_10px_rgba(139,92,246,0.9)]'}`}>
+                      {done ? <CheckCircle2 size={16} /> : m.icon}
+                    </span>
+                    <span className={`text-sm font-semibold ${done ? '' : 'text-white'}`}>{m.label}</span>
                   </button>
                 );
               })}
