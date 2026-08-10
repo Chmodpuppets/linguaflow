@@ -670,15 +670,11 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
     if (!line) return;
     const mr = matchResult(v, line.text);
     const passed = (mr.state === 'exact' || (sessionForgiving && mr.state === 'close')) && v.trim().length > 0;
-    if (passed && !sessionDone.has(sessionIdx) && !advanceScheduledRef.current) {
+    if (passed && !sessionDone.has(sessionIdx)) {
       const next = new Set(sessionDone);
       next.add(sessionIdx);
       setSessionDone(next);
-      advanceScheduledRef.current = true;
-      setTimeout(() => {
-        if (sessionIdx + 1 < activePack!.lines.length) goToSentence(sessionIdx + 1);
-        else setSessionFinished(true);
-      }, 900);
+      // 不再自动跳下一句：通过仅作标记，由用户按回车或点「下一句」主动前进
     }
   };
 
@@ -1019,7 +1015,7 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
 
               {sessionDone.has(sessionIdx) && (
                 <div className="text-center text-green-300 flex items-center justify-center gap-1.5 text-sm font-semibold">
-                  <CheckCircle2 size={18} /> 这一句通过！自动进入下一句…
+                  <CheckCircle2 size={18} /> 这一句通过！按回车或点「下一句」继续 →
                 </div>
               )}
 
@@ -1029,7 +1025,17 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
                 autoFocus
                 value={sessionInput}
                 onChange={(e) => onSessionInput(e.target.value)}
-                placeholder="听着循环播放，打出这一句…"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (isLast) {
+                      if (sessionDone.has(sessionIdx)) setSessionFinished(true);
+                    } else {
+                      goToSentence(sessionIdx + 1);
+                    }
+                  }
+                }}
+                placeholder="听着循环播放，打出这一句…（打完后按回车进下一句）"
                 className={`w-full glass-panel border rounded-xl px-4 py-3 text-lg text-white outline-none transition-all ${
                   correctNow
                     ? 'border-green-500/60 shadow-glow-sm'
@@ -1083,11 +1089,19 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
                   ← 上一句
                 </button>
                 <button
-                  onClick={() => !isLast && goToSentence(sessionIdx + 1)}
-                  disabled={isLast}
-                  className="px-3 py-2 rounded-lg bg-surface-3/70 text-gray-200 border border-neon/25 hover:border-neon/60 text-sm font-semibold transition disabled:opacity-40"
+                  onClick={() =>
+                    isLast
+                      ? sessionDone.has(sessionIdx) && setSessionFinished(true)
+                      : goToSentence(sessionIdx + 1)
+                  }
+                  disabled={isLast && !sessionDone.has(sessionIdx)}
+                  className={`px-3 py-2 rounded-lg text-sm font-semibold transition ${
+                    isLast && sessionDone.has(sessionIdx)
+                      ? 'bg-neon text-white shadow-glow-neon hover:bg-neon/80'
+                      : 'bg-surface-3/70 text-gray-200 border border-neon/25 hover:border-neon/60 disabled:opacity-40'
+                  }`}
                 >
-                  下一句 →
+                  {isLast ? (sessionDone.has(sessionIdx) ? '完成 🎉' : '下一句 →') : '下一句 →'}
                 </button>
               </div>
             </GlassCard>
