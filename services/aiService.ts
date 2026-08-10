@@ -220,6 +220,79 @@ export const translateText = async (text: string, srcLang: Language, dstLang: La
   }
 };
 
+// --- 注音/罗马音：调用 AI 把歌词（含汉字/拼音体系）正确读出拉丁字母读音 ---
+// 日语 → Hepburn romaji（含汉字读音）；中文 → 带声调 Hanyu Pinyin；韩文 → 罗马字；其他 → 自然拉丁转写。
+// 失败时抛出，由调用方降级（留空或回退本地查表）。
+export const generatePhonetic = async (text: string, lang: Language): Promise<string> => {
+  if (!text.trim()) return '';
+  if (buildProviders().length === 0) throw new Error('未配置 AI 模型，请先在「我的资料 / 设置」里配置模型与 API Key');
+  const system = `You are a precise phonetic transliteration engine for ${lang} lyrics.
+Given one line of ${lang} text (which may contain kanji/汉字 or native script), output ONLY its phonetic reading in Latin letters:
+- Japanese: Hepburn romaji, reading kanji correctly (e.g. 恋 → koi, 空 → sora), with long-vowel marks (ā, ī, ū, ē, ō).
+- Chinese: Hanyu Pinyin with tone marks (e.g. 你好 → nǐ hǎo).
+- Korean: Revised Romanization (e.g. 사랑 → sarang).
+- Other languages: a natural Latin romanization of the script.
+Output ONLY the transliteration — no quotes, no explanation, no extra lines.`;
+  try {
+    const r = await chatCompletionWithSystem(system, text, 0.2);
+    return r.trim();
+  } catch (e) {
+    console.error('[LinguaFlow] generatePhonetic failed', e);
+    throw e;
+  }
+};
+
+// --- 批量注音/罗马音：一次调用返回整首所有行的读音数组，避免逐句发请求 ---
+export const generatePhoneticsBatch = async (texts: string[], lang: Language): Promise<string[]> => {
+  const indexed = texts.map((t, i) => ({ i, t })).filter((x) => x.t && x.t.trim());
+  if (indexed.length === 0) return texts.map(() => '');
+  if (buildProviders().length === 0) throw new Error('未配置 AI 模型，请先在「设置」里配置模型与 API Key');
+  const numbered = indexed.map((x, k) => `${k + 1}. ${x.t}`).join('\n');
+  const system = `You are a precise phonetic transliteration engine for ${lang} lyrics.
+The user gives several numbered lyric lines. Return a JSON array of strings — one phonetic reading per input line, in the SAME order and SAME length.
+Rules per entry:
+- Japanese: Hepburn romaji, reading kanji correctly (恋→koi, 空→sora), with long-vowel marks (ā, ī, ū, ē, ō).
+- Chinese: Hanyu Pinyin with tone marks (你好→nǐ hǎo).
+- Korean: Revised Romanization (사랑→sarang).
+- Others: natural Latin romanization.
+Output ONLY the JSON array. No explanation, no Markdown code block.`;
+  try {
+    const r = await chatCompletionWithSystem(system, numbered, 0.2);
+    const arr = parseAIJSON<string[]>(r, []);
+    if (!Array.isArray(arr)) throw new Error('AI 返回格式异常');
+    const out = texts.map(() => '');
+    indexed.forEach((x, k) => {
+      out[x.i] = typeof arr[k] === 'string' ? arr[k] : '';
+    });
+    return out;
+  } catch (e) {
+    console.error('[LinguaFlow] generatePhoneticsBatch failed', e);
+    throw e;
+  }
+};
+
+// --- 批量翻译：一次调用返回整首所有行的译文数组 ---
+export const translateTextsBatch = async (texts: string[], srcLang: Language, dstLang: Language): Promise<string[]> => {
+  const indexed = texts.map((t, i) => ({ i, t })).filter((x) => x.t && x.t.trim());
+  if (indexed.length === 0) return texts.map(() => '');
+  if (buildProviders().length === 0) throw new Error('未配置 AI 模型，请先在「设置」里配置模型与 API Key');
+  const numbered = indexed.map((x, k) => `${k + 1}. ${x.t}`).join('\n');
+  const system = `You are a precise subtitle/lyric translator. The user gives several numbered ${srcLang} lines. Return a JSON array of strings — the ${dstLang} translation of each line, in the SAME order and SAME length. Output ONLY the JSON array, no explanation, no Markdown code block.`;
+  try {
+    const r = await chatCompletionWithSystem(system, numbered, 0.3);
+    const arr = parseAIJSON<string[]>(r, []);
+    if (!Array.isArray(arr)) throw new Error('AI 返回格式异常');
+    const out = texts.map(() => '');
+    indexed.forEach((x, k) => {
+      out[x.i] = typeof arr[k] === 'string' ? arr[k] : '';
+    });
+    return out;
+  } catch (e) {
+    console.error('[LinguaFlow] translateTextsBatch failed', e);
+    throw e;
+  }
+};
+
 // One-off connectivity test using the given (or currently stored) config's
 // primary provider. Returns the raw model reply (e.g. "OK") on success.
 export const testModelConnection = async (config?: AIConfig): Promise<string> => {

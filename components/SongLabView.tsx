@@ -10,8 +10,7 @@ import {
   saveSongClips,
   getSongClip,
 } from '../services/storageService';
-import { translateText } from '../services/aiService';
-import { kanaToRomaji } from '../utils/kanaToRomaji';
+import { translateTextsBatch, generatePhoneticsBatch } from '../services/aiService';
 import { GlassCard } from './ui';
 import {
   Music,
@@ -165,6 +164,36 @@ const matchResult = (input: string, target: string): { state: MatchState; diff: 
   return { state: 'wrong', diff: dist };
 };
 
+// 一键复制给 AI 的「歌词结构化」Prompt：AI 会先追问歌名/歌手，再返回本 App 可直接导入的 JSON。
+const AI_LYRICS_PROMPT = `你是一个歌词结构化助手。用户会告诉你一首歌的歌名和歌手，请按下面流程工作：
+
+1. 如果用户没给全歌名和歌手，先主动追问「是哪首歌？谁唱的？」。
+2. 确认后，整理出这首歌的完整歌词，逐句拆分为 JSON。
+3. 严格按以下 schema 输出，**只输出 JSON 本身**，不要任何解释、前言，也不要 Markdown 代码块标记（不要 \`\`\`json）。
+
+{
+  "title": "歌名",
+  "artist": "歌手",
+  "language": "Japanese",
+  "lines": [
+    {
+      "text": "原文歌词（目标语言，逐句）",
+      "romaji": "该行读音的拉丁字母：日语用 Hepburn romaji（必须正确读出汉字，如 恋→koi、空→sora）、中文用带声调拼音、韩文用罗马字、其他语言用自然拉丁转写",
+      "translation": "这一句的中文翻译",
+      "time": 0,
+      "start": 0,
+      "end": 0
+    }
+  ]
+}
+
+要求：
+- 每句歌词单独成一个 lines 元素，不要合并多句。
+- romaji 必须读出汉字，输出里不得残留任何汉字/假名等非拉丁字符（原文放 text，读音放 romaji）。
+- translation 用自然、口语化的中文。
+- 如不知道真实音频时间轴，time/start/end 全部填 0；用户之后会在 App 里手动改时间戳。
+- 返回必须是合法 JSON，可被 JSON.parse 直接解析。`;
+
 const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdateUser, onPractice }) => {
   const [tab, setTab] = useState<'build' | 'library'>('build');
   const [view, setView] = useState<'browse' | 'player' | 'session'>('browse');
@@ -179,6 +208,9 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
   const [source, setSource] = useState<'lrc' | 'plain'>('lrc');
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<{ type: 'info' | 'ok' | 'warn'; msg: string } | null>(null);
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState('');
 
   // --- library / player 状态 ---
   const [packs, setPacks] = useState<SongPack[]>(() => getSongPacks());
@@ -224,6 +256,17 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
 
   // --- builder 操作 ---
 
+  // 一键复制「AI 歌词结构化」Prompt 到剪贴板
+  const copyPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(AI_LYRICS_PROMPT);
+      setCopiedPrompt(true);
+      setTimeout(() => setCopiedPrompt(false), 2000);
+    } catch {
+      setStatus({ type: 'warn', msg: '复制失败，请手动选择文本复制。' });
+    }
+  };
+
   const handleParse = () => {
     if (raw.trim().length < 4) {
       setStatus({ type: 'warn', msg: '请先粘贴歌词（LRC / SRT 字幕 / 或纯文本）。' });
@@ -249,36 +292,73 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
 
   const removeLine = (id: string) => setLines((ls) => ls.filter((l) => l.id !== id));
 
-  const generateRomaji = () => {
-    if (lang !== Language.Japanese) {
-      setStatus({ type: 'info', msg: 'romaji 注音目前为日语优化；其他语言暂跳过注音。' });
-    }
-    setLines((ls) => ls.map((l) => ({ ...l, romaji: l.romaji ?? kanaToRomaji(l.text) })));
-    setStatus({ type: 'ok', msg: '已为每句生成 romaji 注音（本地离线，无需联网）。' });
+  // 播放器中直接编辑已保存歌曲包的时间轴，并持久化到 storage
+  const updateActiveLine = (id: string, patch: Partial<SongLine>) => {
+    if (!activePack) return;
+    const nextLines = activePack.lines.map((l) => (l.id === id ? { ...l, ...patch } : l));
+    const nextPack = { ...activePack, lines: nextLines };
+    setActivePack(nextPack);
+    saveSongPack(nextPack); // 持久化（storageService 会替换同 id）
+    setPacks(getSongPacks());
   };
 
-  const generateTranslation = async () => {
+  // 批量生成整首注音（1 次 API 调用），逐句覆盖
+  const generateRomaji = async () => {
     if (lines.length === 0) return;
     setBusy(true);
-    let changed = false;
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].translation) continue;
-      try {
-        const t = await translateText(lines[i].text, lang, user.nativeLanguage);
-        if (t) {
-          setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, translation: t } : l)));
-          changed = true;
-        }
-      } catch {
-        /* 单句失败留空，继续下一句 */
-      }
+    try {
+      const romajis = await generatePhoneticsBatch(
+        lines.map((l) => l.text),
+        lang
+      );
+      const next = lines.map((l, i) => ({ ...l, romaji: romajis[i] || l.romaji || '' }));
+      setLines(next);
+      const ok = next.filter((l) => l.romaji).length;
+      setStatus({
+        type: ok ? 'ok' : 'warn',
+        msg: ok
+          ? `已重新生成全部 ${lines.length} 句注音（1 次 API 调用，含汉字读音 / 中文拼音）。`
+          : `注音生成失败：AI 未返回有效内容。请检查 AI 模型配置 / 额度 / 网络，或手动填写罗马音。`,
+      });
+    } catch (e: any) {
+      setStatus({
+        type: 'warn',
+        msg: `注音生成失败：${e?.message || '未知错误'}。请检查 AI 模型配置 / 额度 / 网络，或手动填写罗马音。`,
+      });
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
-    setStatus(
-      changed
-        ? { type: 'ok', msg: '已调用 AI 补充译文（失败句已留空，可手动补或稍后重试）。' }
-        : { type: 'warn', msg: '翻译服务暂不可用，请稍后重试或手动填写译文。' }
-    );
+  };
+
+  // 批量翻译：仅对缺译文的行做一次 API 调用补全
+  const generateTranslation = async () => {
+    if (lines.length === 0) return;
+    const gaps = lines.map((l, i) => ({ i, has: !l.translation && !!l.text })).filter((x) => x.has);
+    if (gaps.length === 0) {
+      setStatus({ type: 'info', msg: '本歌所有句子已有译文，无需生成。' });
+      return;
+    }
+    setBusy(true);
+    try {
+      const texts = gaps.map((g) => lines[g.i].text);
+      const trs = await translateTextsBatch(texts, lang, user.nativeLanguage);
+      const map = new Map<number, string>();
+      gaps.forEach((g, k) => {
+        if (trs[k]) map.set(g.i, trs[k]);
+      });
+      setLines((ls) => ls.map((l, i) => (map.has(i) ? { ...l, translation: map.get(i)! } : l)));
+      setStatus({
+        type: 'ok',
+        msg: `已批量生成 ${map.size} 句译文（1 次 API 调用）。`,
+      });
+    } catch (e: any) {
+      setStatus({
+        type: 'warn',
+        msg: `翻译生成失败：${e?.message || '未知错误'}。请检查 AI 模型配置 / 额度 / 网络，或手动填写译文。`,
+      });
+    } finally {
+      setBusy(false);
+    }
   };
 
   const onPickAudio = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -289,44 +369,47 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
     setAudioPreviewUrl(URL.createObjectURL(f));
   };
 
+  // 解析 JSON 文本并载入歌词（文件导入与粘贴导入共用）。fileName 仅用于状态文案。
+  const loadSongJson = (text: string, fileName?: string) => {
+    try {
+      const data = JSON.parse(text);
+      const rawLines: any[] = Array.isArray(data.lines)
+        ? data.lines
+        : Array.isArray(data)
+          ? data
+          : null;
+      if (!rawLines || rawLines.length === 0) throw new Error('没有可导入的歌词行');
+      const parsed: SongLine[] = rawLines
+        .map((l: any, i: number) => ({
+          id: `l${i}`,
+          text: String(l?.text ?? '').trim(),
+          time: typeof l?.time === 'number' ? l.time : undefined,
+          start: typeof l?.start === 'number' ? l.start : undefined,
+          end: typeof l?.end === 'number' ? l.end : undefined,
+          clip: l?.clip ? String(l.clip) : undefined,
+          romaji: l?.romaji ? String(l.romaji) : undefined,
+          translation: l?.translation ? String(l.translation) : undefined,
+        }))
+        .filter((l) => l.text);
+      if (parsed.length === 0) throw new Error('没有有效的歌词文本');
+      const hasTime = parsed.some((l) => l.time != null);
+      setSource(hasTime ? 'lrc' : 'plain');
+      setLines(parsed);
+      setStatus({
+        type: 'ok',
+        msg: `已${fileName ? `从 ${fileName} ` : ''}导入 ${parsed.length} 句（含时间轴 ${parsed.filter((l) => l.time != null).length} 句）。可补 romaji / 译文后保存。`,
+      });
+    } catch (err: any) {
+      setStatus({ type: 'warn', msg: `导入失败：${err?.message || 'JSON 格式不正确'}` });
+    }
+  };
+
   // 导入本地 Python 脚本（scripts/song_segmenter.py）生成的 segments.json
   const onImportJson = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
     const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const data = JSON.parse(String(reader.result));
-        const rawLines: any[] = Array.isArray(data.lines)
-          ? data.lines
-          : Array.isArray(data)
-            ? data
-            : null;
-        if (!rawLines || rawLines.length === 0) throw new Error('没有可导入的歌词行');
-        const parsed: SongLine[] = rawLines
-          .map((l: any, i: number) => ({
-            id: `l${i}`,
-            text: String(l?.text ?? '').trim(),
-            time: typeof l?.time === 'number' ? l.time : undefined,
-            start: typeof l?.start === 'number' ? l.start : undefined,
-            end: typeof l?.end === 'number' ? l.end : undefined,
-            clip: l?.clip ? String(l.clip) : undefined,
-            romaji: l?.romaji ? String(l.romaji) : undefined,
-            translation: l?.translation ? String(l.translation) : undefined,
-          }))
-          .filter((l) => l.text);
-        if (parsed.length === 0) throw new Error('没有有效的歌词文本');
-        const hasTime = parsed.some((l) => l.time != null);
-        setSource(hasTime ? 'lrc' : 'plain');
-        setLines(parsed);
-        setStatus({
-          type: 'ok',
-          msg: `已从 ${f.name} 导入 ${parsed.length} 句（含时间轴 ${parsed.filter((l) => l.time != null).length} 句）。可补 romaji / 译文后保存。`,
-        });
-      } catch (err: any) {
-        setStatus({ type: 'warn', msg: `导入失败：${err?.message || '文件格式不正确'}` });
-      }
-    };
+    reader.onload = () => loadSongJson(String(reader.result), f.name);
     reader.readAsText(f);
     e.target.value = '';
   };
@@ -418,6 +501,37 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
   const handleDeletePack = async (id: string) => {
     const next = await deleteSongPack(id);
     setPacks(next);
+  };
+
+  // 导出歌曲包为 JSON（含用户修改过的时间轴 / 注音 / 译文），可直接用「导入 segments.json」再次载入复用
+  const exportPack = (pack: SongPack) => {
+    const payload = {
+      title: pack.title,
+      artist: pack.artist,
+      language: pack.language,
+      source: pack.source,
+      lines: pack.lines.map((l) => ({
+        text: l.text,
+        time: l.time,
+        start: l.start,
+        end: l.end,
+        romaji: l.romaji,
+        translation: l.translation,
+      })),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${pack.title || 'song'}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setStatus({
+      type: 'ok',
+      msg: `已导出《${pack.title}》歌词（含你修改的时间轴 / 注音 / 译文）。可再次用「导入 segments.json」载入复用。`,
+    });
   };
 
   // --- player 操作 ---
@@ -611,6 +725,50 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
     return `${m}:${sec.toString().padStart(2, '0')}`;
   };
 
+  // 解析用户输入的时间字符串：m:ss / mm:ss / m:ss.xx / mm:ss.xx -> 秒数
+  const parseTimeInput = (raw: string): number | null => {
+    const s = raw.trim();
+    if (!s) return null;
+    const m = s.match(/^(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?$/);
+    if (!m) return null;
+    const min = parseInt(m[1], 10);
+    const sec = parseInt(m[2], 10);
+    if (sec >= 60) return null;
+    const frac = m[3] ? parseInt(m[3].padEnd(3, '0').slice(0, 3), 10) / 1000 : 0;
+    return Math.round((min * 60 + sec + frac) * 100) / 100;
+  };
+
+  // 可编辑时间输入组件：受控显示 fmtTime，blur 时解析并提交；非法输入回滚
+  const TimeInput: React.FC<{
+    value: number | undefined;
+    onChange: (v: number | undefined) => void;
+    className?: string;
+    placeholder?: string;
+  }> = ({ value, onChange, className, placeholder }) => {
+    const [text, setText] = useState(value != null ? fmtTime(value) : placeholder || '0:00');
+    useEffect(() => {
+      if (value != null) setText(fmtTime(value));
+    }, [value]);
+    return (
+      <input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => {
+          const parsed = parseTimeInput(text);
+          if (parsed != null) {
+            onChange(parsed);
+            setText(fmtTime(parsed));
+          } else {
+            setText(value != null ? fmtTime(value) : placeholder || '0:00');
+          }
+        }}
+        onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
+        placeholder={placeholder}
+        className={`text-center tabular-nums bg-transparent outline-none border-b border-white/10 focus:border-neon hover:border-white/30 transition-colors ${className || ''}`}
+      />
+    );
+  };
+
   // ====================== 渲染 ======================
 
   if (view === 'player' && activePack) {
@@ -676,6 +834,13 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
 
           <div className="flex justify-end gap-2">
             <button
+              onClick={() => activePack && exportPack(activePack)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-surface-3/70 text-gray-200 border border-neon/25 hover:border-neon/60 hover:bg-surface-3 text-sm font-semibold transition"
+              title="导出歌词（含修改过的时间轴/注音/译文），可再次导入复用"
+            >
+              <FileJson size={16} /> 导出歌词
+            </button>
+            <button
               onClick={practiceAll}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-neon-2 text-white text-sm font-bold hover:bg-neon-2/80 shadow-glow-cyan"
             >
@@ -702,12 +867,18 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
                     : 'border-white/[0.06] bg-surface-2/50 hover:border-neon/30'
                 }`}
               >
-                <div className="shrink-0 w-14 text-center text-[11px] font-bold text-muted pt-0.5 leading-tight">
-                  {line.start != null && line.end != null
-                    ? `${fmtTime(line.start)}→${fmtTime(line.end)}`
-                    : line.time != null
-                    ? fmtTime(line.time)
-                    : idx + 1}
+                <div className="shrink-0 w-20 flex flex-col items-center justify-center text-[11px] font-bold text-muted pt-0.5 leading-tight gap-0.5">
+                  {line.start != null && line.end != null ? (
+                    <>
+                      <TimeInput value={line.start} onChange={(v) => updateActiveLine(line.id, { start: v })} className="w-14" />
+                      <span className="text-faint">→</span>
+                      <TimeInput value={line.end} onChange={(v) => updateActiveLine(line.id, { end: v })} className="w-14" />
+                    </>
+                  ) : line.time != null ? (
+                    <TimeInput value={line.time} onChange={(v) => updateActiveLine(line.id, { time: v })} className="w-14" />
+                  ) : (
+                    <span className="text-faint">{idx + 1}</span>
+                  )}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className={`text-base font-semibold ${isCur ? 'text-white' : 'text-gray-200'}`}>{line.text}</div>
@@ -771,8 +942,22 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
             <h1 className="text-xl font-bold text-white truncate flex items-center gap-2">
               <Headphones size={18} className="text-neon" /> 逐句循环精听跟打
             </h1>
-            <p className="text-xs text-muted">
-              {activePack.title} · 第 {sessionIdx + 1}/{total} 句 · 已通过 {doneCount}/{total}
+            <p className="text-xs text-muted flex flex-wrap items-center gap-2">
+              <span>{activePack.title} · 第 {sessionIdx + 1}/{total} 句 · 已通过 {doneCount}/{total}</span>
+              {line && (
+                <span className="inline-flex items-center gap-1 text-neon-2">
+                  <span className="text-faint">·</span>
+                  {line.start != null && line.end != null ? (
+                    <>
+                      <TimeInput value={line.start} onChange={(v) => updateActiveLine(line.id, { start: v })} className="w-16 text-sm px-1.5 py-0.5 rounded-lg bg-surface-3/60 border border-neon/30" />
+                      <span className="text-faint">→</span>
+                      <TimeInput value={line.end} onChange={(v) => updateActiveLine(line.id, { end: v })} className="w-16 text-sm px-1.5 py-0.5 rounded-lg bg-surface-3/60 border border-neon/30" />
+                    </>
+                  ) : line.time != null ? (
+                    <TimeInput value={line.time} onChange={(v) => updateActiveLine(line.id, { time: v })} className="w-16 text-sm px-1.5 py-0.5 rounded-lg bg-surface-3/60 border border-neon/30" />
+                  ) : null}
+                </span>
+              )}
             </p>
           </div>
         </div>
@@ -811,11 +996,21 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
                 <div className="text-2xl font-bold text-white leading-relaxed tracking-wide">
                   {sessionRevealed ? line.text : '・・・・・・・・'}
                 </div>
-                {sessionRevealed && line.romaji && (
-                  <div className="text-neon-2 font-mono mt-1.5 text-sm">{line.romaji}</div>
+                {sessionRevealed && (
+                  <input
+                    value={line.romaji || ''}
+                    onChange={(e) => updateActiveLine(line.id, { romaji: e.target.value })}
+                    placeholder="罗马音"
+                    className="text-neon-2 font-mono mt-1.5 text-sm text-center bg-transparent border-b border-white/15 hover:border-neon/40 focus:border-neon outline-none transition-colors w-full max-w-sm placeholder:text-faint"
+                  />
                 )}
-                {sessionRevealed && line.translation && (
-                  <div className="text-muted text-sm mt-1">{line.translation}</div>
+                {sessionRevealed && (
+                  <input
+                    value={line.translation || ''}
+                    onChange={(e) => updateActiveLine(line.id, { translation: e.target.value })}
+                    placeholder="中文翻译"
+                    className="text-muted text-sm mt-1 text-center bg-transparent border-b border-white/15 hover:border-neon/40 focus:border-neon outline-none transition-colors w-full max-w-sm placeholder:text-faint"
+                  />
                 )}
               </div>
 
@@ -1011,15 +1206,55 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
               >
                 <Scissors size={16} /> 解析并预览
               </button>
+              <button
+                onClick={copyPrompt}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-surface-3/70 text-gray-200 border border-neon/25 hover:border-neon/60 text-sm font-semibold cursor-pointer transition"
+                title="复制 Prompt，扔给任意 AI，让它问你要哪首歌后返回可导入的 JSON"
+              >
+                <Sparkles size={16} className={copiedPrompt ? 'text-neon' : ''} />
+                {copiedPrompt ? '已复制 ✓' : '复制 AI 生成 Prompt'}
+              </button>
               <label className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-surface-3/70 text-gray-200 border border-neon/25 hover:border-neon/60 text-sm font-semibold cursor-pointer transition">
                 <FileJson size={16} /> 导入 segments.json
                 <input type="file" accept=".json,application/json" className="hidden" onChange={onImportJson} />
               </label>
+              <button
+                onClick={() => setPasteOpen((v) => !v)}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition border ${
+                  pasteOpen ? 'bg-neon/15 text-neon border-neon/40' : 'bg-surface-3/70 text-gray-200 border-neon/25 hover:border-neon/60'
+                }`}
+                title="把 AI 返回的歌词 JSON 直接粘贴进来载入"
+              >
+                <FileJson size={16} /> 粘贴 JSON 载入
+              </button>
               <label className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-surface-3/70 text-gray-200 border border-neon/25 hover:border-neon/60 text-sm font-semibold cursor-pointer transition">
                 <Headphones size={16} /> 附带每句音频（多选）
                 <input type="file" accept="audio/*" multiple className="hidden" onChange={onPickClips} />
               </label>
             </div>
+
+            {pasteOpen && (
+              <div className="space-y-2">
+                <textarea
+                  value={pasteText}
+                  onChange={(e) => setPasteText(e.target.value)}
+                  placeholder='把 AI 返回的歌词 JSON 贴在这里，例如：{"lines":[{"text":"夢の続きを知りたいよ","romaji":"yume no tsuzuki o shiritai yo","translation":"我想知道梦的后续","time":12.5}]}'
+                  className="w-full h-36 glass-panel border border-white/10 rounded-lg p-3 outline-none text-xs text-white placeholder:text-faint resize-none custom-scrollbar font-mono"
+                />
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => {
+                      loadSongJson(pasteText);
+                      setPasteText('');
+                    }}
+                    disabled={!pasteText.trim()}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-neon text-white text-sm font-bold hover:bg-neon/80 shadow-glow-neon disabled:opacity-50"
+                  >
+                    <FileJson size={14} /> 载入歌词
+                  </button>
+                </div>
+              </div>
+            )}
           </GlassCard>
 
           {/* 解析后的句子列表 */}
@@ -1033,9 +1268,10 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={generateRomaji}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-3/70 text-gray-200 border border-neon/25 hover:border-neon/60 hover:bg-surface-3 text-xs font-semibold transition"
+                    disabled={busy}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-3/70 text-gray-200 border border-neon/25 hover:border-neon/60 hover:bg-surface-3 text-xs font-semibold transition disabled:opacity-50"
                   >
-                    <Languages size={14} /> 生成 romaji
+                    <Languages size={14} /> {busy ? '生成中…' : 'AI 生成注音'}
                   </button>
                   <button
                     onClick={generateTranslation}
@@ -1058,7 +1294,19 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
                 {lines.map((line, idx) => (
                   <div key={line.id} className="p-3 rounded-xl border border-white/[0.06] bg-surface-2/50">
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs font-bold text-muted w-12 text-center">{line.start != null && line.end != null ? `${fmtTime(line.start)}→${fmtTime(line.end)}` : line.time != null ? fmtTime(line.time) : idx + 1}</span>
+                      <div className="w-16 flex flex-col items-center justify-center text-[11px] font-bold text-muted text-center gap-0.5">
+                        {line.start != null && line.end != null ? (
+                          <>
+                            <TimeInput value={line.start} onChange={(v) => updateLine(line.id, { start: v })} className="w-12" />
+                            <span className="text-faint">→</span>
+                            <TimeInput value={line.end} onChange={(v) => updateLine(line.id, { end: v })} className="w-12" />
+                          </>
+                        ) : line.time != null ? (
+                          <TimeInput value={line.time} onChange={(v) => updateLine(line.id, { time: v })} className="w-12" />
+                        ) : (
+                          <span className="text-faint">{idx + 1}</span>
+                        )}
+                      </div>
                       <input
                         value={line.text}
                         onChange={(e) => updateLine(line.id, { text: e.target.value })}
@@ -1118,6 +1366,13 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
                   className="px-3 py-2 rounded-lg bg-neon text-white text-sm font-bold hover:bg-neon/80 shadow-glow-neon"
                 >
                   打开 / 跟打
+                </button>
+                <button
+                  onClick={() => exportPack(pack)}
+                  className="p-2 rounded-lg text-muted hover:text-neon hover:bg-neon/10 transition"
+                  title="导出歌词"
+                >
+                  <FileJson size={16} />
                 </button>
                 <button
                   onClick={() => handleDeletePack(pack.id)}
