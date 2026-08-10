@@ -243,6 +243,7 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
   const [sessionDone, setSessionDone] = useState<Set<number>>(new Set());
   const [sessionFinished, setSessionFinished] = useState(false);
   const [sessionForgiving, setSessionForgiving] = useState(true); // 分句容错：允许少量假名误差也算通过
+  const [awaitingAdvance, setAwaitingAdvance] = useState(false); // 回车两步确认：第一次确认已打对，第二次才进下一句
   const loopRangeRef = useRef<{ start: number; end: number } | null>(null);
   const advanceScheduledRef = useRef(false);
 
@@ -659,6 +660,7 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
     setSessionIdx(idx);
     setSessionInput('');
     setSessionRevealed(true);
+    setAwaitingAdvance(false);
     advanceScheduledRef.current = false;
     loopRangeRef.current = null;
     playSentenceLoop(idx);
@@ -1015,7 +1017,10 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
 
               {sessionDone.has(sessionIdx) && (
                 <div className="text-center text-green-300 flex items-center justify-center gap-1.5 text-sm font-semibold">
-                  <CheckCircle2 size={18} /> 这一句通过！按回车或点「下一句」继续 →
+                  <CheckCircle2 size={18} />
+                  {awaitingAdvance
+                    ? '再按一次回车进入下一句 →'
+                    : '这一句通过！按回车确认，再按一次回车进入下一句（或点「下一句」）'}
                 </div>
               )}
 
@@ -1026,12 +1031,21 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
                 value={sessionInput}
                 onChange={(e) => onSessionInput(e.target.value)}
                 onKeyDown={(e) => {
+                  // 忽略输入法组合中的回车（选词确认），避免误触跳转
+                  if ((e.nativeEvent as unknown as { isComposing?: boolean }).isComposing) return;
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    if (isLast) {
-                      if (sessionDone.has(sessionIdx)) setSessionFinished(true);
-                    } else {
-                      goToSentence(sessionIdx + 1);
+                    if (awaitingAdvance) {
+                      // 第二次回车：真正前进
+                      setAwaitingAdvance(false);
+                      if (isLast) {
+                        if (sessionDone.has(sessionIdx)) setSessionFinished(true);
+                      } else {
+                        goToSentence(sessionIdx + 1);
+                      }
+                    } else if (sessionDone.has(sessionIdx)) {
+                      // 第一次回车：确认这一句已打对，等待再按一次才前进
+                      setAwaitingAdvance(true);
                     }
                   }
                 }}
