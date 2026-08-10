@@ -36,3 +36,11 @@ linguaflow-workbench.html
 # Local build/presentation artifacts (not project source)
 deck/
 opc-doc/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Marketing / non-product content (not part of the app)
+wechat-articles/
+xhs-notes/
