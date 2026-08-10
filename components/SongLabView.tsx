@@ -152,13 +152,16 @@ const levenshtein = (a: string, b: string): number => {
 //  exact = 完全一致；close = 在容差内（允许少量假名误差）；wrong = 差距过大；empty = 未输入
 type MatchState = 'empty' | 'exact' | 'close' | 'wrong';
 const isForgivingTolerant = (targetNormLen: number, dist: number) =>
-  dist <= Math.max(1, Math.floor(targetNormLen * 0.2)); // 最多允许 20%（至少 1）个字符误差
+  dist <= Math.floor(targetNormLen * 0.2); // 最多允许 20% 个字符误差（仅容忍长音/促音/浊音等假名细节差异）
 
 const matchResult = (input: string, target: string): { state: MatchState; diff: number } => {
   const a = normalizeForCompare(input);
   const b = normalizeForCompare(target);
   if (a.length === 0) return { state: 'empty', diff: b.length };
   if (a === b) return { state: 'exact', diff: 0 };
+  // 防漏打：输入比目标明显短（少打超过 1 个字符）一律判未通过，杜绝「没打完就自动通过」。
+  // 仅容忍 <=1 个字符的长度差（兼容长音压缩等极少数情况），其余漏打必须补完。
+  if (b.length - a.length > 1) return { state: 'wrong', diff: b.length - a.length };
   const dist = levenshtein(a, b);
   if (isForgivingTolerant(b.length, dist)) return { state: 'close', diff: dist };
   return { state: 'wrong', diff: dist };
