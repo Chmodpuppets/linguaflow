@@ -159,9 +159,9 @@ const matchResult = (input: string, target: string): { state: MatchState; diff: 
   const b = normalizeForCompare(target);
   if (a.length === 0) return { state: 'empty', diff: b.length };
   if (a === b) return { state: 'exact', diff: 0 };
-  // 防漏打：输入比目标明显短（少打超过 1 个字符）一律判未通过，杜绝「没打完就自动通过」。
-  // 仅容忍 <=1 个字符的长度差（兼容长音压缩等极少数情况），其余漏打必须补完。
-  if (b.length - a.length > 1) return { state: 'wrong', diff: b.length - a.length };
+  // 防漏打：输入比目标短（即少打任意字符）一律判未通过，杜绝「差一个字也算通过」。
+  // 容错只接受替换/多打等假名细节差异，不接受漏字。
+  if (a.length < b.length) return { state: 'wrong', diff: b.length - a.length };
   const dist = levenshtein(a, b);
   if (isForgivingTolerant(b.length, dist)) return { state: 'close', diff: dist };
   return { state: 'wrong', diff: dist };
