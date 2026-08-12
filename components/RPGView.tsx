@@ -2,13 +2,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, RPGScenario, RPGMessage, ScenarioDef, CEFRLevel } from '../types';
 import { RPG_PACKS } from '../data/rpgScenarios';
-import { startRPGScenario, continueRPGTurn, playCachedSpeech, cancelSpeech, pauseSpeech, resumeSpeech, hasPausedSpeech, transcribeAudio, buildTutorSystemPrompt } from '../services/aiService';
+import { startRPGScenario, continueRPGTurn, playCachedSpeech, cancelSpeech, pauseSpeech, resumeSpeech, hasPausedSpeech, buildTutorSystemPrompt } from '../services/aiService';
 import { addActivity, saveVocabularyItem } from '../services/storageService';
 import { 
-    Send, Mic, Volume2, User, Bot, CheckCircle2, 
+    Send, Volume2, User, Bot, CheckCircle2, 
     Gamepad2, Sparkles, BookA, ArrowRight,
     Loader2, Trophy, RotateCcw, XCircle, Play, Pause, X,
-    Languages, Lightbulb, AlertTriangle, Square, Wand2, Trash2, Save
+    Languages, Lightbulb, AlertTriangle, Wand2, Trash2, Save
 } from 'lucide-react';
 
 interface RPGViewProps {
@@ -147,12 +147,6 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
     const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
 
-    // --- Voice Input State (user speech → STT → input) ---
-    const [isRecording, setIsRecording] = useState(false);
-    const [isTranscribing, setIsTranscribing] = useState(false);
-    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-    const chunksRef = useRef<BlobPart[]>([]);
-
     // Scroll to bottom on new message
     useEffect(() => {
         if (chatContainerRef.current) {
@@ -160,13 +154,10 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
         }
     }, [messages]);
 
-    // Cleanup audio + recording on unmount
+    // Cleanup audio on unmount
     useEffect(() => {
         return () => {
             cancelSpeech();
-            if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-                mediaRecorderRef.current.stop();
-            }
         };
     }, []);
 
@@ -207,48 +198,6 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
         cancelSpeech();
         setIsPlaying(false);
         setActiveMessageId(null);
-    };
-
-    // --- Voice Input (record → transcribe → fill input) ---
-    const startRecording = async () => {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const mediaRecorder = new MediaRecorder(stream);
-            mediaRecorderRef.current = mediaRecorder;
-            chunksRef.current = [];
-
-            mediaRecorder.ondataavailable = (e) => {
-                if (e.data.size > 0) chunksRef.current.push(e.data);
-            };
-
-            mediaRecorder.onstop = async () => {
-                stream.getTracks().forEach(track => track.stop());
-                const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-                if (blob.size === 0) return;
-                setIsTranscribing(true);
-                try {
-                    const text = await transcribeAudio(blob, user.learningLanguage);
-                    setInput(prev => (prev ? prev + ' ' : '') + (text || ''));
-                } catch (e: any) {
-                    console.error(e);
-                    setFeedbackToast('语音识别失败：' + (e?.message || e) + '（注：浏览器直连可能受 CORS 限制）');
-                } finally {
-                    setIsTranscribing(false);
-                }
-            };
-
-            mediaRecorder.start();
-            setIsRecording(true);
-        } catch (err) {
-            setFeedbackToast('无法访问麦克风，请检查浏览器权限。');
-        }
-    };
-
-    const stopRecording = () => {
-        if (mediaRecorderRef.current && isRecording) {
-            mediaRecorderRef.current.stop();
-            setIsRecording(false);
-        }
     };
 
     const handleStart = async (def: ScenarioDef, packName: string) => {
@@ -405,13 +354,8 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
     // Actual teardown logic
     const performExit = () => {
         cancelSpeech();
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-            mediaRecorderRef.current.stop();
-        }
         setIsPlaying(false);
         setActiveMessageId(null);
-        setIsRecording(false);
-        setIsTranscribing(false);
         setScenario(null);
         setMessages([]);
         setCompletedObjectives(new Set());
@@ -990,16 +934,6 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                             <Languages size={14} /> 发音指南
                         </button>
 
-                        {/* Voice Input Toggle */}
-                        <button
-                            onClick={isRecording ? stopRecording : startRecording}
-                            disabled={isProcessing || isFinished || isTranscribing}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-30 ${isRecording ? 'bg-red-600 text-white animate-pulse' : 'bg-surface-2 text-muted hover:bg-surface-3'}`}
-                            title={isRecording ? '停止录音并识别' : '语音输入（录音后自动转写）'}
-                        >
-                            {isRecording ? <Square size={14} fill="currentColor" /> : <Mic size={14} />}
-                            {isTranscribing ? '识别中…' : isRecording ? '停止' : '语音'}
-                        </button>
                     </div>
 
                     <div className="relative flex items-center gap-2">

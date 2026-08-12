@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { TypingContent, UserProfile, UserContent, CEFRLevel, VocabularyItem } from '../types';
-import { generateTypingContent, generateSpeech, cancelSpeech, transcribeAudio, languageToSpeechLang } from '../services/aiService';
+import { generateTypingContent, generateSpeech, cancelSpeech, languageToSpeechLang } from '../services/aiService';
 import { addActivity, getLibrary, saveLibraryItem, saveVocabularyItem, getTypingLibraryItems, saveTypingLibraryItem, deleteTypingLibraryItem, touchTypingLibraryItem, TypingLibraryItem } from '../services/storageService';
 import { TYPING_STAGES, DRILL_TOPICS } from '../constants';
-import { RefreshCw, Play, Keyboard, Eye, EyeOff, BookOpen, Zap, Star, Sparkles, LayoutGrid, Book, Volume2, StopCircle, Loader2, Mic, Square, Trash2, Ear, Pause, X, Lock, CheckCircle2, Swords, Crown, ShieldAlert, Plus, Check, Bookmark, Library, Repeat } from 'lucide-react';
+import { RefreshCw, Play, Keyboard, Eye, EyeOff, BookOpen, Zap, Star, Sparkles, LayoutGrid, Book, Volume2, StopCircle, Mic, Square, Trash2, Ear, Pause, X, Lock, CheckCircle2, Swords, Crown, ShieldAlert, Plus, Check, Bookmark, Library, Repeat } from 'lucide-react';
 import TtsAudioPlayer, { TtsAudioPlayerHandle } from './TtsAudioPlayer';
 
 interface TypingViewProps {
@@ -86,8 +86,6 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const userAudioPlayerRef = useRef<HTMLAudioElement | null>(null);
-  const [userTranscript, setUserTranscript] = useState<string | null>(null);
-  const [isTranscribing, setIsTranscribing] = useState(false);
 
   // Selection Mode State
   const [activeTab, setActiveTab] = useState<'campaign' | 'practice' | 'memory' | 'typinglib'>('campaign');
@@ -246,26 +244,9 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
           userAudioPlayerRef.current = null;
       }
       setIsPlayingUser(false);
-      setUserTranscript(null);
       if (userAudioUrl) {
           URL.revokeObjectURL(userAudioUrl);
           setUserAudioUrl(null);
-      }
-  };
-
-  const handleTranscribe = async () => {
-      if (!userAudioUrl) return;
-      setIsTranscribing(true);
-      setUserTranscript(null);
-      try {
-          const blob = await fetch(userAudioUrl).then(r => r.blob());
-          const text = await transcribeAudio(blob, user.learningLanguage);
-          setUserTranscript(text);
-      } catch (e: any) {
-          console.error(e);
-          setUserTranscript("识别失败：" + (e?.message || e));
-      } finally {
-          setIsTranscribing(false);
       }
   };
 
@@ -779,25 +760,10 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                             ) : (
                                 <>
                                     <button onClick={playUserRecording} className={`p-2 rounded-md ${isPlayingUser ? 'text-secondary' : 'text-gray-300'}`}><Ear size={16} /></button>
-                                    <button
-                                        onClick={handleTranscribe}
-                                        disabled={isTranscribing}
-                                        className={`p-2 rounded-md ${isTranscribing ? 'text-secondary animate-pulse' : 'text-gray-300 hover:text-white'}`}
-                                        title="用 AI 识别你的发音"
-                                    >
-                                        {isTranscribing ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                                    </button>
                                     <button onClick={deleteUserRecording} className="p-2 rounded-md text-muted hover:text-red-400"><Trash2 size={16} /></button>
                                 </>
                             )}
                         </div>
-
-                        {userAudioUrl && userTranscript !== null && (
-                            <div className="text-sm text-gray-300 bg-surface-2/40 rounded-lg px-3 py-2 border border-line-strong">
-                                <span className="text-muted mr-2">识别结果:</span>
-                                {userTranscript || "（无语音内容）"}
-                            </div>
-                        )}
 
                         <button
                             onClick={handleManualSave}

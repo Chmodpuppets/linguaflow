@@ -41,9 +41,7 @@ const GLM_MODEL = import.meta.env.VITE_GLM_MODEL || "GLM-4.7-Flash";
 //   ⚠️ 旧的 sambert-* / cosyvoice-* 走 /SpeechSynthesizer 同步端点，实测普通账号
 //   会返回 "current user api does not support http call"（仅支持 WebSocket），
 //   浏览器端无法直接用，故全部弃用。
-// STT: any Paraformer ASR model id, e.g. paraformer-v2, paraformer-realtime-v2.
 const QWEN_TTS_MODEL = process.env.QWEN_TTS_MODEL || "qwen3-tts-flash";
-const QWEN_STT_MODEL = process.env.QWEN_STT_MODEL || "paraformer-v2";
 
 /** qwen3-tts-flash 可选音色（已实测全部可用；任一音色都能朗读多语种）。 */
 export const TTS_VOICES: { id: string; label: string; desc: string }[] = [
@@ -100,7 +98,7 @@ console.info(
   `${OPENROUTER_API_KEY ? `  |  openrouter → ${OPENROUTER_LLM_MODEL}` : ""}` +
   `; 运行时模型可在 Settings -> 模型设置 切换（GLM / 自定义）`
 );
-console.info(`[LinguaFlow] Speech models — TTS: ${QWEN_TTS_MODEL} (multilingual)  |  STT: ${QWEN_STT_MODEL}`);
+console.info(`[LinguaFlow] Speech models — TTS: ${QWEN_TTS_MODEL} (multilingual)`);
 
 // Build a tutor system prompt that makes the AI "remember" the user (Phase 3)
 export const buildTutorSystemPrompt = (user: UserProfile): string => {
@@ -1330,137 +1328,6 @@ export const playCachedSpeech = async (
       playWebSpeech(text, { ...opts, lang: contentLang });
     });
 };
-
-// --- Speech-to-Text (Qwen paraformer-v2) ---
-// DashScope paraformer-v2 is an async file-transcription service. A browser recording
-// is a Blob with no public URL, so we upload it to DashScope's temporary OSS bucket
-// (uploads sign API), submit a transcription task referencing the OSS key, then poll.
-export const transcribeAudio = async (blob: Blob, lang: Language): Promise<string> => {
-  const wav = await blobToWav(blob);
-  const { uploadUrl, ossObjectKey } = await getUploadSign();
-  await uploadToOss(uploadUrl, wav);
-  const taskId = await submitTranscription(ossObjectKey, lang);
-  return pollTranscription(taskId);
-};
-
-function blobToWav(blob: Blob): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = async () => {
-      try {
-        const Ctx: any = window.AudioContext || (window as any).webkitAudioContext;
-        const ctx = new Ctx({ sampleRate: 16000 });
-        const decoded = await ctx.decodeAudioData((reader.result as ArrayBuffer).slice(0));
-        resolve(encodeWav(decoded, 16000));
-      } catch (e) { reject(e); }
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsArrayBuffer(blob);
-  });
-}
-
-function encodeWav(buffer: AudioBuffer, sampleRate: number): Blob {
-  const numCh = 1;
-  const samples = buffer.getChannelData(0);
-  const bytesPerSample = 2;
-  const blockAlign = numCh * bytesPerSample;
-  const dataSize = samples.length * bytesPerSample;
-  const ab = new ArrayBuffer(44 + dataSize);
-  const view = new DataView(ab);
-  const writeStr = (off: number, s: string) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
-  writeStr(0, "RIFF"); view.setUint32(4, 36 + dataSize, true); writeStr(8, "WAVE");
-  writeStr(12, "fmt "); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
-  view.setUint16(22, numCh, true); view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * blockAlign, true); view.setUint16(32, blockAlign, true);
-  view.setUint16(34, 16, true); writeStr(36, "data"); view.setUint32(40, dataSize, true);
-  let off = 44;
-  for (let i = 0; i < samples.length; i++) {
-    const s = Math.max(-1, Math.min(1, samples[i]));
-    view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-    off += 2;
-  }
-  return new Blob([ab], { type: "audio/wav" });
-}
-
-async function getUploadSign(): Promise<{ uploadUrl: string; ossObjectKey: string }> {
-  const res = await fetch(`${QWEN_HOST}/api/v1/uploads`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${QWEN_API_KEY}`,
-      "Content-Type": "application/json",
-      "X-DashScope-OssResourceResolve": "enable",
-    },
-    body: JSON.stringify({ model: QWEN_STT_MODEL }),
-  });
-  if (!res.ok) throw new Error(`upload sign failed (${res.status})`);
-  const data = await res.json();
-  const out: any = data?.output || data?.data || {};
-  const uploadUrl = out.uploadUrl || out.upload_url;
-  const ossObjectKey = out.ossObjectKey || out.oss_object_key;
-  if (!uploadUrl || !ossObjectKey) throw new Error("Invalid upload sign response");
-  return { uploadUrl, ossObjectKey };
-}
-
-async function uploadToOss(uploadUrl: string, wav: Blob): Promise<void> {
-  const res = await fetch(uploadUrl, { method: "PUT", body: wav, headers: { "Content-Type": "audio/wav" } });
-  if (res.status !== 200 && res.status !== 201) throw new Error(`OSS upload failed (${res.status})`);
-}
-
-async function submitTranscription(ossObjectKey: string, lang: Language): Promise<string> {
-  const hints = lang === Language.Chinese ? ["zh"] : ["en"];
-  const res = await fetch(`${QWEN_HOST}/api/v1/services/audio/asr/transcription`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${QWEN_API_KEY}`,
-      "Content-Type": "application/json",
-      "X-DashScope-Async": "enable",
-    },
-    body: JSON.stringify({
-      model: QWEN_STT_MODEL,
-      input: { file_urls: [ossObjectKey] },
-      parameters: { channel_id: [0], language_hints: hints },
-    }),
-  });
-  if (!res.ok) throw new Error(`transcription submit failed (${res.status})`);
-  const data = await res.json();
-  const taskId = data?.output?.task_id;
-  if (!taskId) throw new Error("No task_id returned");
-  return taskId;
-}
-
-async function pollTranscription(taskId: string, maxAttempts = 60): Promise<string> {
-  for (let i = 0; i < maxAttempts; i++) {
-    await new Promise((r) => setTimeout(r, 1500));
-    const res = await fetch(`${QWEN_HOST}/api/v1/tasks/${taskId}`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${QWEN_API_KEY}`,
-        "Content-Type": "application/json",
-        "X-DashScope-Async": "enable",
-      },
-    });
-    if (!res.ok) throw new Error(`task query failed (${res.status})`);
-    const data = await res.json();
-    const status = data?.output?.task_status;
-    if (status === "SUCCEEDED") return extractTranscript(data?.output?.results);
-    if (status === "FAILED") throw new Error("transcription failed");
-  }
-  throw new Error("transcription timed out");
-}
-
-function extractTranscript(results: any): string {
-  if (!results) return "";
-  const arr = Array.isArray(results) ? results : [results];
-  for (const item of arr) {
-    const transcripts = item?.transcripts || item?.output?.transcripts;
-    if (Array.isArray(transcripts) && transcripts.length) {
-      const texts = transcripts.map((t: any) => t?.text || "").filter(Boolean);
-      if (texts.length) return texts.join(" ");
-    }
-    if (item?.text) return item.text;
-  }
-  return "";
-}
 
 // --- Reading Reflection AI ---
 
