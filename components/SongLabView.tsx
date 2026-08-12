@@ -40,6 +40,31 @@ interface SongLabViewProps {
   onPractice: (content: { text: string; title: string; notes?: string }) => void;
 }
 
+// 新建歌曲时可选的语言（独立于 user.learningLanguage，让日语学习者也能正常加英/韩/西语歌）
+const LANGUAGE_OPTIONS: { value: Language; label: string }[] = [
+  { value: Language.English, label: '英语 English' },
+  { value: Language.Japanese, label: '日语 Japanese' },
+  { value: Language.Korean, label: '韩语 Korean' },
+  { value: Language.Spanish, label: '西语 Spanish' },
+  { value: Language.French, label: '法语 French' },
+  { value: Language.German, label: '德语 German' },
+  { value: Language.Chinese, label: '中文 Chinese' },
+  { value: Language.Italian, label: '意语 Italian' },
+  { value: Language.Russian, label: '俄语 Russian' },
+  { value: Language.Greek, label: '希腊语 Greek' },
+  { value: Language.Arabic, label: '阿语 Arabic' },
+];
+
+// 拉丁字母语言：歌词本身已可直接拼读，无需额外注音（罗马音 / 拼音）
+const LATIN_SCRIPT = new Set<Language>([
+  Language.English,
+  Language.Spanish,
+  Language.French,
+  Language.German,
+  Language.Italian,
+]);
+const isLatinScript = (l: Language): boolean => LATIN_SCRIPT.has(l);
+
 // --- LRC / 纯文本解析 ---
 
 // LRC 行形如 `[mm:ss.xx]歌词` 或 `[mm:ss]歌词`，可一行多时间戳。取首个时间戳。
@@ -124,7 +149,7 @@ const isSrt = (raw: string) => SRT_TIME_RE.test(raw);
 const normalizeForCompare = (s: string) =>
   (s || '')
     .replace(/[\s　]+/g, '')
-    .replace(/[、。！？…・.,!?~～"'「」『』()（）\-_]/g, '')
+    .replace(/[、。！？…・.,!?~～"'「」『』()（）\-_¿¡«»;；:：]/g, '')
     .toLowerCase();
 
 // 编辑距离（Levenshtein），用于分句容错：长音省略 / 促音 / 浊音等少量误差也算通过
@@ -177,7 +202,7 @@ const AI_LYRICS_PROMPT = `你是一个歌词结构化助手。用户会告诉你
 {
   "title": "歌名",
   "artist": "歌手",
-  "language": "Japanese",
+  "language": "歌曲实际语言（如 Japanese / English / Korean / Spanish）",
   "lines": [
     {
       "text": "原文歌词（目标语言，逐句）",
@@ -247,7 +272,8 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
   const loopRangeRef = useRef<{ start: number; end: number } | null>(null);
   const advanceScheduledRef = useRef(false);
 
-  const lang = user.learningLanguage;
+  // 这首歌的语言（独立于「正在学习的语言」，让日语学习者也能正常加英/韩/西语歌）
+  const [songLang, setSongLang] = useState<Language>(user.learningLanguage);
 
   // 清理 object URLs
   useEffect(() => {
@@ -309,11 +335,19 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
   // 批量生成整首注音（1 次 API 调用），逐句覆盖
   const generateRomaji = async () => {
     if (lines.length === 0) return;
+    // 拉丁字母语言（英/西/法/德/意）歌词本身已可直接拼读，无需额外注音
+    if (isLatinScript(songLang)) {
+      setStatus({
+        type: 'info',
+        msg: '该语言为拉丁字母（可直接拼读），无需额外注音；如需读音提示可手动填写「读音」。',
+      });
+      return;
+    }
     setBusy(true);
     try {
       const romajis = await generatePhoneticsBatch(
         lines.map((l) => l.text),
-        lang
+        songLang
       );
       const next = lines.map((l, i) => ({ ...l, romaji: romajis[i] || l.romaji || '' }));
       setLines(next);
@@ -321,13 +355,13 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
       setStatus({
         type: ok ? 'ok' : 'warn',
         msg: ok
-          ? `已重新生成全部 ${lines.length} 句注音（1 次 API 调用，含汉字读音 / 中文拼音）。`
-          : `注音生成失败：AI 未返回有效内容。请检查 AI 模型配置 / 额度 / 网络，或手动填写罗马音。`,
+          ? `已重新生成全部 ${lines.length} 句读音（1 次 API 调用，含罗马字 / 拼音 / 拉丁转写）。`
+          : `读音生成失败：AI 未返回有效内容。请检查 AI 模型配置 / 额度 / 网络，或手动填写读音。`,
       });
     } catch (e: any) {
       setStatus({
         type: 'warn',
-        msg: `注音生成失败：${e?.message || '未知错误'}。请检查 AI 模型配置 / 额度 / 网络，或手动填写罗马音。`,
+        msg: `读音生成失败：${e?.message || '未知错误'}。请检查 AI 模型配置 / 额度 / 网络，或手动填写读音。`,
       });
     } finally {
       setBusy(false);
@@ -345,7 +379,7 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
     setBusy(true);
     try {
       const texts = gaps.map((g) => lines[g.i].text);
-      const trs = await translateTextsBatch(texts, lang, user.nativeLanguage);
+      const trs = await translateTextsBatch(texts, songLang, user.nativeLanguage);
       const map = new Map<number, string>();
       gaps.forEach((g, k) => {
         if (trs[k]) map.set(g.i, trs[k]);
@@ -399,6 +433,11 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
       const hasTime = parsed.some((l) => l.time != null);
       setSource(hasTime ? 'lrc' : 'plain');
       setLines(parsed);
+      if (data.title) setTitle(String(data.title).trim());
+      if (data.artist) setArtist(String(data.artist).trim());
+      if (data.language && (Object.values(Language) as string[]).includes(String(data.language))) {
+        setSongLang(String(data.language) as Language);
+      }
       setStatus({
         type: 'ok',
         msg: `已${fileName ? `从 ${fileName} ` : ''}导入 ${parsed.length} 句（含时间轴 ${parsed.filter((l) => l.time != null).length} 句）。可补 romaji / 译文后保存。`,
@@ -408,7 +447,7 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
     }
   };
 
-  // 导入本地 Python 脚本（scripts/song_segmenter.py）生成的 segments.json
+  // 导入 segments.json（可由 lzltool.com/audio-lrc 等外部工具或 AI 生成）
   const onImportJson = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
@@ -477,7 +516,7 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
       id: packId,
       title: title.trim(),
       artist: artist.trim() || undefined,
-      language: lang,
+      language: songLang,
       lines,
       source,
       audioId,
@@ -499,6 +538,7 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
     setAudioFile(null);
     setAudioPreviewUrl(null);
     setPendingClips({});
+    setSongLang(user.learningLanguage);
     setBusy(false);
   };
 
@@ -680,7 +720,7 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
     }
   };
 
-  // 播放时根据当前时间高亮当前句：只要歌词带 time（LRC 或 Python 生成）即可
+  // 播放时根据当前时间高亮当前句：只要歌词带 time（LRC、外部工具或 AI 生成）即可
   const currentLineIdx = useMemo(() => {
     if (!activePack || !activePack.lines[0]?.time) return -1;
     const ls = activePack.lines;
@@ -994,14 +1034,16 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
 
               {/* 当前句 */}
               <div className="text-center min-h-[3.5rem] flex flex-col items-center justify-center">
-                <div className="text-2xl font-bold text-white leading-relaxed tracking-wide">
-                  {sessionRevealed ? line.text : '・・・・・・・・'}
+                <div className="flex items-center gap-2">
+                  <div className="text-2xl font-bold text-white leading-relaxed tracking-wide">
+                    {sessionRevealed ? line.text : '・・・・・・・・'}
+                  </div>
                 </div>
                 {sessionRevealed && (
                   <input
                     value={line.romaji || ''}
                     onChange={(e) => updateActiveLine(line.id, { romaji: e.target.value })}
-                    placeholder="罗马音"
+                    placeholder="读音 / Phonetic（可选）"
                     className="text-neon-2 font-mono mt-1.5 text-sm text-center bg-transparent border-b border-white/15 hover:border-neon/40 focus:border-neon outline-none transition-colors w-full max-w-sm placeholder:text-faint"
                   />
                 )}
@@ -1142,10 +1184,20 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
         <h1 className="text-2xl font-bold text-white flex items-center gap-2">
           <Music size={22} className="text-neon" /> 歌曲跟打
         </h1>
-        <p className="text-muted text-sm mt-1">
-          把你喜欢的歌放进来：粘贴 <b className="text-white">LRC / SRT 字幕 / 纯文本歌词</b>、或上传 mp3，自动切割成逐句，生成 romaji 注音与译文，然后一句句打字练习。
-          不想手敲时间戳？用本地脚本 <code className="text-neon-2">scripts/song_segmenter.py</code> 分析 mp3 自动生成 <b className="text-white">segments.json</b>，再用 <code className="text-neon-2">scripts/song_clipper.py</code> 按时间戳把歌切出每句片段；点「导入 segments.json」载入歌词，再点「附带每句音频」把片段一起导入，即可在播放时「精听」单句。
+        <p className="text-muted text-sm mt-1 leading-relaxed">
+          把你喜欢的歌变成逐句打字练习：粘贴 <b className="text-white">带时间戳的 LRC 歌词</b>、或上传 mp3，系统会按时间轴自动切成逐句，并生成 romaji 注音与译文，然后一句句跟打精听。
         </p>
+        <div className="mt-2 rounded-xl border border-neon/20 bg-neon/5 p-3 text-sm text-muted leading-relaxed">
+          <span className="text-white font-semibold">还没有带时间轴的歌词？</span>{' '}
+          免费用{' '}
+          <a href="https://www.lzltool.com/audio-lrc" target="_blank" rel="noopener noreferrer" className="text-neon-2 underline font-medium">lzltool.com/audio-lrc</a>{' '}
+          在线生成带时间戳的 LRC：
+          <ol className="list-decimal list-inside mt-1.5 space-y-1">
+            <li>打开网站，上传你的歌曲音频，或粘贴纯文本歌词；</li>
+            <li>网站会自动给每一句打上时间戳，并导出 <b className="text-white">.lrc</b> 文件；</li>
+            <li>把 LRC 内容复制粘贴到上方「歌词」框，点 <b className="text-white">解析并预览</b> 即可——全程无需安装任何软件。</li>
+          </ol>
+        </div>
       </div>
 
       {/* Tab 切换 */}
@@ -1189,13 +1241,13 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
         <div className="space-y-4">
           {/* 基本信息 + 歌词输入 */}
           <GlassCard className="p-5 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="text-xs text-muted mb-1 block">歌名</label>
                 <input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="例如：Lemon"
+                  placeholder="例如：Lemon / Dynamite / Despacito"
                   className="w-full glass-panel border border-white/10 rounded-lg px-3 py-2.5 outline-none text-sm text-white placeholder:text-faint"
                 />
               </div>
@@ -1204,9 +1256,23 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
                 <input
                   value={artist}
                   onChange={(e) => setArtist(e.target.value)}
-                  placeholder="例如：米津玄師"
+                  placeholder="例如：米津玄師 / BTS / Shakira"
                   className="w-full glass-panel border border-white/10 rounded-lg px-3 py-2.5 outline-none text-sm text-white placeholder:text-faint"
                 />
+              </div>
+              <div>
+                <label className="text-xs text-muted mb-1 block">歌词语言</label>
+                <select
+                  value={songLang}
+                  onChange={(e) => setSongLang(e.target.value as Language)}
+                  className="w-full glass-panel border border-white/10 rounded-lg px-3 py-2.5 outline-none text-sm text-white bg-surface-2 appearance-none cursor-pointer"
+                >
+                  {LANGUAGE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value} className="bg-surface-2 text-white">
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -1302,7 +1368,7 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
                     disabled={busy}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-3/70 text-gray-200 border border-neon/25 hover:border-neon/60 hover:bg-surface-3 text-xs font-semibold transition disabled:opacity-50"
                   >
-                    <Languages size={14} /> {busy ? '生成中…' : 'AI 生成注音'}
+                    <Languages size={14} /> {busy ? '生成中…' : 'AI 生成读音'}
                   </button>
                   <button
                     onClick={generateTranslation}
@@ -1320,6 +1386,17 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
                   </button>
                 </div>
               </div>
+
+              {source === 'plain' && (
+                <p className="text-xs text-muted">
+                  当前为纯文本分句、没有时间轴，跟打时不会随音乐高亮。想要「卡拉OK式」逐句高亮？
+                  去{' '}
+                  <a href="https://www.lzltool.com/audio-lrc" target="_blank" rel="noreferrer" className="text-neon-2 hover:underline">
+                    lzltool.com/audio-lrc
+                  </a>{' '}
+                  上传音频生成带时间戳的 LRC，再粘贴进来即可。
+                </p>
+              )}
 
               <div className="space-y-2 max-h-[50vh] overflow-y-auto custom-scrollbar pr-1">
                 {lines.map((line, idx) => (

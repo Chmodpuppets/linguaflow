@@ -107,6 +107,7 @@ Wave 3 资源工具（记忆库 / 内容仓库 / 词汇 / 错题本 / 作品集 
 
 ## 歌曲跟打（Song Lab）迭代
 - 新增「歌曲跟打」模块（LRC/纯文本 + mp3 → 自动切句 → 逐句打字练习），含本地 `kanaToRomaji` 注音、`translateText` AI 翻译、IndexedDB 存音频。
-- 本地 Python 工具链（用户本地运行，独立工程）：`scripts/song_segmenter.py`（librosa 自动断句出 segments.json）、`scripts/song_clipper.py`（ffmpeg 按时间戳切出逐句 mp3 片段 + 带 clip/start/end 的 segments.json，可 --package 打包）。
-- 前端接收剪辑包：SongLab「导入 segments.json」+「附带每句音频」→ 保存时写 IndexedDB 每句片段 → 播放器每句「精听」只播该片段 → 跳打字 flow。
+- 时间戳歌词生成已迁移到外部在线工具：用户到 <https://www.lzltool.com/audio-lrc> 上传音频/粘贴纯文本，自动生成带时间戳的 `.lrc`，复制粘贴进「歌词」框点「解析并预览」即可——**纯前端、零本地依赖**。
+- 原 `scripts/song_segmenter.py` / `scripts/song_clipper.py`（Python/librosa/ffmpeg 本地工具链）已移除，因浏览器无法调用本地 Python，且不符合纯前端 + 开源分发定位。
+- 前端仍支持「导入 segments.json」+「附带每句音频」接收外部剪辑包 → 保存时写 IndexedDB 每句片段 → 播放器每句「精听」只播该片段 → 跳打字 flow。
 - 验证：tsc --noEmit ✓、vite build ✓、预览 http://localhost:5174（200）。
