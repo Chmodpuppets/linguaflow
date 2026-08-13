@@ -23,7 +23,7 @@ import ErrorPatternsView from './components/ErrorPatternsView';
 import WritingProgressView from './components/WritingProgressView';
 import InkQuestView from './components/InkQuestView';
 import ContentRepoView from './components/ContentRepoView';
-import { GraduationCap, ChevronDown, Menu, Flame, Star } from 'lucide-react';
+import { GraduationCap, ChevronDown, Menu, Flame, Star, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 
 // 侧边栏导航分组（信息架构：降低 15 个一级入口的视觉过载）
 const NAV_GROUPS: { label: string; items: string[] }[] = [
@@ -42,6 +42,16 @@ const App: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [typingInitialData, setTypingInitialData] = useState<{text: string; title: string; notes?: string} | null>(null);
   const [stars, setStars] = useState<number | null>(null);
+  // 侧栏折叠：整栏收成图标轨 + 分组单独收起
+  // 默认：侧栏展开，「精进」「资源」「社区」三组收起（手风琴），仅「学习」展开
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({
+    '精进': true,
+    '资源': true,
+    '社区': true,
+  });
+  const toggleGroup = (label: string) =>
+    setCollapsedGroups((p) => ({ ...p, [label]: !p[label] }));
 
   // Initial Load
   useEffect(() => {
@@ -282,18 +292,30 @@ const App: React.FC = () => {
       </div>
 
       {/* Sidebar / Mobile Menu */}
-      <aside className={`fixed md:relative z-50 glass-panel md:border-r md:border-white/5 h-full w-64 transform ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 transition-transform duration-300 ease-in-out flex flex-col`}>
-        <div className="p-6 border-b border-white/5 flex items-center gap-3">
+      <aside className={`fixed md:relative z-50 glass-panel md:border-r md:border-white/5 h-full transform ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 transition-[width,transform] duration-300 ease-in-out flex flex-col ${isSidebarCollapsed ? 'md:w-[76px]' : 'w-64'}`}>
+        {/* 折叠开关：贴右侧边沿的圆形按钮（仅桌面，移动端用汉堡菜单） */}
+        <button
+          onClick={() => setIsSidebarCollapsed((c) => !c)}
+          aria-label={isSidebarCollapsed ? '展开侧栏' : '收起侧栏'}
+          className="absolute top-6 -right-3 z-50 hidden h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-surface-2 text-muted shadow-lg transition-colors hover:border-neon/40 hover:text-white md:flex"
+        >
+          {isSidebarCollapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
+        </button>
+
+        <div className={`p-6 border-b border-white/5 flex items-center gap-3 ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''}`}>
             <div className="logo-glow w-10 h-10 bg-gradient-to-br from-neon via-primary to-neon-2 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg transition-transform duration-300 hover:scale-110 hover:rotate-3">
                 L
             </div>
-            <div>
+            {!isSidebarCollapsed && (
+              <div>
                 <h1 className="font-bold tracking-tight neon-text text-lg">LinguaFlow</h1>
                 <p className="text-xs text-muted">以输出练就流利</p>
-            </div>
+              </div>
+            )}
         </div>
 
         {/* Mini User Profile in Sidebar */}
+        {!isSidebarCollapsed && (
         <div className="p-4 border-b border-white/5">
             <div className="flex items-center gap-3 mb-2">
                 <div className="w-8 h-8 rounded-full bg-surface-3/70 flex items-center justify-center border border-neon/25 shadow-glow-sm">
@@ -324,44 +346,71 @@ const App: React.FC = () => {
                  <span>距下一级还需 {levelInfo.xpToNext}</span>
             </div>
         </div>
+        )}
 
         <nav className="flex-1 p-4 space-y-5 overflow-y-auto custom-scrollbar">
-            {NAV_GROUPS.map((group) => (
+            {NAV_GROUPS.map((group) => {
+                const showItems = isSidebarCollapsed || !collapsedGroups[group.label];
+                return (
                 <div key={group.label}>
-                    <div className="text-[11px] font-semibold text-faint uppercase tracking-[0.18em] mb-2 px-2 flex items-center gap-2">
-                        <span className="h-px w-3 bg-gradient-to-r from-neon/60 to-transparent" />
-                        {group.label}
-                    </div>
-                    <div className="space-y-1">
-                        {group.items.map((id) => {
-                            const item = NAV_ITEMS.find((n) => n.id === id);
-                            if (!item) return null;
-                            const dueBadge = id === 'errorbook' && dueErrorCount > 0 ? dueErrorCount : 0;
-                            const active = mode === id;
-                            return (
-                                <button
-                                    key={id}
-                                    onClick={() => handleModeChange(id as AppMode)}
-                                    className={`
-                                        nav-item relative w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold outline-none
-                                        focus-visible:ring-2 focus-visible:ring-neon/60
-                                        ${active
-                                            ? 'nav-item-active text-white'
-                                            : 'text-muted hover:text-white'
-                                        }
-                                    `}
-                                >
-                                    <span className="nav-icon">{item.icon}</span>
-                                    {item.label}
-                                    {dueBadge > 0 && (
-                                        <span className="badge-pulse ml-auto bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">{dueBadge}</span>
-                                    )}
-                                </button>
-                            );
-                        })}
-                    </div>
+                    <button
+                        onClick={() => toggleGroup(group.label)}
+                        aria-expanded={!collapsedGroups[group.label]}
+                        className={`group relative flex w-full items-center gap-2 px-2 mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-faint ${isSidebarCollapsed ? 'justify-center' : ''}`}
+                    >
+                        {!isSidebarCollapsed ? (
+                            <>
+                                <span className="h-px w-3 bg-gradient-to-r from-neon/60 to-transparent" />
+                                <span className="flex-1 text-left">{group.label}</span>
+                                <ChevronDown size={14} className={`transition-transform duration-200 ${collapsedGroups[group.label] ? '-rotate-90' : ''}`} />
+                            </>
+                        ) : (
+                            <span className="h-4 w-px bg-white/10" />
+                        )}
+                    </button>
+                    {showItems && (
+                        <div className="space-y-1">
+                            {group.items.map((id) => {
+                                const item = NAV_ITEMS.find((n) => n.id === id);
+                                if (!item) return null;
+                                const dueBadge = id === 'errorbook' && dueErrorCount > 0 ? dueErrorCount : 0;
+                                const active = mode === id;
+                                return (
+                                    <div key={id} className="group relative">
+                                        <button
+                                            onClick={() => handleModeChange(id as AppMode)}
+                                            className={`
+                                                nav-item relative w-full flex items-center gap-3 rounded-xl text-sm font-semibold outline-none
+                                                focus-visible:ring-2 focus-visible:ring-neon/60
+                                                ${isSidebarCollapsed ? 'justify-center px-0' : 'px-4 py-2.5'}
+                                                ${active
+                                                    ? 'nav-item-active text-white'
+                                                    : 'text-muted hover:text-white'
+                                                }
+                                            `}
+                                        >
+                                            <span className="nav-icon">{item.icon}</span>
+                                            {!isSidebarCollapsed && <span className="flex-1 text-left truncate">{item.label}</span>}
+                                            {!isSidebarCollapsed && dueBadge > 0 && (
+                                                <span className="badge-pulse ml-auto bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">{dueBadge}</span>
+                                            )}
+                                            {isSidebarCollapsed && dueBadge > 0 && (
+                                                <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500 badge-pulse" />
+                                            )}
+                                        </button>
+                                        {isSidebarCollapsed && (
+                                            <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-3 -translate-y-1/2 whitespace-nowrap rounded-lg border border-white/10 bg-surface-3 px-2.5 py-1 text-xs font-medium text-white opacity-0 shadow-2xl transition-opacity duration-150 group-hover:opacity-100">
+                                                {item.label}{dueBadge > 0 ? ` · ${dueBadge}` : ''}
+                                            </span>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
-            ))}
+                );
+            })}
         </nav>
 
         {/* GitHub Star 卡片：侧栏底部，实时展示 stars 数 + 仓库链接 */}
@@ -369,13 +418,15 @@ const App: React.FC = () => {
           href={`https://github.com/${GITHUB_REPO}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="m-4 flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-gray-300 transition-colors hover:border-neon/40 hover:text-white"
+          className={`flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 text-sm text-gray-300 transition-colors hover:border-neon/40 hover:text-white ${isSidebarCollapsed ? 'mx-2 h-11 w-11 justify-center p-0' : 'm-4 px-3 py-2.5'}`}
         >
           <Star size={16} className="text-amber-300" />
-          <span className="flex-1 truncate">Star on GitHub</span>
-          <span className="rounded-full bg-amber-400/15 px-2 py-0.5 text-xs font-semibold text-amber-300">
-            {stars != null ? stars : '—'}
-          </span>
+          {!isSidebarCollapsed && <span className="flex-1 truncate">Star on GitHub</span>}
+          {!isSidebarCollapsed && (
+            <span className="rounded-full bg-amber-400/15 px-2 py-0.5 text-xs font-semibold text-amber-300">
+              {stars != null ? stars : '—'}
+            </span>
+          )}
         </a>
       </aside>
 
