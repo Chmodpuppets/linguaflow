@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LinguaFlow 写作工具 · 竞品优劣势深度研究</title>
+<style>
+  :root{
+    --bg:#0d1117; --bg2:#131a23; --card:#161d27; --card2:#1c2531;
+    --line:#26303d; --line2:#334154;
+    --fg:#e6edf3; --fg2:#a9b6c6; --fg3:#7d8b9c;
+    --acc:#5eead4; --acc2:#38bdf8;
+    --good:#34d399; --warn:#fbbf24; --bad:#f87171; --purple:#c084fc;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--fg);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    line-height:1.75; font-size:15px;
+  }
+  .wrap{max-width:1080px; margin:0 auto; padding:56px 28px 96px;}
+  header{border-bottom:1px solid var(--line); padding-bottom:32px; margin-bottom:44px;}
+  .kicker{color:var(--acc); font-size:12px; letter-spacing:.22em; text-transform:uppercase; font-weight:700; margin-bottom:14px;}
+  h1{font-size:34px; line-height:1.3; margin:0 0 16px; font-weight:750; letter-spacing:-.01em;}
+  .sub{color:var(--fg2); font-size:15px; max-width:760px;}
+  .meta{margin-top:20px; display:flex; gap:10px; flex-wrap:wrap;}
+  .pill{background:var(--card2); border:1px solid var(--line); color:var(--fg3); font-size:12px; padding:5px 12px; border-radius:999px;}
+
+  h2{font-size:23px; margin:60px 0 8px; font-weight:700; letter-spacing:-.01em; display:flex; align-items:baseline; gap:12px;}
+  h2 .num{color:var(--acc); font-size:13px; font-weight:700; font-variant-numeric:tabular-nums;}
+  h2+.lead{color:var(--fg2); margin:0 0 24px; font-size:14.5px;}
+  h3{font-size:17px; margin:34px 0 12px; font-weight:650; color:var(--fg);}
+  h4{font-size:15px; margin:22px 0 8px; font-weight:650; color:var(--acc2);}
+  p{margin:0 0 14px;}
+  a{color:var(--acc2); text-decoration:none; border-bottom:1px solid rgba(56,189,248,.3);}
+
+  .tldr{background:linear-gradient(160deg,#132029,#161d27); border:1px solid var(--line2); border-radius:14px; padding:26px 30px;}
+  .tldr ol{margin:0; padding-left:22px;}
+  .tldr li{margin-bottom:14px; color:var(--fg);}
+  .tldr li:last-child{margin-bottom:0;}
+  .tldr b{color:var(--acc);}
+
+  table{width:100%; border-collapse:collapse; margin:18px 0 8px; font-size:13.5px;}
+  th,td{border:1px solid var(--line); padding:10px 12px; text-align:left; vertical-align:top;}
+  th{background:var(--card2); color:var(--fg); font-weight:650; font-size:12.5px;}
+  td{color:var(--fg2); background:var(--card);}
+  td.hi{background:#14262a; color:var(--fg);}
+  th.hi{background:#16323a; color:var(--acc);}
+  .tag{display:inline-block; font-size:11px; padding:2px 8px; border-radius:5px; font-weight:650; white-space:nowrap;}
+  .t-y{background:rgba(52,211,153,.14); color:var(--good);}
+  .t-n{background:rgba(248,113,113,.14); color:var(--bad);}
+  .t-p{background:rgba(251,191,36,.14); color:var(--warn);}
+
+  .cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; margin:22px 0;}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:20px 22px;}
+  .card.g{border-left:3px solid var(--good);}
+  .card.r{border-left:3px solid var(--bad);}
+  .card.w{border-left:3px solid var(--warn);}
+  .card h4{margin:0 0 8px; color:var(--fg); font-size:15.5px;}
+  .card p{font-size:13.5px; color:var(--fg2); margin:0 0 10px;}
+  .card p:last-child{margin:0;}
+  .ev{font-size:12.5px; color:var(--fg3); border-top:1px dashed var(--line2); padding-top:10px; margin-top:12px;}
+  .ev b{color:var(--acc2); font-weight:600;}
+
+  .sev{display:inline-block; font-size:11px; font-weight:700; padding:3px 9px; border-radius:5px; margin-right:8px; vertical-align:middle;}
+  .s1{background:rgba(248,113,113,.16); color:var(--bad);}
+  .s2{background:rgba(251,191,36,.16); color:var(--warn);}
+  .s3{background:rgba(125,139,156,.16); color:var(--fg3);}
+
+  code{background:#0b1017; border:1px solid var(--line); border-radius:5px; padding:1.5px 6px; font-size:12.5px; color:var(--acc); font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
+  pre{background:#0b1017; border:1px solid var(--line); border-radius:10px; padding:16px 18px; overflow-x:auto; font-size:12.5px; line-height:1.65; color:var(--fg2); font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
+  pre b{color:var(--bad); font-weight:600;}
+
+  blockquote{margin:18px 0; padding:14px 20px; background:var(--card); border-left:3px solid var(--acc); border-radius:0 10px 10px 0; color:var(--fg2); font-size:14px;}
+  blockquote b{color:var(--fg);}
+
+  .quad{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:24px 0;}
+  .q{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px 20px;}
+  .q .qt{font-size:12px; letter-spacing:.1em; text-transform:uppercase; font-weight:700; margin-bottom:10px;}
+  .q ul{margin:0; padding-left:18px; font-size:13.5px; color:var(--fg2);}
+  .q li{margin-bottom:6px;}
+
+  .note{background:#1a1710; border:1px solid #3d3418; border-radius:10px; padding:14px 18px; font-size:13.5px; color:#e8d9a8; margin:18px 0;}
+  .note b{color:var(--warn);}
+  .ok{background:#101f18; border:1px solid #1d3d2c; color:#b9e6cf;}
+  .ok b{color:var(--good);}
+
+  footer{margin-top:72px; padding-top:26px; border-top:1px solid var(--line); color:var(--fg3); font-size:12.5px;}
+  footer ol{padding-left:20px; margin:10px 0 0;}
+  footer li{margin-bottom:5px;}
+  @media(max-width:720px){ .quad{grid-template-columns:1fr;} .wrap{padding:36px 18px 64px;} h1{font-size:26px;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="kicker">Deep Research · 竞品分析</div>
+  <h1>LinguaFlow 写作工具：<br>对比市面产品的优势与劣势</h1>
+  <p class="sub">基于代码级事实基线（非产品宣称）与 20+ 竞品的横向调研，识别可辩护的差异化、被高估的卖点，以及三处需要立即修复的效度硬伤。</p>
+  <div class="meta">
+    <span class="pill">2026-08-04</span>
+    <span class="pill">代码基线：components/ + services/aiService.ts</span>
+    <span class="pill">竞品覆盖：4 阵营 / 24 产品</span>
+    <span class="pill">学术引用：7 篇</span>
+  </div>
+</header>
+
+<div class="tldr">
+  <ol>
+    <li><b>真优势不是"AI 批改准"，是"闭环完整"。</b>LinguaFlow 走通了 <em>分级出题 → 语体约束批改 → 二稿对比 → 错题进 Leitner SRS → CEFR/考试分纵向趋势</em> 的全链路。调研的 24 个竞品里，<b>没有任何一个跑通全链路</b>——Grammarly 停在"改对这一篇"，Write&nbsp;&amp;&nbsp;Improve 有 CEFR 和趋势但无错题复习，MOJIIQ 有 SRS 但只做日语。</li>
+    <li><b>第二真优势是形态，不是功能。</b>纯前端 + localStorage + 自带 API Key + 免费。整条赛道除个别 beta 产品外<b>全是订阅制</b>（$5–30/月）或社区互惠制。数据不出浏览器、无账号、无月费——这条比"五套量规"更难被复制，因为商业公司做不了。</li>
+    <li><b>致命劣势：考试评分在"盲评"。</b><code>analyzeWriting()</code> 的 prompt 里<b>压根没有题目正文</b>，只传了 register。而 IELTS 的 Task Response、TOEFL 的 Development 考的恰恰是"是否回应题目"。这不是精度问题，是<b>该维度的分数在结构上无意义</b>。</li>
+    <li><b>"多语种量规打分"这个差异点被高估了。</b>韩语有 MyTOPIK / TopikIQ / ibttopik，日语有 MOJIIQ（还自带 SM-2 复习和 12 周曲线），西语有 Talkparty（还自带 register 维度）。<b>不是空白市场</b>，只是没人做"一个应用内多语种统一"。</li>
+    <li><b>不要在英语线正面拼分数准确性。</b>2026 年 1 月英国文化教育协会已推出官方 IELTS WriteUp：16 项子维度、单题单模、<b>每题需 90% 样本与考官误差 ≤0.5 分才准上线</b>、上线后 10% 人工复核。个人开发者无法在校准工程上竞争，应主打覆盖面与闭环。</li>
+  </ol>
+</div>
+
+<h2><span class="num">01</span> 事实基线：LinguaFlow 写作工具到底是什么</h2>
+<p class="lead">以下均为代码核实结论，非 README 宣称。</p>
+
+<p>写作能力分布在 <b>4 个导航入口、7 种交互形态</b>：自由写作、二稿改写、句型填空、看词造句、情境一句、写作树任务、主题作文。批改统一收敛到 <code>services/aiService.ts</code> 的三个函数：<code>analyzeWriting</code>、<code>analyzeWritingRevision</code>、<code>analyzeGuidedWriting</code>。</p>
+
+<h3>批改输出结构</h3>
+<p>返回类型 <code>WritingFeedback</code> 包含六个字段：整段润色重写 <code>correctedText</code>、错误建议数组 <code>suggestions[{original, suggestion, reason}]</code>（红删除线／绿高亮渲染）、总评 <code>generalComment</code>、<code>cefrEstimation</code>、考试分 <code>examScores</code>、语体点评 <code>registerNote</code>。</p>
+
+<h3>双层评分量表</h3>
+<table>
+<thead><tr><th style="width:15%">考试</th><th style="width:52%">维度</th><th>换算</th></tr></thead>
+<tbody>
+<tr><td class="hi">IELTS</td><td>taskResponse / coherenceCohesion / lexicalResource / grammaticalRange，各 0–9（可 .5）</td><td>overall = 四项均值</td></tr>
+<tr><td class="hi">TOEFL</td><td>development / organization / languageUse，各 0–5</td><td>scaled = (d+o+l)/15×30</td></tr>
+<tr><td class="hi">JLPT</td><td>文字・語彙 / 文法 / 構成・表現，各 0–100</td><td>估算 N5–N1</td></tr>
+<tr><td class="hi">TOPIK</td><td>vocabGrammar / contentOrganization / expression，各 0–100</td><td>估算 1–6 级</td></tr>
+<tr><td class="hi">DELE</td><td>grammar / vocabulary / coherence / taskAdequacy，各 0–100</td><td>映射 CEFR</td></tr>
+</tbody>
+</table>
+
+<div class="note ok"><b>值得肯定的严谨处：</b>代码在 JLPT 分支明确写了「JLPT 官方为选择题考试（文字・語彙／文法／読解／聴解），此处将学生的日语写作能力<b>映射</b>到 N 级量表作为<b>估算</b>」。JLPT 确无写作科目（<a href="https://jlpt.jp/sp/e/faq/">官方 FAQ</a>），这个坑作者已经绕开了，没有伪造不存在的官方量规。</div>
+
+<h3>三个在竞品中罕见的设计</h3>
+<div class="cards">
+  <div class="card g">
+    <h4>分级宽容评分</h4>
+    <p>Prompt 硬性约束：<em>"Do NOT penalize the absence of grammar/vocabulary above that level — a {level} learner is not expected to use advanced structures."</em></p>
+    <div class="ev">Grammarly 对 A2 学习者和母语作家用<b>同一套规则</b>，这是通用工具的结构性缺陷。</div>
+  </div>
+  <div class="card g">
+    <h4>语体（register）维度</h4>
+    <p>五档 casual / neutral / polite / formal / business，题库每题带标注，等级默认映射 A1→casual、B1→polite、B2+→formal。AI 需判断"该正式却太口语"。</p>
+    <div class="ev">全场仅 <b>Talkparty</b>（西语 tú/usted）与 <b>Kunkun</b>（日语敬语）有类似维度。</div>
+  </div>
+  <div class="card g">
+    <h4>二稿对比批改</h4>
+    <p><code>analyzeWritingRevision</code> 把首稿 + 上次建议 + 二稿一起送审，输出 <code>fixedIssues</code> / <code>remainingIssues</code> / <code>improved</code>。</p>
+    <div class="ev">Write&nbsp;&amp;&nbsp;Improve 支持重交但<b>不做 diff 归因</b>；其余竞品无此概念。</div>
+  </div>
+</div>
+
+<h3>复习闭环</h3>
+<p>自由写作的 <code>suggestions</code> 会调 <code>addErrorCards()</code> 沉淀为错题卡，按 <code>(original + language)</code> 去重，进 Leitner 盒子，间隔 <code>[0, 1, 3, 7, 16, 35]</code> 天，box 1–5。复习界面遮蔽正确答案 → 自评"还会错／记住了"。<code>WritingScoreRecord</code> 最多留 500 条，渲染成 SVG 折线趋势图。</p>
+
+<h2><span class="num">02</span> 竞争格局：四个阵营，各有各的缺口</h2>
+<p class="lead">LinguaFlow 同时面对四类替代方案，威胁性质完全不同。</p>
+
+<div class="quad">
+  <div class="q"><div class="qt" style="color:var(--acc2)">阵营 A · 通用 AI 纠错</div>
+    <ul>
+      <li><b>Grammarly</b> $12/月年付（月付 $30）— <b>仅英语</b>，无 CEFR，无复习</li>
+      <li><b>LanguageTool</b> €59.89/年 — 30+ 语言，规则解释最清晰</li>
+      <li><b>QuillBot</b> $8.33/月 — 改写 23 语，语法检查<b>仅 6 语</b></li>
+      <li><b>DeepL Write</b> $7.49/座/月 — 多风格改写，<b>基本不解释原因</b></li>
+      <li><b>Wordtune</b> — 只能用英语写作</li>
+      <li><b>ProWritingAid</b> $120/年 / 终身 $399 — 25+ 分析报告，偏文风非习得</li>
+    </ul>
+    <p style="font-size:12.5px;color:var(--fg3);margin:12px 0 0">共同缺口：<b>0 个有 CEFR 分级，0 个有错题复习闭环。</b></p>
+  </div>
+  <div class="q"><div class="qt" style="color:var(--purple)">阵营 B · 语言学习平台</div>
+    <ul>
+      <li><b>Write &amp; Improve</b>（剑桥）<b>免费</b> — CEFR A1–C1、趋势图、200 万+ 用户，<b>仅英语</b>、无 SRS、无 App；+£4.50/月 得 IELTS band</li>
+      <li><b>Busuu</b> — 14 语，社区人工互改，课程止步 B2（韩语仅 A2）</li>
+      <li><b>Duolingo</b> — <b>确认无开放式作文批改</b></li>
+      <li><b>MOJIIQ</b> $7.99/月 — 日语，JLPT 校准 + <b>SM-2 复习 + 12 周曲线</b></li>
+      <li><b>MyTOPIK / TopikIQ / ibttopik</b> — 韩语按 TOPIK 官方四项量规打分</li>
+      <li><b>Talkparty</b> — 7 语，DELE/SIELE 量规 + <b>register 维度</b></li>
+    </ul>
+    <p style="font-size:12.5px;color:var(--fg3);margin:12px 0 0">最强威胁：<b>Write&nbsp;&amp;&nbsp;Improve</b>（免费+权威）与 <b>MOJIIQ</b>（闭环最像）。</p>
+  </div>
+  <div class="q"><div class="qt" style="color:var(--good)">阵营 C · 人工批改社区</div>
+    <ul>
+      <li><b>LangCorrect</b> 100+ 语，2026 涨至 $8/月 / $60/年，<b>开发者公开承认长期倒贴，可持续性存疑</b></li>
+      <li><b>Journaly</b> 115 语，<b>核心免费</b>，Premium £5/月</li>
+      <li><b>HelloTalk</b> 4000 万+ 用户，行内纠错，<b>质量随缘</b></li>
+      <li><b>italki</b> — 雅思写作批改 $29.99–40/次</li>
+    </ul>
+    <p style="font-size:12.5px;color:var(--fg3);margin:12px 0 0">不可替代之处：<b>真人语感</b>与语用直觉，AI 至今补不上。但无等级、无量规、反馈随机、伙伴会消失。</p>
+  </div>
+  <div class="q"><div class="qt" style="color:var(--warn)">阵营 D · 中文市场与官方引擎</div>
+    <ul>
+      <li><b>有道写作</b> — C 端最完整对手，覆盖四六级/雅思/托福/考研，但官方明示"<b>暂不支持其他语言</b>"</li>
+      <li><b>批改网</b> — 学校端为主，5000+ 学校</li>
+      <li><b>IELTS WriteUp</b>（英国文化教育协会，2026-01）— 16 项子维度、单题单模、<b>误差 ≤0.5 分才上线</b>、10% 人工复核</li>
+      <li><b>ETS e-rater</b> — 与单个人工的一致性<b>高于两名人工之间</b>（Attali 等 2010）</li>
+      <li><b>秘塔写作猫 / 火龙果</b> — 通用润色，不做量规打分</li>
+    </ul>
+    <p style="font-size:12.5px;color:var(--fg3);margin:12px 0 0">注：<b>IELTS 真考写作仍是人工评分</b>（Ofqual 2026 公告）。</p>
+  </div>
+</div>
+
+<h3>能力矩阵</h3>
+<table>
+<thead><tr>
+<th style="width:19%">能力</th><th class="hi" style="width:13%">LinguaFlow</th><th>Grammarly</th><th>Write&amp;Improve</th><th>有道写作</th><th>MOJIIQ</th><th>ChatGPT 直接问</th>
+</tr></thead>
+<tbody>
+<tr><td>CEFR 分级评估</td><td class="hi"><span class="tag t-y">有</span></td><td><span class="tag t-n">无</span></td><td><span class="tag t-y">有</span></td><td><span class="tag t-n">无</span></td><td><span class="tag t-p">JLPT 校准</span></td><td><span class="tag t-p">可问但无校准</span></td></tr>
+<tr><td>考试量规打分</td><td class="hi"><span class="tag t-y">5 套</span></td><td><span class="tag t-n">无</span></td><td><span class="tag t-p">IELTS 付费</span></td><td><span class="tag t-y">多套</span></td><td><span class="tag t-n">不打分</span></td><td><span class="tag t-p">不可复现</span></td></tr>
+<tr><td>非英语写作批改</td><td class="hi"><span class="tag t-p">日/英/韩</span></td><td><span class="tag t-n">仅英语</span></td><td><span class="tag t-n">仅英语</span></td><td><span class="tag t-n">仅英语</span></td><td><span class="tag t-p">仅日语</span></td><td><span class="tag t-y">全语种</span></td></tr>
+<tr><td>母语解释反馈</td><td class="hi"><span class="tag t-y">有</span></td><td><span class="tag t-n">英文</span></td><td><span class="tag t-n">英文</span></td><td><span class="tag t-y">中文</span></td><td><span class="tag t-p">英文</span></td><td><span class="tag t-y">有</span></td></tr>
+<tr><td>语体 register 判定</td><td class="hi"><span class="tag t-y">5 档</span></td><td><span class="tag t-p">语气检测</span></td><td><span class="tag t-n">无</span></td><td><span class="tag t-n">无</span></td><td><span class="tag t-n">无</span></td><td><span class="tag t-p">需自己提</span></td></tr>
+<tr><td>分级宽容评分</td><td class="hi"><span class="tag t-y">有</span></td><td><span class="tag t-n">无</span></td><td><span class="tag t-y">有</span></td><td><span class="tag t-n">无</span></td><td><span class="tag t-p">部分</span></td><td><span class="tag t-n">无</span></td></tr>
+<tr><td>二稿 diff 归因</td><td class="hi"><span class="tag t-y">有</span></td><td><span class="tag t-n">无</span></td><td><span class="tag t-p">可重交</span></td><td><span class="tag t-n">无</span></td><td><span class="tag t-n">无</span></td><td><span class="tag t-n">无记忆</span></td></tr>
+<tr><td>错题 SRS 复习</td><td class="hi"><span class="tag t-y">Leitner</span></td><td><span class="tag t-n">无</span></td><td><span class="tag t-n">无</span></td><td><span class="tag t-n">无</span></td><td><span class="tag t-y">SM-2</span></td><td><span class="tag t-n">无</span></td></tr>
+<tr><td>纵向趋势曲线</td><td class="hi"><span class="tag t-y">有</span></td><td><span class="tag t-p">统计面板</span></td><td><span class="tag t-y">有</span></td><td><span class="tag t-p">报告</span></td><td><span class="tag t-y">12 周</span></td><td><span class="tag t-n">无</span></td></tr>
+<tr><td>跨设备 / 移动端</td><td class="hi"><span class="tag t-n">无</span></td><td><span class="tag t-y">全平台</span></td><td><span class="tag t-p">无 App</span></td><td><span class="tag t-y">有</span></td><td><span class="tag t-y">有</span></td><td><span class="tag t-y">有</span></td></tr>
+<tr><td>价格</td><td class="hi"><span class="tag t-y">免费+自带 Key</span></td><td>$12–30/月</td><td>免费 / £4.5</td><td>订阅</td><td>$7.99/月</td><td>$0–20/月</td></tr>
+</tbody>
+</table>
+
+<h2><span class="num">03</span> 优势：六条经得起追问的</h2>
+<p class="lead">剔除了"AI 反馈质量好"这类不可辩护的说法——底层都是同一批大模型，反馈质量不构成护城河。</p>
+
+<div class="cards">
+  <div class="card g">
+    <h4>1. 唯一跑通完整教学环的产品</h4>
+    <p>出题（CEFR 分级 + 语体标注）→ 批改（多维 + 母语解释）→ 二稿归因 → 错误自动进 SRS → 分数进趋势图。竞品要么只做中间一段，要么缺尾部复习。</p>
+    <div class="ev">教学法背书：<b>CATESOL Newsletter Vol.58(3)</b> 中 ESL 教师实测 Grammarly 后给出的建议正是"先独立写→只采纳认同的→手动重写→记入 Editing&nbsp;Log 复习"。LinguaFlow 把这套人工流程<b>自动化了</b>——目前没有第二个产品这么做。</div>
+  </div>
+  <div class="card g">
+    <h4>2. 本地优先 + BYO-Key：商业公司做不了的形态</h4>
+    <p>数据不出浏览器、无账号体系、无月费、可离线保存草稿数据。全赛道调研 24 个产品，除个别免费 beta 外<b>全部是订阅制或社区互惠制</b>。</p>
+    <div class="ev">这条护城河的本质是<b>商业模式不兼容</b>：Grammarly 不可能让你自带 Key，因为那等于放弃收入。对隐私敏感、或已有 API 额度的技术型学习者，这是决定性的。</div>
+  </div>
+  <div class="card g">
+    <h4>3. 分级宽容评分：真正的教学法差异</h4>
+    <p>不因 A2 学习者没用虚拟语气而扣分。通用工具用统一规则集，会给初学者制造"满屏红线"的挫败感。</p>
+    <div class="ev">剑桥 Write&nbsp;&amp;&nbsp;Improve 官方撰文承认<b>刻意不一次标全错误</b>，正是为了保护动机。LinguaFlow 用 prompt 约束达到同样目的，方向与权威产品一致。</div>
+  </div>
+  <div class="card g">
+    <h4>4. 母语（中文）解释 + 非英语目标语</h4>
+    <p>Prompt 强制 <em>"Explain all feedback… in {nativeLanguage}"</em>。学日语时用中文读懂"为什么这个助词错了"，这个组合在市面上极稀缺。</p>
+    <div class="ev">有道写作官方明示"<b>只专注英文作文批改，暂不支持其他语言</b>"；Write&nbsp;&amp;&nbsp;Improve 全英文界面与反馈。中文母语 × 日/韩目标语这一格，几乎无人占据。</div>
+  </div>
+  <div class="card g">
+    <h4>5. 语体维度：被整个赛道忽略的能力</h4>
+    <p>"写对"和"写得体"是两回事。日语敬语、韩语阶称、西语 tú/usted、商务英语——语体错误往往比语法错误代价更高，却几乎无工具检查。</p>
+    <div class="ev">仅 Talkparty 与 Kunkun 有类似设计，且均为单语种。LinguaFlow 把它做成了<b>题库层的一等公民</b>（每题带 register 标注），而非事后检测。</div>
+  </div>
+  <div class="card g">
+    <h4>6. 相对 ChatGPT 直接问：工作流与持久化</h4>
+    <p>裸问 ChatGPT 能拿到同等甚至更好的单次反馈，但：不知道你上周错过什么、不产出结构化错题、无趋势、要自己出题贴量规、且顺手就能让它代写。</p>
+    <div class="ev">这是最诚实的一条——<b>差异化在产品层，不在模型层</b>。不要声称"批改更准"，要声称"它记得你"。</div>
+  </div>
+</div>
+
+<h2><span class="num">04</span> 劣势：按严重程度分三级</h2>
+
+<h3><span class="sev s1">致命</span>影响核心价值主张的效度</h3>
+
+<h4>① 考试评分在盲评——题目正文没进 prompt</h4>
+<p>已核实的调用签名：</p>
+<pre>analyzeWriting(text, targetLanguage, nativeLanguage, cefrLevel, targetExam, register)
+                                                              <b>↑ 题目正文完全缺席</b>
+
+// WritingView.tsx:180
+result = await analyzeWriting(text, ..., <b>activeTopicResolved?.register</b>);
+                                          <b>只传了语体，没传题目</b></pre>
+<p>IELTS 四维中的 <b>Task Response</b>、TOEFL 三维中的 <b>Development</b>，考的核心就是"是否切题、是否完成任务"。AI 看不到题目，这两项分数<b>在结构上不成立</b>。<code>CompositionEditor</code> 同样没传 <code>node.title</code>。这不是精度误差，是维度失效。</p>
+
+<h4>② 分数不可复现，且失败会静默污染趋势</h4>
+<p><code>temperature: 0.7</code> 硬编码，无 seed、无 <code>response_format</code> JSON schema 约束。同一篇作文两次提交可能得到不同分数。更糟的是 <code>parseAIJSON</code> 解析失败时<b>静默回落</b>为 <code>generalComment: "Analysis failed."</code> + <code>cefrEstimation: A1</code>，但 XP 照发、<code>addWritingScore</code> 照写——<b>一次解析失败就会在进步曲线上砸出一个假的 A1 坑</b>。</p>
+
+<h4>③ AI 量规打分本身的效度天花板</h4>
+<table>
+<thead><tr><th style="width:30%">研究</th><th style="width:32%">设置</th><th>结果</th></tr></thead>
+<tbody>
+<tr><td>Nature <i>Sci Rep</i> 2024</td><td>GPT-4o 零样本评分</td><td>QWK 仅 <b>0.437</b>，PRMSE −0.617（比全给平均分还差）；对亚太裔作文<b>系统性偏低</b></td></tr>
+<tr><td>Mizumoto &amp; Eguchi 2023</td><td>GPT-3 按 IELTS Task 2 量规评 12,100 篇</td><td>精确一致 54.33%，±1 级邻接一致 89.15%</td></tr>
+<tr><td>Aydın 等 2025, <i>System</i></td><td>GPT-4o + <b>CEFR 六维细化量规</b></td><td>QWK <b>0.72</b>、Pearson 0.73——接近人-人下限</td></tr>
+<tr><td>ASAP/Shermis 2014 基准</td><td>人-人一致性</td><td>QWK <b>0.61–0.85</b></td></tr>
+<tr><td>npj <i>Sci of Learning</i></td><td>LLM 评 IELTS Task 2</td><td>一致性 ICC 0.68–0.72（优于教师 0.37–0.44），但<b>绝对准确度只中等</b>，换更强模型无改善</td></tr>
+</tbody>
+</table>
+<div class="note"><b>关键结论：</b>瓶颈不是模型能力，是<b>校准工程</b>。裸 prompt 打分不可靠，但"细化量规 + few-shot + 锚样本"可把 QWK 拉到 0.72。LinguaFlow 目前<b>只有量规文字描述，没有锚定样本、没有 few-shot、没有校准</b>——处在效度谱系的低端。学术研究报告 GPT 系统性<b>偏低</b>，而第三方实测报告裸模型倾向<b>偏高</b>（偏差 0.5–1.5 分），这个矛盾本身就证明了分数会随模型版本和提示词漂移。</div>
+
+<h3><span class="sev s2">结构性</span>受架构原则约束，非 bug</h3>
+
+<div class="cards">
+  <div class="card w">
+    <h4>数据脆弱且备份不完整</h4>
+    <p><code>BACKUP_KEYS</code> <b>遗漏了 <code>linguaflow_errorbook</code> 与 <code>linguaflow_writing_history</code></b>——用户最珍贵的错题积累和数月进步曲线<b>导不出、换设备即永久丢失</b>。清一次浏览器数据即归零。</p>
+  </div>
+  <div class="card w">
+    <h4>冷启动门槛极高</h4>
+    <p>用户必须自己去申请大模型 API Key 并配置。对面 Write&nbsp;&amp;&nbsp;Improve 是<b>免注册、打开即用、完全免费</b>。这个门槛会在漏斗第一步筛掉绝大多数非技术用户。</p>
+  </div>
+  <div class="card w">
+    <h4>写作实际只支持 3 种语言</h4>
+    <p><code>WRITING_SUPPORTED_LANGUAGES = [日, 英, 韩]</code>，其余 8 种在 Gate 页标注"待开发"。而"支持 8/11 种语言"是产品的主要对外叙事之一，写作模块撑不起这个说法。</p>
+  </div>
+  <div class="card w">
+    <h4>无移动端</h4>
+    <p>写作练习天然适配碎片时间，竞品几乎全有 App。纯 Web + localStorage 意味着换设备就是换账号。</p>
+  </div>
+  <div class="card w">
+    <h4>题库容量小</h4>
+    <p>每 CEFR 等级仅 3–5 题，写作树英语 8 主题、日韩各 3 主题。对面 Write&nbsp;&amp;&nbsp;Improve 有数百题分三档 + Business 专项，MyTOPIK 200+ 题，TopikIQ 370+ 题。</p>
+  </div>
+  <div class="card w">
+    <h4>没有人的成分</h4>
+    <p>LangCorrect / Journaly / HelloTalk 提供真人语感与语用直觉，这是 AI 至今补不上的。LinguaFlow 是纯单机产品，无社区、无对比、无同侪压力——而"孤独"恰恰是它自己定义的用户痛点。</p>
+  </div>
+</div>
+
+<h3><span class="sev s3">工程债</span>可修复，但正在削弱体验</h3>
+<ul>
+<li><b>闭环有缺口</b>：只有自由写作沉淀错题。引导式写作、写作树任务、主题作文<b>全都不进错题本</b>；主题作文既不进错题本也不进趋势记录，完成固定发 50 XP，与批改质量完全脱钩。</li>
+<li><b>重试按钮 bug</b>：<code>WritingView.tsx:326</code> 把 MouseEvent 当作 <code>isRevision</code> 参数传入（truthy），只要已有首稿反馈，点"重试"就会误走二稿对比分支。</li>
+<li><b>写作树 mode 硬编码</b>：<code>WritingTreeView.tsx:75</code> 恒传 <code>'scaffold'</code>，导致 B1/B2 的空脚手架任务 prompt 变成「模板：「」」。</li>
+<li><b>正文不自动存草稿</b>：<code>WritingView</code> 的输入只存 React state，刷新即丢。</li>
+<li><b>二稿不检语体</b>：<code>analyzeWritingRevision</code> 签名里没有 register 参数。</li>
+<li><b>已实现但零调用</b>：<code>generateReferenceEssay</code>（含 A1–C1 分级长度的范文与提纲生成）完整实现却全项目无人调用；<code>buildCompositionSections</code> 的体裁切换未接 UI。另有 <code>classifyInspiration</code>、<code>polishText</code>、<code>getWritingCoachFeedback</code> 三处死代码。</li>
+</ul>
+
+<h2><span class="num">05</span> 战略判断</h2>
+
+<blockquote>
+<b>一句话定位建议：</b>不要说"AI 批改你的作文"——那是红海，且拼不过。要说"<b>它记得你所有写错的地方，并在你快忘记时让你重写一遍</b>"。
+</blockquote>
+
+<h3>该做什么</h3>
+<div class="cards">
+  <div class="card g">
+    <h4>立即修三处效度硬伤</h4>
+    <p>① 把题目正文注入 prompt（一行参数的事，直接决定 Task Response 是否有意义）；② 批改调用改 <code>temperature: 0.2</code> + JSON schema 约束；③ 解析失败时<b>不发 XP、不写趋势记录</b>，明确报错让用户重试。</p>
+  </div>
+  <div class="card g">
+    <h4>把 BACKUP_KEYS 补全</h4>
+    <p>加入 errorbook 与 writing_history。在"无后端"原则下，导出即是用户唯一的数据主权保障——现在这个保障是漏的。</p>
+  </div>
+  <div class="card g">
+    <h4>补齐闭环缺口</h4>
+    <p>让引导式写作、写作树任务、主题作文的错误<b>全部进错题本</b>。闭环完整性是最大卖点，不该只在一个入口成立。</p>
+  </div>
+  <div class="card g">
+    <h4>把 generateReferenceEssay 接进作文编辑器</h4>
+    <p>已经写好的分级范文生成能力零调用，太浪费。"写完对比范文"是学习者高频诉求，且竞品普遍不提供。</p>
+  </div>
+</div>
+
+<h3>不该做什么</h3>
+<ul>
+<li><b>不要在英语雅思线拼分数准确性。</b>IELTS WriteUp 用"单题单模 + 误差 ≤0.5 分才上线 + 10% 人工复核"筑墙，个人开发者无法在校准工程上竞争。英语线的正确打法是<b>母语解释 + 复习闭环</b>。</li>
+<li><b>不要宣称"多语种考试打分是空白市场"。</b>韩语 MyTOPIK / TopikIQ / ibttopik、日语 MOJIIQ、西语 Talkparty 都已存在。真实的稀缺点是<b>"一个应用内、中文母语反馈、多语种统一量规 + SRS"</b>——现有玩家全是单语种孤岛。</li>
+<li><b>不要放弃 JLPT 的诚实表述。</b>代码里"映射估算"的措辞是对的，UI 上也应保持，别为了卖点写成"JLPT 官方评分标准"。</li>
+<li><b>暂不考虑做社区。</b>人工互改赛道 LangCorrect 已经在倒贴运营，冷启动成本极高，与"纯前端无后端"原则直接冲突。</li>
+</ul>
+
+<div class="note ok" style="margin-top:28px">
+<b>总评：</b>LinguaFlow 写作工具的<b>设计密度高于大多数商业产品</b>——分级宽容评分、语体维度、二稿归因、错题 SRS，每一条都体现了真实的教学法思考，这在个人项目里罕见。但它目前处在"<b>设计已到位、实现有漏洞</b>"的状态：三处效度硬伤（盲评、不可复现、静默失败污染数据）正在侵蚀它最想主张的价值。这些恰恰是低成本可修的。修完之后，"闭环 + 本地优先 + 母语反馈 + 多语种"这个组合，在 2026 年的市场上确实没有第二家。
+</div>
+
+<footer>
+<b>主要信息源</b>
+<ol>
+<li>代码基线：<code>components/Writing*.tsx</code>、<code>CompositionEditor.tsx</code>、<code>services/aiService.ts</code>、<code>storageService.ts</code>、<code>data/writingPrompts.ts</code>、<code>growthTree.ts</code>（2026-08-04 工作区状态）</li>
+<li>Cambridge Write &amp; Improve 官方产品页与教学法说明；JLPT 官方 FAQ（jlpt.jp）确认无写作科目</li>
+<li>英国文化教育协会 IELTS WriteUp 发布信息（人民网 2026-01-22；腾讯新闻 2026-02-11 访谈）</li>
+<li>Ofqual 2026 年 Cambridge English 处罚公告（确认 IELTS 写作仍为人工评分）；ETS e-rater 官方说明与 Attali, Bridgeman &amp; Trapani (2010)</li>
+<li>Nature <i>Scientific Reports</i> 2024（GPT-4o 零样本 AES，QWK 0.437）；Mizumoto &amp; Eguchi 2023 <i>RMAL</i>；Aydın 等 2025 <i>System</i>（CEFR 六维量规 QWK 0.72）；npj <i>Science of Learning</i>（IELTS Task 2 LLM 评分）；Shermis 2014 ASAP 基准</li>
+<li>CATESOL Newsletter Vol.58 Issue 3（Grammarly 教学法实测）；Aminah 等 2025 <i>JLLCE</i>（Grammarly 过度依赖）</li>
+<li>有道写作官方帮助页（"暂不支持其他语言"）；批改网官网版本页；各竞品官方定价页（2026-08 查证）</li>
+</ol>
+<p style="margin-top:16px">部分第三方定价存在口径冲突（Ginger、Wordtune、Busuu、小站雅思），报告中已择官方口径或标注不确定。</p>
+</footer>
+
+</div>
+</body>
+</html>
