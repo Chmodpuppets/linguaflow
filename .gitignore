@@ -30,7 +30,8 @@ dist-ssr
 
 # Local agent/debug scaffolding (not project source)
 .workbuddy/
-ai/
+ai/agents/
+ai/research/
 linguaflow-workbench.html
 
 # Local build/presentation artifacts (not project source)
