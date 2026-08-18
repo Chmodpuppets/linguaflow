@@ -36,6 +36,8 @@ const RunSpan = React.memo(({ text, status }: RunSpanProps) => {
 });
 
 // --- Helper: Parse Notes for Context ---
+const LATIN_SCRIPT_LANGUAGES = new Set(['English', 'Spanish', 'French', 'German', 'Italian']);
+
 const parseNotes = (notes: string) => {
     const translationMatch = notes.match(/\[Translation\]\n([\s\S]*?)(?=\n\[|$)/);
     const phoneticMatch = notes.match(/\[Phonetic Guide\]\n([\s\S]*?)(?=\n\[|$)/);
@@ -781,7 +783,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                             <span className="hidden sm:inline">{savedToLibrary ? "已保存" : "保存"}</span>
                         </button>
 
-                        {content?.phoneticGuide && (
+                        {content?.phoneticGuide && !LATIN_SCRIPT_LANGUAGES.has(user.learningLanguage) && (
                             <button onClick={() => setShowPhonetic(!showPhonetic)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm ${showPhonetic ? 'bg-secondary/20 text-secondary' : 'text-muted hover:text-gray-200 hover:bg-surface-3'}`} title="切换发音指南"><Keyboard size={16} /><span className="hidden sm:inline">注音</span></button>
                         )}
                         <button onClick={() => setShowTranslation(!showTranslation)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm ${showTranslation ? 'bg-blue-500/20 text-blue-400' : 'text-muted hover:text-gray-200 hover:bg-surface-3'}`} title="切换译文"><Eye size={16} /><span className="hidden sm:inline">译文</span></button>
@@ -962,8 +964,8 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
               ref={textContainerRef}
               className="max-h-[60vh] overflow-y-auto pr-3 pb-2 custom-scrollbar space-y-5"
             >
-                {/* Phonetic / Input Hint */}
-                {content.phoneticGuide && showPhonetic && !isStrictMode && (
+                {/* Phonetic / Input Hint — 仅非拉丁字母语言显示（英语等不需要罗马音辅助） */}
+                {content.phoneticGuide && showPhonetic && !isStrictMode && !LATIN_SCRIPT_LANGUAGES.has(user.learningLanguage) && (
                     <div className="text-muted font-sans text-sm leading-relaxed select-none">
                         {content.phoneticGuide}
                     </div>
