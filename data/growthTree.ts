@@ -514,14 +514,17 @@ export const buildCompositionPrompt = (themeKey: string, lang: Language): string
 // 设计：观察积累→组织表达→修改打磨→完成发布 四枝交织；写作过程是循环（构思→起草→重读→重写→编辑→分享）。
 // 与现有「横向内容主题树」（自我介绍/日常/兴趣…）正交：横向是题材，纵向是写作者成长阶段。
 // 同一生活题材会在不同阶段重现（通过 leaf.theme 反向挂接到横向主题），实现"同题材长出更强写法"。
-// 数据语言无关：scaffoldHint 为母语（中文）提示；enScaffold 仅英语给句型支架，其余语言走自由写。
+// 数据语言无关：scaffoldHint 为母语（中文）提示；enScaffold/jaScaffold/koScaffold 为各目标语言的句型支架，
+// makeLeaf 按当前学习语言取对应支架，缺失则自由写（与横向主题树 TREE_THEMES 的多语言 scaffold 对齐）。
 // 参考：Bird by Bird（低压力起草）/ Writing Tools（短小可练工具）/ On Writing Well（清晰简洁有声音）/ The Sense of Style（读者视角）。
 
 interface SpineLeafSeed {
   title: string;
   cefr: CEFRLevel;
   hint: string;                       // 母语情境/提示（语言无关）
-  enScaffold?: string;               // 仅英语句型支架（可选）
+  enScaffold?: string;               // 英语句型支架（可选）
+  jaScaffold?: string;               // 日语句型支架（可选）
+  koScaffold?: string;               // 韩语句型支架（可选）
   practiceType: WritingPracticeType;
   cycleStage: WritingCycleStage;
   register?: WritingRegister;
@@ -539,9 +542,9 @@ const SPINE_BRANCHES: SpineBranchSeed[] = [
     id: 'b1',
     title: '01 写下我自己',
     leaves: [
-      { title: '自我介绍', cefr: CEFRLevel.A1, hint: '用目标语言写 2–3 句介绍自己：名字、来自哪里、一句爱好。', enScaffold: 'My name is ___. I am from ___. I like ___.', practiceType: 'observe', cycleStage: 'plan', theme: 'intro' },
+      { title: '自我介绍', cefr: CEFRLevel.A1, hint: '用目标语言写 2–3 句介绍自己：名字、来自哪里、一句爱好。', enScaffold: 'My name is ___. I am from ___. I like ___.', jaScaffold: '私の名前は ___ です。___ から来ました。___ が好きです。', koScaffold: '제 이름은 ___이고, ___에서 왔어요. ___을/를 좋아해요.', practiceType: 'observe', cycleStage: 'plan', theme: 'intro' },
       { title: '我的房间 / 我的家', cefr: CEFRLevel.A1, hint: '描述你住的地方：有几间房、你最喜欢哪个角落、为什么。', practiceType: 'observe', cycleStage: 'plan' },
-      { title: '我的早晨', cefr: CEFRLevel.A1, hint: '按时间顺序写你通常怎么开始一天：起床、洗漱、早餐。', enScaffold: 'I wake up at ___. Then I ___.', practiceType: 'narrate', cycleStage: 'draft', theme: 'daily' },
+      { title: '我的早晨', cefr: CEFRLevel.A1, hint: '按时间顺序写你通常怎么开始一天：起床、洗漱、早餐。', enScaffold: 'I wake up at ___. Then I ___.', jaScaffold: '___ 時に起きます。それから ___ します。', koScaffold: '___시에 일어나요. 그리고 ___해요.', practiceType: 'narrate', cycleStage: 'draft', theme: 'daily' },
       { title: '我的一天', cefr: CEFRLevel.A2, hint: '用连接词（然后 / 之后 / 最后）把一天串成一段，不少于 5 句。', practiceType: 'organize', cycleStage: 'draft', theme: 'daily' },
       { title: '一张照片的故事', cefr: CEFRLevel.A2, hint: '选一张你喜欢的照片，写写它拍于何时何地、为什么对你特别。', practiceType: 'narrate', cycleStage: 'draft' },
       { title: '我的第一篇"关于我"的小文', cefr: CEFRLevel.B1, hint: '把上面的碎片整合成一篇 120–150 词的小文：我是谁、我的日常、我的小目标。', practiceType: 'organize', cycleStage: 'draft', theme: 'intro' },
@@ -563,7 +566,7 @@ const SPINE_BRANCHES: SpineBranchSeed[] = [
     id: 'b3',
     title: '03 写下发生的事',
     leaves: [
-      { title: '昨天发生了什么', cefr: CEFRLevel.A1, hint: '用过去式写昨天做的一两件事。', enScaffold: 'Yesterday I ___ and then I ___.', practiceType: 'narrate', cycleStage: 'draft', theme: 'daily' },
+      { title: '昨天发生了什么', cefr: CEFRLevel.A1, hint: '用过去式写昨天做的一两件事。', enScaffold: 'Yesterday I ___ and then I ___.', jaScaffold: '昨日は ___ して、それから ___ しました。', koScaffold: '어제 ___하고 ___했어요.', practiceType: 'narrate', cycleStage: 'draft', theme: 'daily' },
       { title: '一次意外', cefr: CEFRLevel.A2, hint: '讲一件出乎意料的小事：发生了什么、你什么反应、结果如何。', practiceType: 'narrate', cycleStage: 'draft' },
       { title: '难忘的一天', cefr: CEFRLevel.A2, hint: '写一天里让你印象最深的时刻，说清前因后果。', practiceType: 'narrate', cycleStage: 'draft', theme: 'daily' },
       { title: '第一次……', cefr: CEFRLevel.A2, hint: '写你第一次做某件事的经历：第一次骑车 / 第一次做饭 / 第一次独自旅行。', practiceType: 'narrate', cycleStage: 'draft' },
@@ -587,7 +590,7 @@ const SPINE_BRANCHES: SpineBranchSeed[] = [
     id: 'b5',
     title: '05 说出我的想法',
     leaves: [
-      { title: '我喜欢 / 不喜欢……', cefr: CEFRLevel.A1, hint: '用"我喜欢___，因为___"表达一个偏好。', enScaffold: 'I like ___ because ___.', practiceType: 'opinion', cycleStage: 'plan' },
+      { title: '我喜欢 / 不喜欢……', cefr: CEFRLevel.A1, hint: '用"我喜欢___，因为___"表达一个偏好。', enScaffold: 'I like ___ because ___.', jaScaffold: '___ が好きです。なぜなら ___ からです。', koScaffold: '___을/를 좋아해요. 왜냐하면 ___이/가 때문이에요.', practiceType: 'opinion', cycleStage: 'plan' },
       { title: '给出一个理由', cefr: CEFRLevel.A1, hint: '为一个观点补上一个理由（不只是"我觉得"）。', practiceType: 'opinion', cycleStage: 'draft' },
       { title: '两个理由 + 一个例子', cefr: CEFRLevel.A2, hint: '就一个话题写出两个理由，并搭配一个具体例子。', practiceType: 'opinion', cycleStage: 'draft' },
       { title: '同意还是不同意', cefr: CEFRLevel.A2, hint: '对一个说法表态，并写一句支持你态度的依据。', practiceType: 'opinion', cycleStage: 'draft' },
@@ -669,7 +672,10 @@ function buildSpineNodes(lang: Language, level: CEFRLevel, now: number): Writing
     register: lf.register ?? REGISTER_BY_LEVEL[lf.cefr] ?? 'neutral',
     unlocked: (CEFR_RANK[lf.cefr] ?? 1) <= levelRank,
     completed: false,
-    scaffold: lang === Language.English && lf.enScaffold ? lf.enScaffold : '',
+    scaffold:
+      (lang === Language.English && lf.enScaffold) ||
+      (lang === Language.Japanese && lf.jaScaffold) ||
+      (lang === Language.Korean && lf.koScaffold) || '',
     scaffoldHint: lf.hint,
     order: idx,
     practiceType: lf.practiceType,
