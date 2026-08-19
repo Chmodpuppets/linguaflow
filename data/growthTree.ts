@@ -1,4 +1,4 @@
-import { WritingNode, Language, CEFRLevel, WritingRegister, TargetExam, CompositionSection, CompositionGenre } from '../types';
+import { WritingNode, Language, CEFRLevel, WritingRegister, TargetExam, CompositionSection, CompositionGenre, WritingPracticeType, WritingCycleStage } from '../types';
 import { TOPICS_BY_LEVEL } from './writingPrompts';
 
 // 复用写作工坊的分级开放命题（单源），供写作树高阶任务直接引用，避免两套题库割裂
@@ -510,6 +510,196 @@ export const buildCompositionPrompt = (themeKey: string, lang: Language): string
   );
 };
 
+// ===================== 纵向写作者养成主线（Vertical Writer-Formation Spine）=====================
+// 设计：观察积累→组织表达→修改打磨→完成发布 四枝交织；写作过程是循环（构思→起草→重读→重写→编辑→分享）。
+// 与现有「横向内容主题树」（自我介绍/日常/兴趣…）正交：横向是题材，纵向是写作者成长阶段。
+// 同一生活题材会在不同阶段重现（通过 leaf.theme 反向挂接到横向主题），实现"同题材长出更强写法"。
+// 数据语言无关：scaffoldHint 为母语（中文）提示；enScaffold 仅英语给句型支架，其余语言走自由写。
+// 参考：Bird by Bird（低压力起草）/ Writing Tools（短小可练工具）/ On Writing Well（清晰简洁有声音）/ The Sense of Style（读者视角）。
+
+interface SpineLeafSeed {
+  title: string;
+  cefr: CEFRLevel;
+  hint: string;                       // 母语情境/提示（语言无关）
+  enScaffold?: string;               // 仅英语句型支架（可选）
+  practiceType: WritingPracticeType;
+  cycleStage: WritingCycleStage;
+  register?: WritingRegister;
+  theme?: string;                     // 反向挂接横向主题 key（daily/intro/travel/letter/opinion…）→ tags: x:<key>
+}
+
+interface SpineBranchSeed {
+  id: string;
+  title: string;
+  leaves: SpineLeafSeed[];
+}
+
+const SPINE_BRANCHES: SpineBranchSeed[] = [
+  {
+    id: 'b1',
+    title: '01 写下我自己',
+    leaves: [
+      { title: '自我介绍', cefr: CEFRLevel.A1, hint: '用目标语言写 2–3 句介绍自己：名字、来自哪里、一句爱好。', enScaffold: 'My name is ___. I am from ___. I like ___.', practiceType: 'observe', cycleStage: 'plan', theme: 'intro' },
+      { title: '我的房间 / 我的家', cefr: CEFRLevel.A1, hint: '描述你住的地方：有几间房、你最喜欢哪个角落、为什么。', practiceType: 'observe', cycleStage: 'plan' },
+      { title: '我的早晨', cefr: CEFRLevel.A1, hint: '按时间顺序写你通常怎么开始一天：起床、洗漱、早餐。', enScaffold: 'I wake up at ___. Then I ___.', practiceType: 'narrate', cycleStage: 'draft', theme: 'daily' },
+      { title: '我的一天', cefr: CEFRLevel.A2, hint: '用连接词（然后 / 之后 / 最后）把一天串成一段，不少于 5 句。', practiceType: 'organize', cycleStage: 'draft', theme: 'daily' },
+      { title: '一张照片的故事', cefr: CEFRLevel.A2, hint: '选一张你喜欢的照片，写写它拍于何时何地、为什么对你特别。', practiceType: 'narrate', cycleStage: 'draft' },
+      { title: '我的第一篇"关于我"的小文', cefr: CEFRLevel.B1, hint: '把上面的碎片整合成一篇 120–150 词的小文：我是谁、我的日常、我的小目标。', practiceType: 'organize', cycleStage: 'draft', theme: 'intro' },
+    ],
+  },
+  {
+    id: 'b2',
+    title: '02 写下我的世界',
+    leaves: [
+      { title: '描述一个人', cefr: CEFRLevel.A1, hint: '写一位你熟悉的人：他/她是谁、长什么样、为什么重要。', practiceType: 'narrate', cycleStage: 'plan' },
+      { title: '描述一个地方', cefr: CEFRLevel.A1, hint: '写一个你喜欢的地方：在哪里、有什么、气氛如何。', practiceType: 'narrate', cycleStage: 'plan', theme: 'travel' },
+      { title: '描述一件物品', cefr: CEFRLevel.A1, hint: '写一件你常用的东西：它是什么、什么颜色/材质、你用它做什么。', practiceType: 'narrate', cycleStage: 'plan' },
+      { title: '用五感写一个场景', cefr: CEFRLevel.A2, hint: '写一个场景，至少用到看/听/闻/触/尝中的三种感觉。', practiceType: 'narrate', cycleStage: 'draft' },
+      { title: '观察日记：今天我注意到了什么', cefr: CEFRLevel.A2, hint: '记录今天一个被你注意到的小细节（一片云、一种气味、一句无心的话）。', practiceType: 'observe', cycleStage: 'draft' },
+      { title: '把"很开心 / 很好看"写具体', cefr: CEFRLevel.B1, hint: '重写一句"今天很开心"或"那里很好看"，用具体动作/画面代替空泛形容词。', practiceType: 'style', cycleStage: 'edit' },
+    ],
+  },
+  {
+    id: 'b3',
+    title: '03 写下发生的事',
+    leaves: [
+      { title: '昨天发生了什么', cefr: CEFRLevel.A1, hint: '用过去式写昨天做的一两件事。', enScaffold: 'Yesterday I ___ and then I ___.', practiceType: 'narrate', cycleStage: 'draft', theme: 'daily' },
+      { title: '一次意外', cefr: CEFRLevel.A2, hint: '讲一件出乎意料的小事：发生了什么、你什么反应、结果如何。', practiceType: 'narrate', cycleStage: 'draft' },
+      { title: '难忘的一天', cefr: CEFRLevel.A2, hint: '写一天里让你印象最深的时刻，说清前因后果。', practiceType: 'narrate', cycleStage: 'draft', theme: 'daily' },
+      { title: '第一次……', cefr: CEFRLevel.A2, hint: '写你第一次做某件事的经历：第一次骑车 / 第一次做饭 / 第一次独自旅行。', practiceType: 'narrate', cycleStage: 'draft' },
+      { title: '冲突与转折', cefr: CEFRLevel.B1, hint: '写一个有小冲突或转折的小故事：期待落空、计划打乱、意外转机。', practiceType: 'narrate', cycleStage: 'draft' },
+      { title: '一件事的三种版本：短讯 / 日记 / 故事', cefr: CEFRLevel.B1, hint: '把同一件事分别写成：①一条给朋友的短讯 ②一段日记 ③一个有人物有画面的小故事。对比三者差异。', practiceType: 'rewrite', cycleStage: 'rewrite' },
+    ],
+  },
+  {
+    id: 'b4',
+    title: '04 让文字连起来',
+    leaves: [
+      { title: '时间顺序', cefr: CEFRLevel.A1, hint: '用 first / then / after that / finally 把三个动作连成一段。', practiceType: 'organize', cycleStage: 'draft' },
+      { title: '原因与结果', cefr: CEFRLevel.A2, hint: '写"因为___，所以___"的句式，给出一件事的起因和结果。', practiceType: 'organize', cycleStage: 'draft' },
+      { title: '对比与选择', cefr: CEFRLevel.A2, hint: '用"比起 A，我更___ B"或"on one hand… on the other hand…"对比两件事物。', practiceType: 'organize', cycleStage: 'draft' },
+      { title: '转折与意外', cefr: CEFRLevel.A2, hint: '用 but / however / 没想到 写一个出现转折的句子或短段。', practiceType: 'organize', cycleStage: 'draft' },
+      { title: '一个段落只说一件事', cefr: CEFRLevel.B1, hint: '写两个段落，每段只围绕一个中心意思；检查有没有跑题的句子。', practiceType: 'organize', cycleStage: 'edit' },
+      { title: '给故事写开头和结尾', cefr: CEFRLevel.B1, hint: '为一个已知的小故事各写：一个抓人的开头 + 一个留余味的结尾。', practiceType: 'organize', cycleStage: 'draft' },
+    ],
+  },
+  {
+    id: 'b5',
+    title: '05 说出我的想法',
+    leaves: [
+      { title: '我喜欢 / 不喜欢……', cefr: CEFRLevel.A1, hint: '用"我喜欢___，因为___"表达一个偏好。', enScaffold: 'I like ___ because ___.', practiceType: 'opinion', cycleStage: 'plan' },
+      { title: '给出一个理由', cefr: CEFRLevel.A1, hint: '为一个观点补上一个理由（不只是"我觉得"）。', practiceType: 'opinion', cycleStage: 'draft' },
+      { title: '两个理由 + 一个例子', cefr: CEFRLevel.A2, hint: '就一个话题写出两个理由，并搭配一个具体例子。', practiceType: 'opinion', cycleStage: 'draft' },
+      { title: '同意还是不同意', cefr: CEFRLevel.A2, hint: '对一个说法表态，并写一句支持你态度的依据。', practiceType: 'opinion', cycleStage: 'draft' },
+      { title: '回应另一种看法', cefr: CEFRLevel.B1, hint: '先复述对方观点，再温和地提出你的不同意见。', practiceType: 'opinion', cycleStage: 'draft' },
+      { title: '写一篇有立场的小短文', cefr: CEFRLevel.B1, hint: '就一个日常话题写一篇 120 词短文：明确立场 + 两个理由 + 一个例子。', practiceType: 'opinion', cycleStage: 'draft', theme: 'opinion' },
+    ],
+  },
+  {
+    id: 'b6',
+    title: '06 学会为读者而写',
+    leaves: [
+      { title: '一条留言', cefr: CEFRLevel.A1, hint: '给同桌/同事留一条简短留言：你去哪了、何时回。', practiceType: 'reader', cycleStage: 'plan' },
+      { title: '邀请与回复', cefr: CEFRLevel.A2, hint: '写一条邀请（时间+活动），再写一条接受或婉拒的回复。', practiceType: 'reader', cycleStage: 'draft' },
+      { title: '感谢 / 道歉 / 请求', cefr: CEFRLevel.A2, hint: '任选一种，写一段话达到目的且不让人尴尬。', practiceType: 'reader', cycleStage: 'draft' },
+      { title: '给朋友的邮件', cefr: CEFRLevel.A2, hint: '写一封给朋友的轻松邮件：近况 + 一件开心事 + 一个邀约。', register: 'casual', practiceType: 'reader', cycleStage: 'draft', theme: 'letter' },
+      { title: '正式邮件', cefr: CEFRLevel.B1, hint: '把同一件事改写成正式邮件（给老师/上级）：更礼貌、结构更清楚。', register: 'formal', practiceType: 'reader', cycleStage: 'draft', theme: 'letter' },
+      { title: '同一内容写给朋友与老师', cefr: CEFRLevel.B1, hint: '就"请假/请教"同一目的，分别写 casual 版与 formal 版，体会语体差异。', practiceType: 'rewrite', cycleStage: 'rewrite', theme: 'letter' },
+    ],
+  },
+  {
+    id: 'b7',
+    title: '07 让文字更像"我"',
+    leaves: [
+      { title: '从范文偷一招', cefr: CEFRLevel.B1, hint: '读一段你喜欢的范文，挑一个你欣赏的写法（开头/比喻/节奏），模仿它写一句自己的。', practiceType: 'style', cycleStage: 'reread' },
+      { title: '替换重复词', cefr: CEFRLevel.B1, hint: '找出你文中重复最多的词，用同义或具体说法替换其中几处。', practiceType: 'style', cycleStage: 'edit' },
+      { title: '加入细节与画面', cefr: CEFRLevel.B1, hint: '给一段平淡的文字加 1–2 个具体细节，让它可感。', practiceType: 'style', cycleStage: 'edit' },
+      { title: '写出情绪，但不直接说情绪', cefr: CEFRLevel.B2, hint: '写"我很紧张"不如写手心的汗。用动作/环境代替情绪词。', practiceType: 'style', cycleStage: 'edit' },
+      { title: '句子节奏：短句与长句', cefr: CEFRLevel.B2, hint: '交替使用短句与长句，让一段文字有呼吸感。', practiceType: 'style', cycleStage: 'edit' },
+      { title: '找到我常用、也最自然的表达', cefr: CEFRLevel.B2, hint: '回顾你近期写作，挑出 2–3 个你愿意反复使用的句式/词组，作为你的"声音"。', practiceType: 'style', cycleStage: 'rewrite' },
+    ],
+  },
+  {
+    id: 'b8',
+    title: '08 重写一篇作品',
+    leaves: [
+      { title: '删掉不重要的句子', cefr: CEFRLevel.B1, hint: '拿一篇旧作，划掉 1–2 句对主旨无帮助的话，感受文字变紧。', practiceType: 'rewrite', cycleStage: 'edit' },
+      { title: '补一个读者需要知道的细节', cefr: CEFRLevel.B1, hint: '找出读者会困惑的地方，补一句必要背景或例子。', practiceType: 'rewrite', cycleStage: 'rewrite' },
+      { title: '调整段落顺序', cefr: CEFRLevel.B1, hint: '换一换段落顺序，看哪一种读起来更顺、更有推进感。', practiceType: 'rewrite', cycleStage: 'rewrite' },
+      { title: '让开头更吸引人', cefr: CEFRLevel.B2, hint: '重写开头：用一个画面、一个问题或一句反常识的话抓住读者。', practiceType: 'rewrite', cycleStage: 'rewrite' },
+      { title: '让结尾留下余味', cefr: CEFRLevel.B2, hint: '重写结尾：不总结，而是回扣开头、留一个开放念头。', practiceType: 'rewrite', cycleStage: 'rewrite' },
+      { title: '初稿 → 二稿 → 定稿', cefr: CEFRLevel.B2, hint: '完整走一遍：先自由写初稿，再按"读者/结构"重写二稿，最后做语言精修定稿。', practiceType: 'rewrite', cycleStage: 'rewrite' },
+    ],
+  },
+];
+
+// ★ 我的作品小册：把各阶段"第一个作品"收进来，形成可回看的成长轨迹
+const SPINE_PORTFOLIO: SpineLeafSeed[] = [
+  { title: '我的第一篇日记', cefr: CEFRLevel.A1, hint: '写你作为语言学习者的第一篇日记：今天做了什么、心情如何。', practiceType: 'narrate', cycleStage: 'share', theme: 'daily' },
+  { title: '我的第一封信', cefr: CEFRLevel.A2, hint: '写一封完整的信（给朋友或家人），用上称呼、正文、结尾敬语。', practiceType: 'reader', cycleStage: 'share', theme: 'letter' },
+  { title: '我的第一个故事', cefr: CEFRLevel.B1, hint: '写一个有人物、有事件、有转折的小故事。', practiceType: 'narrate', cycleStage: 'share' },
+  { title: '我的第一篇观点文', cefr: CEFRLevel.B1, hint: '写一篇有明确立场的短文，配理由与例子。', practiceType: 'opinion', cycleStage: 'share', theme: 'opinion' },
+  { title: '季度主题作品集', cefr: CEFRLevel.B2, hint: '挑本季度你最满意的 3 篇作品，写一句它们共同说明了什么。', practiceType: 'organize', cycleStage: 'share' },
+];
+
+// 生成纵向养成主线的全部节点（语言无关，自动覆盖所有目标语言）
+function buildSpineNodes(lang: Language, level: CEFRLevel, now: number): WritingNode[] {
+  const levelRank = CEFR_RANK[level] ?? 1;
+  const nodes: WritingNode[] = [];
+  const spineRoot: WritingNode = {
+    id: 'spine', parentId: 'root', type: 'theme', title: '★ 写作者养成主线',
+    content: '', progress: 0, wordCount: 0, tags: ['spine'], isExpanded: false,
+    createdAt: now, updatedAt: now, language: lang, spine: true,
+  };
+  nodes.push(spineRoot);
+
+  const makeLeaf = (parentId: string, idx: number, lf: SpineLeafSeed): WritingNode => ({
+    id: `${parentId}-${idx}`,
+    parentId,
+    type: 'task',
+    title: lf.title,
+    content: '',
+    progress: 0,
+    wordCount: 0,
+    tags: lf.theme ? ['spine', `x:${lf.theme}`] : ['spine'],
+    isExpanded: false,
+    createdAt: now,
+    updatedAt: now,
+    cefrLevel: lf.cefr,
+    register: lf.register ?? REGISTER_BY_LEVEL[lf.cefr] ?? 'neutral',
+    unlocked: (CEFR_RANK[lf.cefr] ?? 1) <= levelRank,
+    completed: false,
+    scaffold: lang === Language.English && lf.enScaffold ? lf.enScaffold : '',
+    scaffoldHint: lf.hint,
+    order: idx,
+    practiceType: lf.practiceType,
+    cycleStage: lf.cycleStage,
+    language: lang,
+    spine: true,
+  });
+
+  for (const br of SPINE_BRANCHES) {
+    const bid = `spine-${br.id}`;
+    nodes.push({
+      id: bid, parentId: 'spine', type: 'theme', title: br.title,
+      content: '', progress: 0, wordCount: 0, tags: ['spine'], isExpanded: false,
+      createdAt: now, updatedAt: now, language: lang, spine: true,
+    });
+    br.leaves.forEach((lf, i) => nodes.push(makeLeaf(bid, i, lf)));
+  }
+
+  // 作品小册
+  const pid = 'spine-portfolio';
+  nodes.push({
+    id: pid, parentId: 'spine', type: 'theme', title: '★ 我的作品小册',
+    content: '', progress: 0, wordCount: 0, tags: ['spine', 'portfolio'], isExpanded: false,
+    createdAt: now, updatedAt: now, language: lang, spine: true,
+  });
+  SPINE_PORTFOLIO.forEach((lf, i) => nodes.push(makeLeaf(pid, i, lf)));
+
+  return nodes;
+}
+
 export function createDefaultGrowthTree(lang: Language, level: CEFRLevel): WritingNode[] {
   const themes = TREE_THEMES[lang] ?? TREE_THEMES[Language.Japanese]!;
   const now = Date.now();
@@ -530,6 +720,9 @@ export function createDefaultGrowthTree(lang: Language, level: CEFRLevel): Writi
     updatedAt: now,
     language: lang,
   });
+
+  // 纵向写作者养成主线（新增子树，与横向内容主题树正交；保留旧主题节点，迁移零风险）
+  nodes.push(...buildSpineNodes(lang, level, now));
 
   for (const th of themes) {
     nodes.push({

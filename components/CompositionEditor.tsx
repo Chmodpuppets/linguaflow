@@ -16,29 +16,63 @@ interface Props {
   onComplete: () => void;
   // 体裁切换时通知父级持久化 genre 到节点
   onGenreChange?: (genre: CompositionGenre) => void;
+  // 考试视角开关：true=按 defaultExam 评分；false=自由写作（仅通用反馈）。变更时持久化到节点
+  examMode?: boolean;
+  onExamModeChange?: (examMode: boolean) => void;
 }
 
-// 各考试对应的「结构/構成」维度，用于把长文评分映射成统一的结构反馈
-const STRUCTURE_FIELD: Partial<Record<TargetExam, { label: string; max: number; field: string; fbField: string }>> = {
-  IELTS: { label: '连贯与衔接 Coherence', max: 9, field: 'coherenceCohesion', fbField: 'coherenceCohesion' },
-  TOEFL: { label: '组织结构 Organization', max: 5, field: 'organization', fbField: 'organization' },
-  JLPT: { label: '構成・表現 Composition', max: 100, field: 'composition', fbField: 'composition' },
-  TOPIK: { label: '内容构成 Content', max: 100, field: 'contentOrganization', fbField: 'contentOrganization' },
-  DELE: { label: '连贯衔接 Coherence', max: 100, field: 'coherence', fbField: 'coherence' },
+// 考试评分卡：各考试的全维度配置（维度条 + 估算等级/总分）
+interface ExamDim { key: string; label: string; max: number; }
+const EXAM_SCORECARD: Partial<Record<TargetExam, { dims: ExamDim[]; levelKey: string; levelLabel: string }>> = {
+  IELTS: {
+    dims: [
+      { key: 'taskResponse', label: '任务回应 TR', max: 9 },
+      { key: 'coherenceCohesion', label: '连贯衔接 CC', max: 9 },
+      { key: 'lexicalResource', label: '词汇资源 LR', max: 9 },
+      { key: 'grammaticalRange', label: '语法广度 GRA', max: 9 },
+    ],
+    levelKey: 'overall', levelLabel: '总分 (9 分制)',
+  },
+  TOEFL: {
+    dims: [
+      { key: 'development', label: '展开 Development', max: 5 },
+      { key: 'organization', label: '结构 Organization', max: 5 },
+      { key: 'languageUse', label: '语言运用', max: 5 },
+    ],
+    levelKey: 'scaled', levelLabel: '换算分 (0-30)',
+  },
+  JLPT: {
+    dims: [
+      { key: 'vocabularyKanji', label: '文字・語彙', max: 100 },
+      { key: 'grammar', label: '文法', max: 100 },
+      { key: 'composition', label: '構成・表現', max: 100 },
+    ],
+    levelKey: 'estimatedLevel', levelLabel: '估算等级',
+  },
+  TOPIK: {
+    dims: [
+      { key: 'vocabGrammar', label: '词汇语法', max: 100 },
+      { key: 'contentOrganization', label: '内容构成', max: 100 },
+      { key: 'expression', label: '表达', max: 100 },
+    ],
+    levelKey: 'estimatedLevel', levelLabel: '估算等级',
+  },
+  DELE: {
+    dims: [
+      { key: 'grammar', label: '语法', max: 100 },
+      { key: 'vocabulary', label: '词汇', max: 100 },
+      { key: 'coherence', label: '连贯衔接', max: 100 },
+      { key: 'taskAdequacy', label: '任务适配', max: 100 },
+    ],
+    levelKey: 'estimatedLevel', levelLabel: '估算等级',
+  },
 };
 
-interface StructureScores {
-  coherenceCohesion?: number;
-  organization?: number;
-  composition?: number;
-  contentOrganization?: number;
-  coherence?: number;
-  feedback?: Record<string, string>;
-}
-
-const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, onGenreChange }) => {
+const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, onGenreChange, examMode: examModeProp, onExamModeChange }) => {
   const userLevel = user.progress[user.learningLanguage]?.cefrLevel ?? CEFRLevel.A1;
-  const exam = node.defaultExam ?? 'IELTS';
+  const exam = node.defaultExam ?? 'none';
+  // 该语言是否启用考试评分（defaultExam 非 none）
+  const hasExam = !!node.defaultExam && node.defaultExam !== 'none';
   const [sections, setSections] = useState<NonNullable<WritingNode['sections']>>(
     node.sections?.map((s) => ({ ...s })) ?? []
   );
@@ -51,6 +85,14 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
   const [reference, setReference] = useState<ReferenceEssay | null>(null);
   const [genRef, setGenRef] = useState(false);
   const [refError, setRefError] = useState<string | null>(null);
+  // 考试视角开关：默认跟随节点持久化的 examMode，首次无记录时按该语言是否启用考试决定
+  const [examMode, setExamMode] = useState<boolean>(examModeProp ?? hasExam);
+
+  const toggleExamMode = () => {
+    const next = !examMode;
+    setExamMode(next);
+    onExamModeChange?.(next);
+  };
 
   // 切换节点时同步内容
   useEffect(() => {
@@ -60,6 +102,7 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
     setError(null);
     setReference(null);
     setRefError(null);
+    setExamMode(examModeProp ?? hasExam);
   }, [node.id]);
 
   const totalTarget = sections.reduce((a, s) => a + s.targetWords, 0);
@@ -95,7 +138,7 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
         user.learningLanguage,
         user.nativeLanguage,
         node.cefrLevel ?? userLevel,
-        exam,
+        examMode ? exam : undefined,
         node.register,
         taskPrompt
       );
@@ -129,7 +172,7 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
         cefrLevel: node.cefrLevel ?? userLevel,
         genre,
         register: node.register,
-        exam: node.defaultExam ?? 'none',
+        exam: examMode ? (node.defaultExam ?? 'none') : 'none',
       });
       setReference(ref);
     } catch (e) {
@@ -149,11 +192,10 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
     if (text) generateSpeech(text, { lang: user.learningLanguage });
   };
 
-  // 结构评分（来自考试维度）
-  const structCfg = STRUCTURE_FIELD[exam];
-  const es = feedback?.examScores as unknown as StructureScores | null | undefined;
-  const structVal = es && structCfg ? (es as any)[structCfg.field] : undefined;
-  const structFb = es && structCfg && es.feedback ? es.feedback[structCfg.fbField] : undefined;
+  // 考试评分卡（考试视角下渲染完整 examScores）
+  const cfg = EXAM_SCORECARD[exam];
+  const es = feedback?.examScores as Record<string, any> | null | undefined;
+  const esFb = (es?.feedback ?? {}) as Record<string, string>;
 
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
@@ -190,6 +232,25 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
           </select>
           <span className="text-[10px] text-faint">切换会改变提纲骨架</span>
         </div>
+        {/* 考试视角开关：仅当该语言有对应考试（defaultExam 非 none）时显示 */}
+        {hasExam && (
+          <div className="mt-3 flex items-center gap-2">
+            <span className="text-xs text-muted">视角</span>
+            <div className="inline-flex rounded-lg border border-line-strong overflow-hidden text-xs">
+              <button
+                type="button"
+                onClick={() => examMode || toggleExamMode()}
+                className={`px-3 py-1 font-semibold transition-colors ${examMode ? 'bg-amber-500/20 text-amber-200' : 'text-muted hover:text-white'}`}
+              >考试</button>
+              <button
+                type="button"
+                onClick={() => examMode && toggleExamMode()}
+                className={`px-3 py-1 font-semibold transition-colors ${!examMode ? 'bg-neon/20 text-neon' : 'text-muted hover:text-white'}`}
+              >自由</button>
+            </div>
+            <span className="text-[10px] text-faint">{examMode ? `按 ${exam} 维度评分` : '不评分，仅通用反馈'}</span>
+          </div>
+        )}
       </div>
 
       {/* 提纲骨架 */}
@@ -303,16 +364,31 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
       {/* 反馈 */}
       {feedback && (
         <div className="space-y-4 mt-6 animate-in slide-in-from-bottom-2">
-          {structCfg && structVal !== undefined && (
-            <div className="bg-dark/30 border border-line-strong rounded-xl p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-300 font-medium">{structCfg.label}</span>
-                <span className="text-sm text-neon font-bold">{structVal} / {structCfg.max}</span>
+          {/* 考试评分卡：考试视角下展示全维度评分 + 估算等级/总分 + 逐维度点评 */}
+          {examMode && es && cfg && (
+            <div className="bg-dark/30 border border-amber-500/30 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-white font-semibold text-sm flex items-center gap-2">
+                  <span className="text-amber-300">考试评分 · {exam}</span>
+                </h4>
+                <span className="text-xs text-amber-200/80">{cfg.levelLabel}：<b className="text-amber-100">{String(es[cfg.levelKey])}</b></span>
               </div>
-              <div className="h-2 bg-surface-3 rounded-full overflow-hidden">
-                <div className="h-full bg-neon" style={{ width: `${Math.min(100, Math.round((structVal / structCfg.max) * 100))}%` }} />
-              </div>
-              {structFb && <p className="text-xs text-muted mt-2">{structFb}</p>}
+              {cfg.dims.map((d) => {
+                const v = typeof es[d.key] === 'number' ? (es[d.key] as number) : undefined;
+                const fb = esFb[d.key];
+                return (
+                  <div key={d.key}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm text-gray-300">{d.label}</span>
+                      <span className="text-sm text-neon font-bold">{v} / {d.max}</span>
+                    </div>
+                    <div className="h-2 bg-surface-3 rounded-full overflow-hidden">
+                      <div className="h-full bg-neon" style={{ width: `${Math.min(100, Math.round(((v ?? 0) / d.max) * 100))}%` }} />
+                    </div>
+                    {fb && <p className="text-xs text-muted mt-1">{fb}</p>}
+                  </div>
+                );
+              })}
             </div>
           )}
 

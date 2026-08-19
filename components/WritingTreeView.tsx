@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserProfile, WritingNode, CEFRLevel, Language, GuidedWritingFeedback, REGISTER_LABELS, CompositionGenre, GENRE_LABELS } from '../types';
+import { UserProfile, WritingNode, CEFRLevel, Language, GuidedWritingFeedback, GuidedMode, ErrorPatternType, REGISTER_LABELS, CompositionGenre, GENRE_LABELS, PRACTICE_TYPE_LABELS, CYCLE_STAGE_LABELS } from '../types';
 import { ensureGrowthTree, saveWritingTree, addActivity, addErrorCards } from '../services/storageService';
 import { analyzeGuidedWriting, generateSpeech } from '../services/aiService';
 import { romajiToKana } from '../services/romajiKana';
@@ -65,13 +65,16 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
     setAnalyzing(true);
     setError(null);
     try {
+      // 重写/打磨类节点走 revision 模式：AI 分两层反馈（重写建议 + 语言精修）
+      const isRewrite = !!active.practiceType && (active.practiceType === 'rewrite' || active.cycleStage === 'rewrite');
+      const mode: GuidedMode = isRewrite ? 'revision' : 'scaffold';
       const ctx = { template: active.scaffold, hint: active.scaffoldHint, register: active.register ? REGISTER_LABELS[active.register] : undefined };
       const fb = await analyzeGuidedWriting(
         normalizedInput,
         user.learningLanguage,
         user.nativeLanguage,
         active.cefrLevel ?? userLevel,
-        'scaffold',
+        mode,
         ctx
       );
       setFeedback(fb);
@@ -83,6 +86,20 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
           reason: it.reason,
           language: user.learningLanguage,
         })));
+      }
+      // 重写建议沉淀：带弱项维度的建议进「错误模式引擎」，驱动每日弱项练习（建立重复练习闭环）
+      if (isRewrite && fb.revision?.points?.length) {
+        const revCards = fb.revision.points
+          .filter((p) => p.type)
+          .map((p) => ({
+            original: p.point,
+            correction: p.detail,
+            reason: `重写焦点：${fb.revision!.focus}`,
+            language: user.learningLanguage,
+            type: p.type as ErrorPatternType,
+            tags: ['spine', 'rewrite'],
+          }));
+        if (revCards.length) addErrorCards(revCards);
       }
     } catch (e) {
       setError('AI 批改失败，请检查网络/API Key 后重试。');
@@ -157,6 +174,12 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
     persist(next);
   };
 
+  // 持久化考试视角开关（用户切换「考试 / 自由」时调用）
+  const saveExamMode = (compId: string, examMode: boolean) => {
+    const next = nodes.map((n) => (n.id === compId ? { ...n, examMode, updatedAt: Date.now() } : n));
+    persist(next);
+  };
+
   const speak = (text: string) => {
     if (text) generateSpeech(text, { lang: user.learningLanguage });
   };
@@ -224,6 +247,12 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                 {(isTask || isComp) && node.register && (
                   <span className="text-[10px] text-purple-300/80 flex-shrink-0">{REGISTER_LABELS[node.register]}</span>
                 )}
+                {node.spine && node.cycleStage && (
+                  <span className="text-[10px] text-sky-300/80 flex-shrink-0">{CYCLE_STAGE_LABELS[node.cycleStage]}</span>
+                )}
+                {node.type === 'composition' && node.examMode && node.defaultExam && node.defaultExam !== 'none' && (
+                  <span className="text-[10px] text-amber-300/80 flex-shrink-0">{node.defaultExam}</span>
+                )}
               </div>
               {node.isExpanded && renderTree(node.id, depth + 1)}
             </div>
@@ -266,11 +295,21 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
             onSave={(sections, wc) => saveComposition(active.id, sections, wc)}
             onComplete={() => completeComposition(active.id)}
             onGenreChange={(g) => saveGenre(active.id, g)}
+            examMode={active.examMode}
+            onExamModeChange={(v) => saveExamMode(active.id, v)}
           />
         ) : (
           <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
             <div className="mb-4">
               <div className="text-xs text-muted">{active.cefrLevel ?? userLevel} · 写作任务{active.register ? ` · ${REGISTER_LABELS[active.register]}语气` : ''}</div>
+              {active.spine && active.practiceType && (
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-500/15 border border-violet-500/30 text-violet-200">{PRACTICE_TYPE_LABELS[active.practiceType]}</span>
+                  {active.cycleStage && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/15 border border-sky-500/30 text-sky-200">{CYCLE_STAGE_LABELS[active.cycleStage]}</span>
+                  )}
+                </div>
+              )}
               <h3 className="text-xl font-bold text-white mt-1">{active.title}</h3>
               {active.register && (
                 <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-500/15 border border-purple-500/30 text-xs text-purple-200">
@@ -374,20 +413,64 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                   <div className="text-gray-200 font-mono leading-relaxed">{feedback.correctedText}</div>
                 </div>
 
-                {feedback.issues.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="text-white font-semibold text-sm">具体问题</h4>
-                    {feedback.issues.map((it, i) => (
-                      <div key={i} className="bg-dark/30 border border-line-strong rounded-lg p-3 text-sm">
-                        <div className="flex items-center gap-3">
-                          <span className="text-red-300 line-through flex-1">{it.original}</span>
-                          <ArrowRight size={16} className="text-muted" />
-                          <span className="text-green-300 font-medium flex-1">{it.fix}</span>
-                        </div>
-                        <p className="mt-2 text-xs text-muted pl-1 border-l-2 border-line-strong">{it.reason}</p>
+                {feedback.revision ? (
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    {/* 重写建议：读者 / 目的 / 内容 / 结构 */}
+                    <div className="space-y-3">
+                      <h4 className="text-white font-semibold text-sm flex items-center gap-2">
+                        <span className="text-violet-300">✎ 重写建议</span>
+                        <span className="text-[10px] font-normal text-muted">读者 / 目的 / 内容 / 结构</span>
+                      </h4>
+                      <div className="bg-violet-500/10 border border-violet-500/30 rounded-xl p-4">
+                        <div className="text-xs text-violet-200 mb-2 font-semibold">本次焦点：{feedback.revision.focus}</div>
+                        <ul className="space-y-2">
+                          {feedback.revision.points.map((p, i) => (
+                            <li key={i} className="text-sm text-gray-200">
+                              <span className="font-medium text-violet-100">{p.point}</span>
+                              <p className="text-xs text-muted mt-0.5">{p.detail}</p>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
-                    ))}
+                    </div>
+                    {/* 语言精修：用词 / 语法 / 拼写 */}
+                    <div className="space-y-3">
+                      <h4 className="text-white font-semibold text-sm flex items-center gap-2">
+                        <span className="text-green-300">⌁ 语言精修</span>
+                        <span className="text-[10px] font-normal text-muted">用词 / 语法 / 拼写</span>
+                      </h4>
+                      {feedback.issues.length > 0 ? (
+                        feedback.issues.map((it, i) => (
+                          <div key={i} className="bg-dark/30 border border-line-strong rounded-lg p-3 text-sm">
+                            <div className="flex items-center gap-3">
+                              <span className="text-red-300 line-through flex-1">{it.original}</span>
+                              <ArrowRight size={16} className="text-muted" />
+                              <span className="text-green-300 font-medium flex-1">{it.fix}</span>
+                            </div>
+                            <p className="mt-2 text-xs text-muted pl-1 border-l-2 border-line-strong">{it.reason}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="bg-dark/30 border border-line-strong rounded-lg p-3 text-sm text-green-300">无明显语法 / 用词问题，这一稿语言很干净。</div>
+                      )}
+                    </div>
                   </div>
+                ) : (
+                  feedback.issues.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-white font-semibold text-sm">具体问题</h4>
+                      {feedback.issues.map((it, i) => (
+                        <div key={i} className="bg-dark/30 border border-line-strong rounded-lg p-3 text-sm">
+                          <div className="flex items-center gap-3">
+                            <span className="text-red-300 line-through flex-1">{it.original}</span>
+                            <ArrowRight size={16} className="text-muted" />
+                            <span className="text-green-300 font-medium flex-1">{it.fix}</span>
+                          </div>
+                          <p className="mt-2 text-xs text-muted pl-1 border-l-2 border-line-strong">{it.reason}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )
                 )}
 
                 <div className="bg-secondary/10 border border-secondary/30 rounded-xl p-4 text-sm text-gray-200">

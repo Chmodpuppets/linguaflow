@@ -992,8 +992,14 @@ export const analyzeGuidedWriting = async (
   } else if (mode === 'wordchain') {
     const ws = (ctx.words ?? []).map((w) => `${w.word}(${w.meaning})`).join('、');
     modeDesc = `看词造句模式。要求用以下词造一句话：${ws}。判断是否合理使用了这些词、语法是否正确。`;
-  } else {
+  } else if (mode === 'prompt') {
     modeDesc = `情境一句模式。情境：「${ctx.situation ?? ''}」。学生用目标语言写 1-3 句回应。`;
+  } else {
+    modeDesc = `重写打磨模式。学生提交的是对某篇作品的「重写稿」，而非初次起草。重写任务目标：「${ctx.hint ?? ''}」。
+请分两个层次评价，且两层必须分开：
+(1) 重写层面（revision 字段）：只关注读者 / 目的 / 内容 / 结构——这次重写是否让文章更清楚、更贴合目标读者与写作目的、结构更合理？给出本次重写最核心的一个焦点（focus），以及 2–4 条具体可操作的重写建议（points，每条含 point 标题与 detail 说明）。不要在这里改语法。
+  若某条建议能明确归到某一弱项维度，请在该条 point 上附带 type 字段，取值仅限："content"（内容/选材：偏题、缺细节、无例子）、"structure"（结构/组织：段落混乱、缺逻辑连接、顺序不当）、"reader_awareness"（读者意识/目的：语体错配、未考虑读者、开头/结尾抓不住人）。拿不准就省略 type。
+(2) 语言精修层面（issues 字段）：仍要检查句子准确度、用词、语法、拼写，给出需要修正的具体问题（original/fix/reason）。这一层与重写建议必须分离。`;
   }
 
   // 语体/口气要求：若指定，让教练额外评估表达是否得体
@@ -1001,6 +1007,11 @@ export const analyzeGuidedWriting = async (
   if (ctx.register) {
     registerDesc = `要求语体/口气：${ctx.register}。请判断学生的表达是否符合该语体：本该正式/商务却过于口语，或本该口语却过于生硬，都算语体不当。若不当，请在 issues 中给出语体修正建议，并在 registerNote 中说明。`;
   }
+
+  // 重写模式：返回 JSON 中额外带 revision（读者/目的/内容/结构 层面的重写建议）
+  const revisionStruct = mode === 'revision'
+    ? `\n      "revision": { "focus": "string (重写核心焦点，in ${nativeLanguage})", "points": [ { "point": "string (建议标题)", "detail": "string (说明，in ${nativeLanguage})", "type"?: "content" | "structure" | "reader_awareness" } ] },`
+    : '';
 
   const prompt = `
     Act as a strict but encouraging language tutor. The student is learning ${targetLanguage} at CEFR ${cefrLevel} (native: ${nativeLanguage}).
@@ -1019,7 +1030,7 @@ export const analyzeGuidedWriting = async (
       "issues": [ { "original": "string", "fix": "string (in ${targetLanguage})", "reason": "string (in ${nativeLanguage})" } ],
       "encouragement": "string (in ${nativeLanguage}: first praise what they did well, then state the single most important fix)",
       "cefrEstimation": "A1" | "A2" | "B1" | "B2" | "C1" | "C2",
-      "registerNote": "string (in ${nativeLanguage}: 语体/口气是否得当的简短点评，无问题可为空字符串)"
+      "registerNote": "string (in ${nativeLanguage}: 语体/口气是否得当的简短点评，无问题可为空字符串)"${revisionStruct}
     }
   `;
 
@@ -1032,6 +1043,7 @@ export const analyzeGuidedWriting = async (
       encouragement: '批改失败，请重试。',
       cefrEstimation: CEFRLevel.A1,
       registerNote: '',
+      revision: undefined,
     });
   } catch (error) {
     console.error('Guided writing analysis error:', error);
@@ -1327,6 +1339,68 @@ export const playCachedSpeech = async (
       console.warn("Qwen TTS (cached) failed, falling back to Web Speech:", e);
       playWebSpeech(text, { ...opts, lang: contentLang });
     });
+};
+
+// --- 单单词发音（语种门控）---
+// 设计目标：让「点一个词听发音」走最优音源，而非无脑打 Qwen（需 key、且句子级合成对单
+// 词不一定最准）。实测有道 dictvoice 免费、无需鉴权、真人词典音质、跨设备一致，最适合补
+// 英文单词发音；但它是英汉词典，对日语不可靠，故日语走 Web Speech ja-JP。
+//   英 → 有道 dictvoice（type=2 英式 / type=1 美式，无需 API key）
+//   中 → Qwen TTS（可控音色；无 key 自动回退 Web Speech）
+//   日 → Web Speech ja-JP（有道不可靠）
+//   其他语言 → 沿用既有策略（Qwen 若有 key，否则 Web Speech 选对语种）
+const YOUDAO_DICTVOICE = "https://dict.youdao.com/dictvoice";
+
+function playYoudaoWord(word: string, accent: "uk" | "us" = "uk"): void {
+  const type = accent === "us" ? 1 : 2; // 1=美式 US，2=英式 UK（IELTS 默认英式）
+  // 实测响应无 access-control-* 头，但 <audio> 直接播放不强制 CORS，无需额外处理。
+  const url = `${YOUDAO_DICTVOICE}?audio=${encodeURIComponent(word)}&type=${type}`;
+  const audio = new Audio();
+  currentQwenAudio = audio; // 复用 cancelSpeech 的中断机制；speechSynthesis.cancel 对纯 audio 无副作用
+  audio.onended = () => { if (currentQwenAudio === audio) currentQwenAudio = null; };
+  const fallback = () => {
+    if (currentQwenAudio === audio) currentQwenAudio = null;
+    playWebSpeech(word, { lang: Language.English }); // 有道限频/网络抖动 → 浏览器兜底
+  };
+  audio.onerror = fallback;
+  audio.src = url;
+  audio.play().catch(fallback); // 自动播放限制 / 解码失败
+}
+
+/**
+ * 播放单个单词/短语的发音，按语种选最优音源。
+ * @param word 待发音词（可含空格的短语）
+ * @param lang 该词的语种（决定走有道/Qwen/Web Speech）
+ * @param accent 仅英文生效：'uk' 英式（默认）| 'us' 美式
+ */
+export const playWord = (
+  word: string,
+  lang: Language,
+  accent: "uk" | "us" = "uk"
+): void => {
+  if (!word || !word.trim()) return;
+  cancelSpeech();
+  const w = word.trim();
+
+  if (lang === Language.Chinese) {
+    fetchSpeechUrl(w)
+      .then((url) => (url ? playQwenAudio(url) : playWebSpeech(w, { lang })))
+      .catch(() => playWebSpeech(w, { lang }));
+    return;
+  }
+
+  if (lang === Language.Japanese) {
+    playWebSpeech(w, { lang }); // 有道英汉词典对日语不靠谱
+    return;
+  }
+
+  if (lang === Language.English) {
+    playYoudaoWord(w, accent);
+    return;
+  }
+
+  // 其他语言（韩/西/法/德/意/俄/希/阿）：沿用既有策略
+  generateSpeech(w, { lang });
 };
 
 // --- Reading Reflection AI ---

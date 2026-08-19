@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { UserProfile, GuidedWritingFeedback, GuidedMode, CEFRLevel, Language, WritingRegister, REGISTER_LABELS } from '../types';
-import { analyzeGuidedWriting, GuidedContext, generateSentenceWords, generateSpeech } from '../services/aiService';
+import { analyzeGuidedWriting, GuidedContext, generateSentenceWords, generateSpeech, playWord } from '../services/aiService';
 import { addActivity, addErrorCards } from '../services/storageService';
 import { romajiToKana } from '../services/romajiKana';
 import { countWords } from '../services/textUtils';
@@ -13,7 +13,9 @@ interface GuidedWritingViewProps {
   onComplete: (user: UserProfile) => void;
 }
 
-const MODE_INFO: Record<GuidedMode, { name: string; desc: string }> = {
+// 引导式写作视图只暴露三种手动模式；'revision' 由写作成长树节点驱动，不在此处可选
+type GuidedSelectableMode = Exclude<GuidedMode, 'revision'>;
+const MODE_INFO: Record<GuidedSelectableMode, { name: string; desc: string }> = {
   scaffold: { name: '句型填空', desc: '按模板填空，产出完整句' },
   wordchain: { name: '看词造句', desc: '用给定词造一句话' },
   prompt: { name: '情境一句', desc: '按情境写 1-3 句' },
@@ -21,7 +23,7 @@ const MODE_INFO: Record<GuidedMode, { name: string; desc: string }> = {
 
 const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete }) => {
   const userLevel = user.progress[user.learningLanguage]?.cefrLevel ?? CEFRLevel.A1;
-  const [mode, setMode] = useState<GuidedMode>('scaffold');
+  const [mode, setMode] = useState<GuidedSelectableMode>('scaffold');
 
   // 出题状态
   const [template, setTemplate] = useState<GuidedTemplate | null>(null);
@@ -132,7 +134,7 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
       {/* 模式 tab + 统计 */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex gap-2">
-          {(Object.keys(MODE_INFO) as GuidedMode[]).map((m) => (
+          {(Object.keys(MODE_INFO) as GuidedSelectableMode[]).map((m) => (
             <button
               key={m}
               onClick={() => switchMode(m)}
@@ -189,8 +191,15 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
             ) : (
               <div className="flex flex-wrap justify-center gap-3">
                 {words.map((w, i) => (
-                  <div key={i} className="bg-dark/50 border border-white/10 rounded-xl px-4 py-3 transition-all duration-300 hover:border-neon/40 hover:shadow-glow-sm hover:-translate-y-0.5">
-                    <div className="text-xl font-bold text-white font-mono">{w.word}</div>
+                  <div key={i} className="relative bg-dark/50 border border-white/10 rounded-xl px-4 py-3 transition-all duration-300 hover:border-neon/40 hover:shadow-glow-sm hover:-translate-y-0.5">
+                    <button
+                      onClick={() => playWord(w.word, user.learningLanguage)}
+                      className="absolute top-2 right-2 text-muted hover:text-neon-2 transition-colors"
+                      title="听发音"
+                    >
+                      <Volume2 size={14} />
+                    </button>
+                    <div className="text-xl font-bold text-white font-mono pr-6">{w.word}</div>
                     <div className="text-xs text-muted mt-1">{w.meaning}</div>
                   </div>
                 ))}
@@ -279,7 +288,7 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
             <div className="space-y-2">
               <h4 className="text-white font-semibold text-sm">具体问题</h4>
               {feedback.issues.map((it, i) => (
-                <div key={i} className="bg-surface-2/60 backdrop-blur-lg p-3 rounded-xl border border-white/[0.06] hover:border-neon/25 hover:shadow-glow-sm transition-all duration-300 text-sm">
+                <div key={i} className="bg-surface-2/60 backdrop-blur-sm p-3 rounded-xl border border-white/[0.06] hover:border-neon/25 hover:shadow-glow-sm transition-all duration-300 text-sm">
                   <div className="flex items-center gap-3">
                     <span className="text-red-300 line-through flex-1">{it.original}</span>
                     <ArrowRight size={16} className="text-muted" />

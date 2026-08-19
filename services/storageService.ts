@@ -1,5 +1,5 @@
 
-import { UserProfile, ActivityLog, Language, CEFRLevel, UserContent, LanguageProgress, WritingNode, VocabularyItem, DailyQuest, QuestKind, MentorPersona, AIMemory, ScriptItem, ScriptCardProgress, ErrorCard, WritingScoreRecord, TypingContent, ErrorPattern, ErrorPatternType, FlywheelStep, DailyFlywheel, SongPack } from '../types';
+import { UserProfile, ActivityLog, Language, CEFRLevel, UserContent, LanguageProgress, WritingNode, VocabularyItem, DailyQuest, QuestKind, MentorPersona, AIMemory, ScriptItem, ScriptCardProgress, ErrorCard, WritingScoreRecord, TypingContent, ErrorPattern, ErrorPatternType, ERROR_PATTERN_LABELS, FlywheelStep, DailyFlywheel, SongPack } from '../types';
 import { createDefaultGrowthTree, CEFR_RANK } from '../data/growthTree';
 import { getScriptPackForLanguage } from '../data/scriptPacks';
 
@@ -621,6 +621,7 @@ const QUEST_TEMPLATES: Array<{ kind: QuestKind; label: string; target: number; r
 const WEAK_QUEST_TEMPLATE: Partial<Record<ErrorPatternType, number>> = {
     kana_dakuon: 4, kana_youon: 4, kana_confusion: 4, // 字形类弱项 → 字形特训
     spelling: 3, tense: 3, particle: 3, word_order: 3, collocation: 3, register: 3, agreement: 3, other: 3, // 写作类弱项 → 写作练习
+    content: 3, structure: 3, reader_awareness: 3, // 重写弱项（内容/结构/读者意识）→ 写作练习
 };
 
 // 弱项优先：取 Top 弱项中第一个能映射到每日任务模板的，作为第三项；都映射不到则返回 null
@@ -992,9 +993,10 @@ export const getErrorBook = (): ErrorCard[] => {
 };
 
 // 把 AI 批改建议沉淀为错题卡。按 (original 小写 + language) 去重合并：
-// 已存在 → 更新改正/理由、回到 box1、lapses+1（强化反复出错项）；不存在 → 新增（box1 立即到期）
+// 已存在 → 更新改正/理由、回到 box1、lapses+1（强化反复出错项）；不存在 → 新增（box1 立即到期）。
+// 若卡片带 type（弱项类型），同步 bump 到「个人错误模式引擎」，使其在弱项看板与每日弱项任务中生效。
 export const addErrorCards = (
-    cards: Array<{ original: string; correction: string; reason: string; language: Language; context?: string }>
+    cards: Array<{ original: string; correction: string; reason: string; language: Language; context?: string; type?: ErrorPatternType; tags?: string[] }>
 ): void => {
     const existing = getErrorBook();
     const now = Date.now();
@@ -1013,6 +1015,8 @@ export const addErrorCards = (
                 correction,
                 reason: c.reason,
                 context: c.context ?? updated[idx].context,
+                type: c.type ?? updated[idx].type,
+                tags: c.tags ? Array.from(new Set([...(updated[idx].tags || []), ...c.tags])) : updated[idx].tags,
                 box: 1,
                 dueDate: now,
                 lapses: (updated[idx].lapses ?? 0) + 1,
@@ -1026,6 +1030,8 @@ export const addErrorCards = (
                 reason: c.reason,
                 language: c.language,
                 context: c.context,
+                type: c.type,
+                tags: c.tags,
                 createdAt: now,
                 box: 1,
                 dueDate: now,
@@ -1034,6 +1040,9 @@ export const addErrorCards = (
             });
         }
         changed = true;
+        if (c.type) {
+            bumpErrorPattern(c.language, c.type, ERROR_PATTERN_LABELS[c.type], original, c.tags);
+        }
     }
     if (changed) localStorage.setItem(STORAGE_KEY_ERRORBOOK, JSON.stringify(updated));
 };

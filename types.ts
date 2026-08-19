@@ -216,7 +216,7 @@ export interface WritingRevisionFeedback extends WritingFeedback {
 }
 
 // 引导式微写作（句型填空 / 看词造句 / 情境一句）的 AI 反馈
-export type GuidedMode = 'scaffold' | 'wordchain' | 'prompt';
+export type GuidedMode = 'scaffold' | 'wordchain' | 'prompt' | 'revision';
 
 export interface GuidedWritingFeedback {
   isCorrect: boolean;        // 整体可接受（语义传达 + 语法对该等级基本正确）
@@ -225,7 +225,61 @@ export interface GuidedWritingFeedback {
   encouragement: string;     // 母语：先肯定，再给一个最该改进的点
   cefrEstimation: CEFRLevel;
   registerNote?: string;     // 语体/口气是否得当的点评（母语）
+  // 重写模式（practiceType==='rewrite' 或 AI mode='revision'）下由 AI 给出「重写建议」，
+  // 与 issues（语言精修：用词/语法）明确分离：本字段关注读者/目的/内容/结构。
+  revision?: RevisionAdvice;
 }
+
+// 重写建议可归类的弱项维度（与 ErrorPatternType 的 content/structure/reader_awareness 对应）
+export type RevisionPointType = 'content' | 'structure' | 'reader_awareness';
+
+// 重写建议（重写 vs 改语法分离）：关注读者 / 目的 / 内容 / 结构，不碰句子准确度
+export interface RevisionAdvice {
+  focus: string;                                     // 本次重写核心焦点（母语）
+  points: Array<{                                    // 重写层面具体建议
+    point: string;                                   // 该条建议的标题（母语）
+    detail: string;                                  // 具体怎么做（母语）
+    type?: RevisionPointType;                        // 可归类的弱项维度，用于沉淀到错误模式引擎
+  }>;
+}
+
+// 写作练习类型（纵向养成主线的「练的是什么」维度，数据驱动 UI 徽标）
+export type WritingPracticeType =
+  | 'observe'   // 观察与积累
+  | 'narrate'   // 叙事 / 描述
+  | 'organize'  // 组织与表达
+  | 'opinion'   // 观点与论述
+  | 'reader'    // 为读者而写
+  | 'style'     // 风格与声音
+  | 'rewrite';  // 重写与打磨
+
+export const PRACTICE_TYPE_LABELS: Record<WritingPracticeType, string> = {
+  observe: '观察积累',
+  narrate: '叙事描述',
+  organize: '组织表达',
+  opinion: '观点论述',
+  reader: '读者意识',
+  style: '风格声音',
+  rewrite: '重写打磨',
+};
+
+// 写作过程循环阶段（Writing Commons / Purdue：构思→起草→重读→重写→编辑→分享）
+export type WritingCycleStage =
+  | 'plan'
+  | 'draft'
+  | 'reread'
+  | 'rewrite'
+  | 'edit'
+  | 'share';
+
+export const CYCLE_STAGE_LABELS: Record<WritingCycleStage, string> = {
+  plan: '构思',
+  draft: '起草',
+  reread: '重读',
+  rewrite: '重写',
+  edit: '编辑',
+  share: '分享',
+};
 
 // 写作语体 / 口气（register）：同一主题用不同语体写，训练得体表达
 export type WritingRegister = 'casual' | 'neutral' | 'polite' | 'formal' | 'business';
@@ -295,6 +349,8 @@ export interface ErrorCard {
   reason: string;          // 母语解释（为什么错、怎么改）
   language: Language;
   context?: string;        // 原句/段落上下文片段（可选，帮助回忆）
+  type?: ErrorPatternType; // 弱项类型（重写建议沉淀时带入，用于跨界面聚合）
+  tags?: string[];         // 关联维度（如 ['spine','rewrite']），用于出题命中
   createdAt: number;       // 最近一次出现时间（合并去重时刷新）
   // --- SRS (Leitner) fields ---
   box: number;             // 1..5 (1 = 刚错/最难)
@@ -317,7 +373,28 @@ export type ErrorPatternType =
   | 'register'         // 语体/敬语
   | 'agreement'        // 一致性（性数格）
   | 'dictation_miss'   // 听写漏写/错写
+  | 'content'          // 内容 / 选材（偏题、缺细节、无例子）
+  | 'structure'        // 结构 / 组织（段落混乱、无逻辑连接）
+  | 'reader_awareness' // 读者意识 / 目的（语体错配、未考虑读者）
   | 'other';
+
+export const ERROR_PATTERN_LABELS: Record<ErrorPatternType, string> = {
+  kana_dakuon: '浊音/半浊音混淆',
+  kana_youon: '拗音混淆',
+  kana_confusion: '假名形近混淆',
+  spelling: '拼写错误',
+  tense: '时态',
+  particle: '助词/介词',
+  word_order: '语序',
+  collocation: '搭配/用词',
+  register: '语体/敬语',
+  agreement: '一致性(性数格)',
+  dictation_miss: '听写漏写/错写',
+  content: '内容/选材',
+  structure: '结构/组织',
+  reader_awareness: '读者意识/目的',
+  other: '其他',
+};
 
 export interface ErrorPattern {
   id: string;            // `${language}:${type}`
@@ -414,9 +491,14 @@ export interface WritingNode {
   // 作文（composition）节点字段
   sections?: CompositionSection[];   // 分段内容与提纲骨架
   defaultExam?: TargetExam;          // 默认考试维度（用于结构/構成评分，如 EN→IELTS）
+  examMode?: boolean;                // 考试视角开关（true=按 defaultExam 评分；false=自由写作，仅通用反馈）
   genre?: CompositionGenre;          // 作文体裁（议论文/记叙文/书信…），决定提纲骨架
   prompt?: string;                   // 真实考题/任务正文（非主题标签）。考试评分（TR/Development 等）必须对照此题，否则评分在结构上无意义
   language?: Language;      // 该树所属语言（root/theme/task 均写入，便于按语言重建缓存）
+  // 纵向养成主线（写作者养成）字段
+  spine?: boolean;                     // 是否属于「写作者养成主线」子树
+  practiceType?: WritingPracticeType;   // 练的是什么维度（观察/叙事/组织/观点/读者/风格/重写）
+  cycleStage?: WritingCycleStage;      // 写作过程循环阶段（构思/起草/重读/重写/编辑/分享）
 }
 
 // --- RPG System Types ---
