@@ -984,7 +984,8 @@ export const analyzeGuidedWriting = async (
   nativeLanguage: Language,
   cefrLevel: CEFRLevel,
   mode: GuidedMode,
-  ctx: GuidedContext
+  ctx: GuidedContext,
+  targetExam?: TargetExam
 ): Promise<GuidedWritingFeedback> => {
   let modeDesc = '';
   if (mode === 'scaffold') {
@@ -1008,6 +1009,12 @@ export const analyzeGuidedWriting = async (
     registerDesc = `要求语体/口气：${ctx.register}。请判断学生的表达是否符合该语体：本该正式/商务却过于口语，或本该口语却过于生硬，都算语体不当。若不当，请在 issues 中给出语体修正建议，并在 registerNote 中说明。`;
   }
 
+  // 考试评分：复用 analyzeWriting 的 buildExamScoring（按语言严格门控）。
+  // 仅当 targetExam 与学习语言匹配时注入评分指令与 JSON 字段；否则留空（回落通用反馈）。
+  const exam = buildExamScoring(targetLanguage, nativeLanguage, targetExam);
+  const examBlock = exam.applies ? exam.block : '';
+  const examJson = exam.applies ? exam.json : '';
+
   // 重写模式：返回 JSON 中额外带 revision（读者/目的/内容/结构 层面的重写建议）
   const revisionStruct = mode === 'revision'
     ? `\n      "revision": { "focus": "string (重写核心焦点，in ${nativeLanguage})", "points": [ { "point": "string (建议标题)", "detail": "string (说明，in ${nativeLanguage})", "type"?: "content" | "structure" | "reader_awareness" } ] },`
@@ -1017,6 +1024,7 @@ export const analyzeGuidedWriting = async (
     Act as a strict but encouraging language tutor. The student is learning ${targetLanguage} at CEFR ${cefrLevel} (native: ${nativeLanguage}).
     ${modeDesc}
     ${registerDesc}
+    ${examBlock}
 
     Student's writing: "${text}"
 
@@ -1030,13 +1038,13 @@ export const analyzeGuidedWriting = async (
       "issues": [ { "original": "string", "fix": "string (in ${targetLanguage})", "reason": "string (in ${nativeLanguage})" } ],
       "encouragement": "string (in ${nativeLanguage}: first praise what they did well, then state the single most important fix)",
       "cefrEstimation": "A1" | "A2" | "B1" | "B2" | "C1" | "C2",
-      "registerNote": "string (in ${nativeLanguage}: 语体/口气是否得当的简短点评，无问题可为空字符串)"${revisionStruct}
+      "registerNote": "string (in ${nativeLanguage}: 语体/口气是否得当的简短点评，无问题可为空字符串)"${revisionStruct}${examJson}
     }
   `;
 
   try {
     const responseText = await chatCompletion(prompt, 0.2);
-    return parseAIJSON<GuidedWritingFeedback>(responseText, {
+    const parsed = parseAIJSON<GuidedWritingFeedback>(responseText, {
       isCorrect: false,
       correctedText: text,
       issues: [],
@@ -1044,7 +1052,11 @@ export const analyzeGuidedWriting = async (
       cefrEstimation: CEFRLevel.A1,
       registerNote: '',
       revision: undefined,
+      examScores: null,
     });
+    // 兜底：非匹配语言 / 未指定考试 时强制清空 examScores（避免 AI 误带）
+    if (!isExamApplicable(targetExam, targetLanguage)) parsed.examScores = null;
+    return parsed;
   } catch (error) {
     console.error('Guided writing analysis error:', error);
     throw new Error('Failed to analyze guided writing.');

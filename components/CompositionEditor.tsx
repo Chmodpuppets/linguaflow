@@ -7,6 +7,7 @@ import { analyzeWriting, generateSpeech, generateReferenceEssay } from '../servi
 import { buildCompositionSections } from '../data/growthTree';
 import { countWords } from '../services/textUtils';
 import { addErrorCards } from '../services/storageService';
+import { ExamScoreCard } from './ExamScoreCard';
 import { Sparkles, Wand2, Volume2, ArrowRight, AlertCircle, BookOpen } from 'lucide-react';
 
 interface Props {
@@ -21,52 +22,7 @@ interface Props {
   onExamModeChange?: (examMode: boolean) => void;
 }
 
-// 考试评分卡：各考试的全维度配置（维度条 + 估算等级/总分）
-interface ExamDim { key: string; label: string; max: number; }
-const EXAM_SCORECARD: Partial<Record<TargetExam, { dims: ExamDim[]; levelKey: string; levelLabel: string }>> = {
-  IELTS: {
-    dims: [
-      { key: 'taskResponse', label: '任务回应 TR', max: 9 },
-      { key: 'coherenceCohesion', label: '连贯衔接 CC', max: 9 },
-      { key: 'lexicalResource', label: '词汇资源 LR', max: 9 },
-      { key: 'grammaticalRange', label: '语法广度 GRA', max: 9 },
-    ],
-    levelKey: 'overall', levelLabel: '总分 (9 分制)',
-  },
-  TOEFL: {
-    dims: [
-      { key: 'development', label: '展开 Development', max: 5 },
-      { key: 'organization', label: '结构 Organization', max: 5 },
-      { key: 'languageUse', label: '语言运用', max: 5 },
-    ],
-    levelKey: 'scaled', levelLabel: '换算分 (0-30)',
-  },
-  JLPT: {
-    dims: [
-      { key: 'vocabularyKanji', label: '文字・語彙', max: 100 },
-      { key: 'grammar', label: '文法', max: 100 },
-      { key: 'composition', label: '構成・表現', max: 100 },
-    ],
-    levelKey: 'estimatedLevel', levelLabel: '估算等级',
-  },
-  TOPIK: {
-    dims: [
-      { key: 'vocabGrammar', label: '词汇语法', max: 100 },
-      { key: 'contentOrganization', label: '内容构成', max: 100 },
-      { key: 'expression', label: '表达', max: 100 },
-    ],
-    levelKey: 'estimatedLevel', levelLabel: '估算等级',
-  },
-  DELE: {
-    dims: [
-      { key: 'grammar', label: '语法', max: 100 },
-      { key: 'vocabulary', label: '词汇', max: 100 },
-      { key: 'coherence', label: '连贯衔接', max: 100 },
-      { key: 'taskAdequacy', label: '任务适配', max: 100 },
-    ],
-    levelKey: 'estimatedLevel', levelLabel: '估算等级',
-  },
-};
+// 考试评分卡渲染组件（ExamScoreCard）已抽到共享模块（components/ExamScoreCard + data/examScoring），此处直接引用。
 
 const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, onGenreChange, examMode: examModeProp, onExamModeChange }) => {
   const userLevel = user.progress[user.learningLanguage]?.cefrLevel ?? CEFRLevel.A1;
@@ -191,11 +147,6 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
   const speak = (text: string) => {
     if (text) generateSpeech(text, { lang: user.learningLanguage });
   };
-
-  // 考试评分卡（考试视角下渲染完整 examScores）
-  const cfg = EXAM_SCORECARD[exam];
-  const es = feedback?.examScores as Record<string, any> | null | undefined;
-  const esFb = (es?.feedback ?? {}) as Record<string, string>;
 
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
@@ -365,31 +316,8 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
       {feedback && (
         <div className="space-y-4 mt-6 animate-in slide-in-from-bottom-2">
           {/* 考试评分卡：考试视角下展示全维度评分 + 估算等级/总分 + 逐维度点评 */}
-          {examMode && es && cfg && (
-            <div className="bg-dark/30 border border-amber-500/30 rounded-xl p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-white font-semibold text-sm flex items-center gap-2">
-                  <span className="text-amber-300">考试评分 · {exam}</span>
-                </h4>
-                <span className="text-xs text-amber-200/80">{cfg.levelLabel}：<b className="text-amber-100">{String(es[cfg.levelKey])}</b></span>
-              </div>
-              {cfg.dims.map((d) => {
-                const v = typeof es[d.key] === 'number' ? (es[d.key] as number) : undefined;
-                const fb = esFb[d.key];
-                return (
-                  <div key={d.key}>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm text-gray-300">{d.label}</span>
-                      <span className="text-sm text-neon font-bold">{v} / {d.max}</span>
-                    </div>
-                    <div className="h-2 bg-surface-3 rounded-full overflow-hidden">
-                      <div className="h-full bg-neon" style={{ width: `${Math.min(100, Math.round(((v ?? 0) / d.max) * 100))}%` }} />
-                    </div>
-                    {fb && <p className="text-xs text-muted mt-1">{fb}</p>}
-                  </div>
-                );
-              })}
-            </div>
+          {examMode && feedback.examScores && (
+            <ExamScoreCard exam={exam} scores={feedback.examScores} />
           )}
 
           <div className="bg-dark/30 border border-line-strong rounded-xl p-4">

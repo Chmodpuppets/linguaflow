@@ -228,6 +228,9 @@ export interface GuidedWritingFeedback {
   // 重写模式（practiceType==='rewrite' 或 AI mode='revision'）下由 AI 给出「重写建议」，
   // 与 issues（语言精修：用词/语法）明确分离：本字段关注读者/目的/内容/结构。
   revision?: RevisionAdvice;
+  // 考试视角下由 AI 给出对应考试的维度评分（与 analyzeWriting 同一套 ExamScores 量纲）。
+  // 仅当 targetExam 与学习语言匹配时存在；自由视角或语言不匹配时为 null。
+  examScores?: ExamScores | null;
 }
 
 // 重写建议可归类的弱项维度（与 ErrorPatternType 的 content/structure/reader_awareness 对应）

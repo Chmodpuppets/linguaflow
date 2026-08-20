@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserProfile, WritingNode, CEFRLevel, Language, GuidedWritingFeedback, GuidedMode, ErrorPatternType, REGISTER_LABELS, CompositionGenre, GENRE_LABELS, PRACTICE_TYPE_LABELS, CYCLE_STAGE_LABELS } from '../types';
+import { UserProfile, WritingNode, CEFRLevel, Language, GuidedWritingFeedback, GuidedMode, ErrorPatternType, REGISTER_LABELS, CompositionGenre, GENRE_LABELS, PRACTICE_TYPE_LABELS, CYCLE_STAGE_LABELS, TargetExam } from '../types';
 import { ensureGrowthTree, saveWritingTree, addActivity, addErrorCards } from '../services/storageService';
 import { analyzeGuidedWriting, generateSpeech } from '../services/aiService';
 import { romajiToKana } from '../services/romajiKana';
@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import WritingLanguageGate from './WritingLanguageGate';
 import CompositionEditor from './CompositionEditor';
+import { ExamScoreCard } from './ExamScoreCard';
 
 interface WritingTreeViewProps {
   user: UserProfile;
@@ -68,6 +69,9 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
       // 重写/打磨类节点走 revision 模式：AI 分两层反馈（重写建议 + 语言精修）
       const isRewrite = !!active.practiceType && (active.practiceType === 'rewrite' || active.cycleStage === 'rewrite');
       const mode: GuidedMode = isRewrite ? 'revision' : 'scaffold';
+      // 考试视角：task 节点也支持考试/自由开关（节点 examMode + 该语言有对应考试）
+      const taskHasExam = !!active.defaultExam && active.defaultExam !== 'none';
+      const targetExam = taskHasExam && active.examMode ? active.defaultExam : undefined;
       const ctx = { template: active.scaffold, hint: active.scaffoldHint, register: active.register ? REGISTER_LABELS[active.register] : undefined };
       const fb = await analyzeGuidedWriting(
         normalizedInput,
@@ -75,7 +79,8 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
         user.nativeLanguage,
         active.cefrLevel ?? userLevel,
         mode,
-        ctx
+        ctx,
+        targetExam
       );
       setFeedback(fb);
       // 错题沉淀：写作树任务的错误全部进错题本（闭环）
@@ -317,6 +322,22 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                   <span className="font-semibold">{REGISTER_LABELS[active.register]}</span>
                 </div>
               )}
+              {/* 考试/自由视角开关：仅当该语言有对应考试时显示（沿用节点 examMode 持久化） */}
+              {active.defaultExam && active.defaultExam !== 'none' && (
+                <div className="flex items-center gap-2 mt-3">
+                  <div className="inline-flex rounded-lg overflow-hidden border border-line-strong text-xs">
+                    <button
+                      onClick={() => active.examMode === false && saveExamMode(active.id, true)}
+                      className={`px-3 py-1 font-semibold transition-colors ${active.examMode !== false ? 'bg-amber-500/20 text-amber-200' : 'text-muted hover:text-white'}`}
+                    >考试</button>
+                    <button
+                      onClick={() => active.examMode !== false && saveExamMode(active.id, false)}
+                      className={`px-3 py-1 font-semibold transition-colors ${active.examMode === false ? 'bg-neon/20 text-neon' : 'text-muted hover:text-white'}`}
+                    >自由</button>
+                  </div>
+                  <span className="text-[10px] text-faint">{active.examMode !== false ? `按 ${active.defaultExam} 维度评分` : '不评分，仅通用反馈'}</span>
+                </div>
+              )}
             </div>
 
             {/* 脚手架模板 / 情境 */}
@@ -471,6 +492,11 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                       ))}
                     </div>
                   )
+                )}
+
+                {/* 考试评分卡：考试视角下展示全维度评分（与作文编辑器共用 ExamScoreCard） */}
+                {feedback.examScores && (
+                  <ExamScoreCard exam={(active.defaultExam ?? 'none') as TargetExam} scores={feedback.examScores} />
                 )}
 
                 <div className="bg-secondary/10 border border-secondary/30 rounded-xl p-4 text-sm text-gray-200">
