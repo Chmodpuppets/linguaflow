@@ -1,29 +1,38 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { Language, CEFRLevel, AppMode, UserProfile } from './types';
 import { SUPPORTED_LANGUAGES, NAV_ITEMS } from './constants';
 import { getUser, saveUser, ensureLanguageProgress, logoutUser, checkStreakOnLoad, rolloverDailyQuests, getDueErrorCards, getLevelInfo } from './services/storageService';
-import TypingView from './components/TypingView';
-import WritingView from './components/WritingView';
-import LibraryView from './components/LibraryView';
-import ProfileView from './components/ProfileView';
-import LoginView from './components/LoginView';
-import WritingTreeView from './components/WritingTreeView';
-import CompositionStudioView from './components/CompositionStudioView';
-import PortfolioView from './components/PortfolioView';
-import VocabularyView from './components/VocabularyView';
-import RPGView from './components/RPGView';
-import DailyView from './components/DailyView';
-import ImportView from './components/ImportView';
-import SongLabView from './components/SongLabView';
-import SocialView from './components/SocialView';
-import ScriptTrainerView from './components/ScriptTrainerView';
-import ErrorBookView from './components/ErrorBookView';
-import ErrorPatternsView from './components/ErrorPatternsView';
-import WritingProgressView from './components/WritingProgressView';
-import InkQuestView from './components/InkQuestView';
-import ContentRepoView from './components/ContentRepoView';
-import { GraduationCap, ChevronDown, Menu, Flame, Star, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { ChevronDown, Menu, Flame, Star, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+
+// 视图组件懒加载：首屏只加载当前视图，避免一次解析全部 27 个页面（首屏 JS 705KB → 按需拆分）
+const TypingView = lazy(() => import('./components/TypingView'));
+const WritingView = lazy(() => import('./components/WritingView'));
+const LibraryView = lazy(() => import('./components/LibraryView'));
+const ProfileView = lazy(() => import('./components/ProfileView'));
+const LoginView = lazy(() => import('./components/LoginView'));
+const WritingTreeView = lazy(() => import('./components/WritingTreeView'));
+const CompositionStudioView = lazy(() => import('./components/CompositionStudioView'));
+const PortfolioView = lazy(() => import('./components/PortfolioView'));
+const VocabularyView = lazy(() => import('./components/VocabularyView'));
+const RPGView = lazy(() => import('./components/RPGView'));
+const DailyView = lazy(() => import('./components/DailyView'));
+const ImportView = lazy(() => import('./components/ImportView'));
+const SongLabView = lazy(() => import('./components/SongLabView'));
+const SocialView = lazy(() => import('./components/SocialView'));
+const ScriptTrainerView = lazy(() => import('./components/ScriptTrainerView'));
+const ErrorBookView = lazy(() => import('./components/ErrorBookView'));
+const ErrorPatternsView = lazy(() => import('./components/ErrorPatternsView'));
+const WritingProgressView = lazy(() => import('./components/WritingProgressView'));
+const InkQuestView = lazy(() => import('./components/InkQuestView'));
+const ContentRepoView = lazy(() => import('./components/ContentRepoView'));
+
+// 懒加载过渡态：极简 spinner，避免切换页面时白屏闪烁
+const ViewFallback = () => (
+  <div className="flex h-40 items-center justify-center">
+    <div className="h-8 w-8 animate-spin rounded-full border-2 border-neon/25 border-t-neon" />
+  </div>
+);
 
 // 侧边栏导航分组（信息架构：降低 15 个一级入口的视觉过载）
 const NAV_GROUPS: { label: string; items: string[] }[] = [
@@ -130,15 +139,24 @@ const App: React.FC = () => {
     setIsMenuOpen(false);
   };
 
+  // 错题本待复习数量：useMemo 缓存，仅在 user 变化时重算，
+  // 避免 mode / stars / 侧栏折叠等无关状态变化时反复读 localStorage + JSON.parse + sort
+  const dueErrorCount = useMemo(
+    () => (user ? getDueErrorCards().filter((c) => c.language === user.learningLanguage).length : 0),
+    [user]
+  );
+
   if (!user) {
-    return <LoginView onLogin={(u) => setUser(u)} />;
+    return (
+      <Suspense fallback={<ViewFallback />}>
+        <LoginView onLogin={(u) => setUser(u)} />
+      </Suspense>
+    );
   }
 
   // Derived state for current language stats
   const currentFlag = SUPPORTED_LANGUAGES.find(l => l.id === user.learningLanguage)?.flag || '🌐';
   const currentProgress = user.progress[user.learningLanguage] || { xp: 0, level: 1, cefrLevel: CEFRLevel.A1 };
-  // 错题本待复习数量（按当前学习语言），用于导航角标
-  const dueErrorCount = getDueErrorCards().filter((c) => c.language === user.learningLanguage).length;
   // 等级与进度条统一从单一计算源取，消除多处公式漂移
   const levelInfo = getLevelInfo(currentProgress.xp);
 
@@ -465,7 +483,9 @@ const App: React.FC = () => {
 
                 {/* 页面切换：mode 作为 key，触发霓虹渐入过渡 */}
                 <div key={mode} className="page-enter flex-1">
-                    {renderContent()}
+                    <Suspense fallback={<ViewFallback />}>
+                        {renderContent()}
+                    </Suspense>
                 </div>
             </div>
         </div>

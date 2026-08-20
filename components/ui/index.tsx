@@ -23,10 +23,10 @@ export const GlassCard: React.FC<GlassCardProps> = ({
 }) => (
   <div
     className={`
-      rounded-2xl border backdrop-blur-xl transition-all duration-300
+      rounded-2xl border backdrop-blur-sm transition-all duration-300
       ${subtle
-        ? 'bg-surface-2/40 border-white/5'
-        : 'bg-surface-2/70 border-white/[0.07] shadow-card'}
+        ? 'bg-surface-2/50 border-white/5'
+        : 'bg-surface-2/75 border-white/[0.07] shadow-card'}
       ${interactive
         ? 'hover:border-neon/35 hover:shadow-glow-neon hover:-translate-y-0.5 cursor-pointer'
         : ''}
@@ -176,7 +176,7 @@ export const StatChip: React.FC<StatChipProps> = ({
     <div
       className={`
         flex items-center gap-3 px-4 py-3 rounded-xl
-        bg-surface-2/60 border border-white/[0.06] backdrop-blur-lg
+        bg-surface-2/70 border border-white/[0.06] backdrop-blur-sm
         transition-all duration-300 hover:border-neon/30 hover:shadow-glow-sm
         ${className}
       `}

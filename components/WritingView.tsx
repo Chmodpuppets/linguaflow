@@ -426,7 +426,7 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
                         <p className="text-muted italic">没有发现具体错误，写得真好！</p>
                     ) : (
                         feedback.suggestions.map((item, idx) => (
-                            <div key={idx} className="bg-surface-2/60 backdrop-blur-lg p-4 rounded-xl border border-white/[0.06] hover:border-neon/30 hover:shadow-glow-sm transition-all duration-300">
+                            <div key={idx} className="bg-surface-2/60 backdrop-blur-sm p-4 rounded-xl border border-white/[0.06] hover:border-neon/30 hover:shadow-glow-sm transition-all duration-300">
                                 <div className="flex items-start gap-4">
                                     <div className="w-1/2 p-3 bg-red-900/10 border border-red-900/30 rounded-lg text-red-200 line-through decoration-red-500/50">
                                         {item.original}

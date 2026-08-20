@@ -516,7 +516,7 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       {/* 赛季横幅 + 切换 + 模式切换 */}
-      <section className="relative overflow-hidden rounded-2xl border border-white/[0.07] bg-gradient-to-br from-neon/20 via-surface-2/70 to-surface-2/50 backdrop-blur-xl p-5 shadow-card">
+      <section className="relative overflow-hidden rounded-2xl border border-white/[0.07] bg-gradient-to-br from-neon/20 via-surface-2/70 to-surface-2/50 backdrop-blur-sm p-5 shadow-card">
         <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-neon/25 blur-3xl" />
         <div className="relative flex items-center gap-2 text-violet-300">
           <Feather size={18} className="drop-shadow-[0_0_8px_rgba(139,92,246,0.8)]" />

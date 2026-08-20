@@ -64,7 +64,7 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser, onNavigate })
   return (
     <div className="mx-auto max-w-4xl space-y-8">
       {/* Hero：极光渐变 + 玻璃面 */}
-      <section className="relative overflow-hidden rounded-2xl border border-white/[0.07] bg-gradient-to-br from-neon/20 via-surface-2/70 to-surface-2/50 backdrop-blur-xl p-6 md:p-8 shadow-card">
+      <section className="relative overflow-hidden rounded-2xl border border-white/[0.07] bg-gradient-to-br from-neon/20 via-surface-2/70 to-surface-2/50 backdrop-blur-sm p-6 md:p-8 shadow-card">
         <div className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full bg-neon/25 blur-3xl" />
         <div className="pointer-events-none absolute -left-8 -bottom-10 h-36 w-36 rounded-full bg-neon-2/15 blur-3xl" />
         <div className="relative flex flex-wrap items-center justify-between gap-5">
@@ -79,14 +79,14 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser, onNavigate })
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex flex-col items-center rounded-xl border border-orange-400/20 bg-surface-3/50 backdrop-blur-lg px-4 py-2 transition-shadow duration-300 hover:shadow-[0_0_18px_rgba(251,146,60,0.35)]">
+            <div className="flex flex-col items-center rounded-xl border border-orange-400/20 bg-surface-3/50 backdrop-blur-sm px-4 py-2 transition-shadow duration-300 hover:shadow-[0_0_18px_rgba(251,146,60,0.35)]">
               <div className="flex items-center gap-1 text-orange-400">
                 <Flame size={20} className="flame-flicker" />
                 <span className="text-2xl font-bold">{user.currentStreak}</span>
               </div>
               <span className="text-[10px] uppercase tracking-wide text-muted">连续天数</span>
             </div>
-            <div className="flex flex-col items-center rounded-xl border border-neon-2/20 bg-surface-3/50 backdrop-blur-lg px-4 py-2 transition-shadow duration-300 hover:shadow-glow-cyan">
+            <div className="flex flex-col items-center rounded-xl border border-neon-2/20 bg-surface-3/50 backdrop-blur-sm px-4 py-2 transition-shadow duration-300 hover:shadow-glow-cyan">
               <div className="flex items-center gap-1 text-cyan-300">
                 <Shield size={20} />
                 <span className="text-2xl font-bold">{user.streakShields}</span>
@@ -135,7 +135,7 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser, onNavigate })
                   <button
                     key={m.step}
                     onClick={() => onNavigate(m.mode)}
-                    className={`group flex items-center gap-2 rounded-2xl border p-3 text-left backdrop-blur-xl transition-all duration-300 ${
+                    className={`group flex items-center gap-2 rounded-2xl border p-3 text-left backdrop-blur-sm transition-all duration-300 ${
                       done
                         ? 'border-green-400/30 bg-green-500/10 text-green-300 shadow-[0_0_16px_-4px_rgba(74,222,128,0.35)]'
                         : 'border-white/[0.07] bg-surface-2/70 shadow-card hover:-translate-y-0.5 hover:border-neon/35 hover:shadow-glow-neon'
