@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile, VocabularyItem } from '../types';
 import { getVocabulary, saveVocabularyItem, deleteVocabularyItem, addActivity, getDueVocabulary, updateVocabularyItem, reviewVocabulary, progressQuests } from '../services/storageService';
-import { generateWordDetails, generateSpeech } from '../services/aiService';
+import { generateWordDetails, playWord } from '../services/aiService';
 import { BookA, Plus, Search, Trash2, Sparkles, Volume2, Tag, Loader2, Save, X, Repeat, Check, XCircle, Layers } from 'lucide-react';
 
 interface VocabularyViewProps {
@@ -29,6 +29,8 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser }) =
   const [example, setExample] = useState('');
   const [partOfSpeech, setPartOfSpeech] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  // 英文单词发音口音（有道 dictvoice：uk=英式 type=2 / us=美式 type=1）；雅思默认英式
+  const [accent, setAccent] = useState<'uk' | 'us'>('uk');
 
   useEffect(() => {
     // Filter items by current learning language
@@ -183,8 +185,24 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser }) =
                   >
                     显示答案
                   </button>
+                  {user.learningLanguage === 'English' && (
+                    <div className="flex items-center justify-center">
+                      <div className="flex bg-white/5 rounded-lg p-0.5 border border-white/10 text-xs">
+                        <button
+                          onClick={() => setAccent('uk')}
+                          className={`px-2.5 py-1 rounded ${accent === 'uk' ? 'bg-neon text-white' : 'text-muted hover:text-white'}`}
+                          title="英式发音（有道）"
+                        >英 UK</button>
+                        <button
+                          onClick={() => setAccent('us')}
+                          className={`px-2.5 py-1 rounded ${accent === 'us' ? 'bg-neon text-white' : 'text-muted hover:text-white'}`}
+                          title="美式发音（有道）"
+                        >美 US</button>
+                      </div>
+                    </div>
+                  )}
                   <button
-                    onClick={() => generateSpeech(queue[reviewIdx]?.word || '', { lang: user.learningLanguage })}
+                    onClick={() => playWord(queue[reviewIdx]?.word || '', user.learningLanguage, accent)}
                     className="flex items-center justify-center gap-2 w-full py-2 text-muted hover:text-neon-2"
                   >
                     <Volume2 size={16} /> 听发音
@@ -264,7 +282,7 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser }) =
                                   <div className="flex items-center gap-2">
                                       <h3 className="text-xl font-bold text-white">{item.word}</h3>
                                       <button
-                                        onClick={() => generateSpeech(item.word, { lang: user.learningLanguage })}
+                                        onClick={() => playWord(item.word, user.learningLanguage, accent)}
                                         className="text-muted hover:text-neon-2 transition-colors"
                                         title="朗读单词"
                                       >

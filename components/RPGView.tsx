@@ -2,13 +2,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, RPGScenario, RPGMessage, ScenarioDef, CEFRLevel } from '../types';
 import { RPG_PACKS } from '../data/rpgScenarios';
-import { startRPGScenario, continueRPGTurn, playCachedSpeech, cancelSpeech, pauseSpeech, resumeSpeech, hasPausedSpeech, buildTutorSystemPrompt } from '../services/aiService';
-import { addActivity, saveVocabularyItem } from '../services/storageService';
+import { startRPGScenario, continueRPGTurn, playCachedSpeech, cancelSpeech, pauseSpeech, resumeSpeech, hasPausedSpeech, buildTutorSystemPrompt, playWord } from '../services/aiService';
+import { addActivity, saveVocabularyItem, getVocabulary, deleteVocabularyItem } from '../services/storageService';
 import { 
     Send, Volume2, User, Bot, CheckCircle2, 
     Gamepad2, Sparkles, BookA, ArrowRight,
     Loader2, Trophy, RotateCcw, XCircle, Play, Pause, X,
-    Languages, Lightbulb, AlertTriangle, Wand2, Trash2, Save
+    Languages, Lightbulb, AlertTriangle, Wand2, Trash2, Save,
+    Eye, EyeOff
 } from 'lucide-react';
 
 interface RPGViewProps {
@@ -28,6 +29,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
     // UI State
     const [feedbackToast, setFeedbackToast] = useState<string | null>(null);
     const [showPhonetics, setShowPhonetics] = useState(false);
+    const [showTranslation, setShowTranslation] = useState(false); // 母语翻译默认隐藏，避免学习时直接看中文
     const [showHint, setShowHint] = useState(false);
     const [currentSuggestion, setCurrentSuggestion] = useState<string | null>(null);
     const [currentSuggestionPhonetic, setCurrentSuggestionPhonetic] = useState<string | null>(null);
@@ -351,6 +353,38 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
         awardXP(5);
     };
 
+    // --- 生词芯片：一键加入 / 再点取消 + 加入时的 UX 反馈 ---
+    // 用 Set 跟踪当前学习语言下已保存的词，避免每次都读 storage；切换语言时重新同步。
+    const [savedVocabWords, setSavedVocabWords] = useState<Set<string>>(new Set());
+    const [justToggledVocab, setJustToggledVocab] = useState<string | null>(null);
+    useEffect(() => {
+        const list = getVocabulary().filter(v => v.language === user.learningLanguage);
+        setSavedVocabWords(new Set(list.map(v => v.word)));
+    }, [user.learningLanguage]);
+
+    const toggleVocab = (word: string, meaning: string) => {
+        const isSaved = savedVocabWords.has(word);
+        if (isSaved) {
+            // 移除：按 word + language 精确删，避免误删重复词
+            const items = getVocabulary().filter(v => v.language === user.learningLanguage && v.word === word);
+            items.forEach(item => deleteVocabularyItem(item.id));
+            setSavedVocabWords(prev => {
+                const next = new Set(prev);
+                next.delete(word);
+                return next;
+            });
+        } else {
+            // 加入：复用 saveWord 的写入 + XP 奖励
+            saveWord(word, meaning);
+            setSavedVocabWords(prev => new Set(prev).add(word));
+        }
+        // 触发 pop 动画（scale 1→1.1→1，颜色 + 图标过渡）
+        setJustToggledVocab(word);
+        setTimeout(() => {
+            setJustToggledVocab(prev => prev === word ? null : prev);
+        }, 280);
+    };
+
     // Actual teardown logic
     const performExit = () => {
         cancelSpeech();
@@ -421,7 +455,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                                     {myScenarios.map(sc => (
-                                        <div key={sc.id} className="group relative bg-surface-2/60 backdrop-blur-lg border border-white/[0.07] hover:border-neon/50 hover:shadow-glow-sm p-4 rounded-xl transition-all duration-200">
+                                        <div key={sc.id} className="group relative bg-surface-2/60 backdrop-blur-sm border border-white/[0.07] hover:border-neon/50 hover:shadow-glow-sm p-4 rounded-xl transition-all duration-200">
                                             <button
                                                 onClick={() => handleStart(sc, '自定义剧情')}
                                                 className="text-left w-full"
@@ -466,7 +500,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                                             <button
                                                 key={sc.id}
                                                 onClick={() => handleStart(sc, pack.name)}
-                                                className="text-left bg-surface-2/60 backdrop-blur-lg border border-white/[0.07] hover:border-neon/50 hover:shadow-glow-sm hover:-translate-y-0.5 p-4 rounded-xl transition-all duration-200 group"
+                                                className="text-left bg-surface-2/60 backdrop-blur-sm border border-white/[0.07] hover:border-neon/50 hover:shadow-glow-sm hover:-translate-y-0.5 p-4 rounded-xl transition-all duration-200 group"
                                             >
                                                 <div className="flex items-center justify-between gap-2">
                                                     <span className="font-bold text-gray-200 group-hover:text-white">{sc.title}</span>
@@ -767,7 +801,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
 
                         return (
                             <div key={msg.id} className={`flex page-enter ${isAi ? 'justify-start' : 'justify-end'}`}>
-                                <div className={`max-w-[85%] lg:max-w-[70%] rounded-2xl p-4 backdrop-blur-lg ${
+                                <div className={`max-w-[85%] lg:max-w-[70%] rounded-2xl p-4 backdrop-blur-sm ${
                                     isAi
                                         ? 'bg-surface-2/80 border border-white/[0.06] rounded-tl-none'
                                         : 'bg-gradient-to-br from-neon/25 to-neon-2/10 border border-neon/30 shadow-glow-sm rounded-tr-none'
@@ -801,8 +835,8 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                                         {msg.text}
                                     </p>
                                     
-                                    {/* Translation (for AI) */}
-                                    {isAi && msg.translation && (
+                                    {/* Translation (for AI) — 默认隐藏，需点击工具栏「翻译」按钮才显示 */}
+                                    {isAi && msg.translation && showTranslation && (
                                         <p className="text-muted text-sm mt-2 italic border-t border-line-strong/50 pt-2">
                                             {msg.translation}
                                         </p>
@@ -831,17 +865,39 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                                     {/* Vocab Chips */}
                                     {isAi && msg.vocabularyHighlights && msg.vocabularyHighlights.length > 0 && (
                                         <div className="mt-3 flex flex-wrap gap-2 pt-2 border-t border-line-strong/50">
-                                            {msg.vocabularyHighlights.map((vocab, vIdx) => (
-                                                <button
+                                            {msg.vocabularyHighlights.map((vocab, vIdx) => {
+                                                const isSaved = savedVocabWords.has(vocab.word);
+                                                const isPopping = justToggledVocab === vocab.word;
+                                                return (
+                                                <div
                                                     key={vIdx}
-                                                    onClick={() => saveWord(vocab.word, vocab.meaning)}
-                                                    className="flex items-center gap-1.5 px-2 py-1 bg-secondary/10 hover:bg-secondary/20 border border-secondary/30 rounded-md text-xs text-secondary transition-colors"
-                                                    title={`保存：${vocab.meaning}`}
+                                                    className={`flex items-center gap-1 px-1.5 py-1 rounded-md text-xs transition-all duration-300 ${
+                                                        isSaved
+                                                            ? 'bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 shadow-[0_0_14px_-3px_rgba(16,185,129,0.55)]'
+                                                            : 'bg-secondary/10 hover:bg-secondary/20 border border-secondary/30 text-secondary'
+                                                    } ${isPopping ? 'scale-[1.08]' : 'scale-100'}`}
                                                 >
-                                                    <BookA size={12} />
-                                                    <span className="font-bold">{vocab.word}</span>
-                                                </button>
-                                            ))}
+                                                    <button
+                                                        onClick={() => playWord(vocab.word, user.learningLanguage)}
+                                                        className={`transition-colors ${isSaved ? 'hover:text-emerald-100' : 'hover:text-white'}`}
+                                                        title="听发音"
+                                                    >
+                                                        <Volume2 size={12} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => toggleVocab(vocab.word, vocab.meaning)}
+                                                        className={`flex items-center gap-1.5 transition-colors ${isSaved ? 'hover:text-emerald-100' : 'hover:text-white'}`}
+                                                        title={isSaved ? `已加入生词库 · 点击移除（${vocab.meaning}）` : `加入生词库（${vocab.meaning}）`}
+                                                    >
+                                                        {isSaved
+                                                            ? <CheckCircle2 size={12} className={isPopping ? 'animate-pulse' : ''} />
+                                                            : <BookA size={12} />
+                                                        }
+                                                        <span className="font-bold">{vocab.word}</span>
+                                                    </button>
+                                                </div>
+                                                );
+                                            })}
                                         </div>
                                     )}
                                 </div>
@@ -851,7 +907,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                     
                     {isProcessing && (
                          <div className="flex justify-start page-enter">
-                             <div className="bg-surface-2/80 backdrop-blur-lg border border-white/[0.06] rounded-2xl rounded-tl-none p-4 flex items-center gap-2">
+                             <div className="bg-surface-2/80 backdrop-blur-sm border border-white/[0.06] rounded-2xl rounded-tl-none p-4 flex items-center gap-2">
                                  <div className="w-2 h-2 bg-neon rounded-full animate-bounce shadow-glow-sm" style={{ animationDelay: '0ms' }} />
                                  <div className="w-2 h-2 bg-neon rounded-full animate-bounce shadow-glow-sm" style={{ animationDelay: '150ms' }} />
                                  <div className="w-2 h-2 bg-neon-2 rounded-full animate-bounce shadow-glow-cyan" style={{ animationDelay: '300ms' }} />
@@ -934,6 +990,14 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                             <Languages size={14} /> 发音指南
                         </button>
 
+                        <button
+                            onClick={() => setShowTranslation(!showTranslation)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${showTranslation ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20' : 'bg-surface-2 text-muted hover:bg-surface-3'}`}
+                            title={showTranslation ? "隐藏母语翻译" : "显示母语翻译"}
+                        >
+                            {showTranslation ? <Eye size={14} /> : <EyeOff size={14} />} 翻译
+                        </button>
+
                     </div>
 
                     <div className="relative flex items-center gap-2">
@@ -947,7 +1011,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                             className="w-full bg-dark/70 border border-white/10 rounded-xl pl-4 pr-12 py-4 text-white placeholder-muted focus:ring-2 focus:ring-neon/60 focus:border-neon/40 focus:shadow-glow-sm outline-none disabled:opacity-50 transition-shadow duration-300"
                         />
                         <button
-                            onClick={handleSend}
+                            onClick={() => handleSend()}
                             disabled={!input.trim() || isProcessing || isFinished}
                             className="absolute right-2 p-2 bg-gradient-to-br from-neon to-neon-2 text-white rounded-lg hover:brightness-110 hover:shadow-glow-neon disabled:opacity-0 disabled:pointer-events-none transition-all duration-200"
                         >
