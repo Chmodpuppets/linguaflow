@@ -137,6 +137,10 @@ const App: React.FC = () => {
     if (newMode !== AppMode.Typing) {
         setTypingInitialData(null); // Clear custom data if leaving typing or switching explicitly
     }
+    if (window.__importProcessing && newMode !== AppMode.Import) {
+      const ok = window.confirm('正在抓取/处理内容，切换页面将中断当前操作。确定要离开吗？');
+      if (!ok) return;
+    }
     setMode(newMode);
     setIsMenuOpen(false);
   };

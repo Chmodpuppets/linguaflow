@@ -1,9 +1,15 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { UserProfile, UserContent, VocabularyItem, Language } from '../types';
 import { saveLibraryItem, saveVocabularyItem } from '../services/storageService';
 import { generateWordDetails } from '../services/aiService';
 import { Upload, Scissors, BookPlus, Sparkles, AlertTriangle, Link as LinkIcon, CheckCircle2 } from 'lucide-react';
+
+declare global {
+  interface Window {
+    __importProcessing?: boolean;
+  }
+}
 
 interface ImportViewProps {
   user: UserProfile;
@@ -15,7 +21,36 @@ const ImportView: React.FC<ImportViewProps> = ({ user }) => {
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
   const [busy, setBusy] = useState(false);
+  const [task, setTask] = useState<'fetch' | 'extract' | null>(null);
+  const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState<{ type: 'info' | 'ok' | 'warn'; msg: string } | null>(null);
+  const originalTitleRef = useRef(document.title);
+
+  useEffect(() => {
+    window.__importProcessing = busy;
+    return () => {
+      window.__importProcessing = false;
+    };
+  }, [busy]);
+
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (busy) {
+        e.preventDefault();
+        e.returnValue = '正在抓取/处理内容，切换或关闭页面将中断当前操作。';
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [busy]);
+
+  useEffect(() => {
+    if (busy) {
+      document.title = '⏳ 正在处理… | LinguaFlow';
+    } else {
+      document.title = originalTitleRef.current;
+    }
+  }, [busy]);
 
   const lang: Language = user.learningLanguage;
 
@@ -36,6 +71,8 @@ const ImportView: React.FC<ImportViewProps> = ({ user }) => {
   const fetchUrl = async () => {
     if (!url.trim()) return;
     setBusy(true);
+    setTask('fetch');
+    setProgress(0);
     setStatus({ type: 'info', msg: '正在抓取网页……' });
     try {
       const res = await fetch(url.trim());
@@ -58,6 +95,7 @@ const ImportView: React.FC<ImportViewProps> = ({ user }) => {
       });
     } finally {
       setBusy(false);
+      setTask(null);
     }
   };
 
@@ -84,10 +122,13 @@ const ImportView: React.FC<ImportViewProps> = ({ user }) => {
       return;
     }
     setBusy(true);
+    setTask('extract');
+    setProgress(0);
     setStatus({ type: 'info', msg: '正在提取高频词并补充释义……' });
     const words = extractWords(text);
     let added = 0;
-    for (const w of words) {
+    for (let i = 0; i < words.length; i++) {
+      const w = words[i];
       let details = { definition: '（离线占位，联网后可由 AI 补充）', example: '', partOfSpeech: '词性' };
       try {
         const d = await generateWordDetails(w, lang, user.nativeLanguage);
@@ -105,14 +146,50 @@ const ImportView: React.FC<ImportViewProps> = ({ user }) => {
         createdAt: Date.now(),
       };
       saveVocabularyItem(item);
+      setProgress(Math.round(((i + 1) / words.length) * 100));
       added += 1;
     }
     setStatus({ type: 'ok', msg: `已从内容中提取并加入词库 ${added} 个单词，去「词汇」复习。` });
     setBusy(false);
+    setTask(null);
   };
 
   return (
     <div className="max-w-3xl mx-auto space-y-5">
+      {/* Global processing overlay */}
+      {busy && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center">
+          <div className="glass-panel border border-white/10 rounded-2xl p-8 max-w-sm w-full mx-4 text-center shadow-2xl">
+            <div className="relative w-16 h-16 mx-auto mb-5">
+              <div className="absolute inset-0 rounded-full border-4 border-neon/20" />
+              <div className="absolute inset-0 rounded-full border-4 border-t-neon border-r-transparent border-b-transparent border-l-transparent animate-spin" />
+              {task === 'extract' && (
+                <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-neon">
+                  {progress}%
+                </div>
+              )}
+            </div>
+            <h3 className="text-lg font-bold text-white mb-2">
+              {task === 'fetch' ? '正在抓取网页…' : 'AI 正在提取词汇…'}
+            </h3>
+            <p className="text-sm text-muted mb-4">
+              {task === 'fetch'
+                ? '正在请求目标页面并解析正文，请稍候。'
+                : '正在逐个调用 AI 补充高频词的释义与例句，请稍候。'}
+            </p>
+            {task === 'extract' && (
+              <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-neon to-neon-2 transition-all duration-300 ease-out"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            )}
+            <p className="text-xs text-faint mt-4">切换或关闭页面将中断此过程</p>
+          </div>
+        </div>
+      )}
+
       <div>
         <h1 className="text-2xl font-bold text-white flex items-center gap-2">
           <Upload size={22} className="text-neon" /> 导入你的内容
