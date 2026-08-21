@@ -4,6 +4,7 @@ import { Language, CEFRLevel, UserProfile, MentorPersona } from '../types';
 import { registerUser, saveUser } from '../services/storageService';
 import { SUPPORTED_LANGUAGES, MENTOR_PERSONAS, TOPIC_PACKAGES } from '../constants';
 import { ArrowRight, Globe, Sparkles } from 'lucide-react';
+import brandAppIcon from '../assets/brand/linguaflow-app-icon.png';
 
 interface LoginViewProps {
   onLogin: (user: UserProfile) => void;
@@ -41,9 +42,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
 
         <div className="relative z-10">
           <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-gradient-to-br from-neon to-neon-2 rounded-2xl mx-auto flex items-center justify-center text-3xl font-bold shadow-glow-neon logo-glow mb-4">
-              L
-            </div>
+            <img src={brandAppIcon} alt="LinguaFlow" className="w-16 h-16 rounded-2xl mx-auto shadow-glow-neon mb-4" />
             <h1 className="text-2xl font-bold">欢迎使用 LinguaFlow</h1>
             <p className="text-muted mt-2">你的流利之路从这里开始。</p>
           </div>

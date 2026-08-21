@@ -4,6 +4,8 @@ import { Language, CEFRLevel, AppMode, UserProfile } from './types';
 import { SUPPORTED_LANGUAGES, NAV_ITEMS } from './constants';
 import { getUser, saveUser, ensureLanguageProgress, logoutUser, checkStreakOnLoad, rolloverDailyQuests, getDueErrorCards, getLevelInfo } from './services/storageService';
 import { ChevronDown, Menu, Flame, Star, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import brandLogo from './assets/brand/linguaflow-logo.png';
+import brandIcon from './assets/brand/linguaflow-icon.png';
 
 // 视图组件懒加载：首屏只加载当前视图，避免一次解析全部 27 个页面（首屏 JS 705KB → 按需拆分）
 const TypingView = lazy(() => import('./components/TypingView'));
@@ -320,15 +322,11 @@ const App: React.FC = () => {
           {isSidebarCollapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
         </button>
 
-        <div className={`p-6 border-b border-white/5 flex items-center gap-3 ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''}`}>
-            <div className="logo-glow w-10 h-10 bg-gradient-to-br from-neon via-primary to-neon-2 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg transition-transform duration-300 hover:scale-110 hover:rotate-3">
-                L
-            </div>
-            {!isSidebarCollapsed && (
-              <div>
-                <h1 className="font-bold tracking-tight neon-text text-lg">LinguaFlow</h1>
-                <p className="text-xs text-muted">以输出练就流利</p>
-              </div>
+        <div className={`px-5 py-6 border-b border-white/5 flex items-center gap-3 ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''}`}>
+            {isSidebarCollapsed ? (
+              <img src={brandIcon} alt="LinguaFlow" className="w-10 h-10 rounded-xl shadow-lg transition-transform duration-300 hover:scale-110" />
+            ) : (
+              <img src={brandLogo} alt="LinguaFlow" className="w-full h-auto max-h-14 object-contain" />
             )}
         </div>
 
@@ -453,7 +451,7 @@ const App: React.FC = () => {
         {/* Mobile Header */}
         <header className="md:hidden flex items-center justify-between p-4 border-b border-white/5 glass-panel">
             <div className="flex items-center gap-2">
-                 <div className="logo-glow w-8 h-8 bg-gradient-to-br from-neon to-neon-2 rounded-lg flex items-center justify-center text-white font-bold text-sm">L</div>
+                 <img src={brandIcon} alt="LinguaFlow" className="w-8 h-8 rounded-lg" />
                  <span className="font-bold neon-text">LinguaFlow</span>
             </div>
             <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="text-white p-2 rounded-lg hover:bg-white/5 transition-colors">
