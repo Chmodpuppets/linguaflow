@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { UserProfile, UserContent, VocabularyItem, Language } from '../types';
 import { saveLibraryItem, saveVocabularyItem } from '../services/storageService';
-import { generateWordDetails } from '../services/aiService';
+import { generateWordDetails, selectVocabularyWords, SelectedWord } from '../services/aiService';
 import { Upload, Scissors, BookPlus, Sparkles, AlertTriangle, Link as LinkIcon, CheckCircle2 } from 'lucide-react';
 
 declare global {
@@ -54,17 +54,29 @@ const ImportView: React.FC<ImportViewProps> = ({ user }) => {
 
   const lang: Language = user.learningLanguage;
 
-  const extractWords = (raw: string): string[] => {
+  // 离线/AI 失败时的兜底：挑「低频 + 较长」的词，跳过高频功能词与基础词。
+  const STOPWORDS = new Set([
+    'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'any', 'can', 'had', 'her', 'was', 'one',
+    'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'man', 'new', 'now', 'old', 'see', 'two',
+    'way', 'who', 'boy', 'did', 'its', 'let', 'put', 'say', 'she', 'too', 'use', 'that', 'this', 'with',
+    'from', 'they', 'will', 'would', 'there', 'their', 'what', 'about', 'which', 'when', 'them', 'then',
+    'than', 'into', 'have', 'been', 'were', 'said', 'each', 'make', 'like', 'time', 'just', 'know',
+    'take', 'people', 'year', 'your', 'good', 'some', 'could', 'them', 'other', 'after', 'first', 'well',
+    'even', 'most', 'want', 'because', 'also', 'back', 'over', 'think', 'where', 'much', 'before',
+  ]);
+
+  const pickHardWordsLocally = (raw: string, limit = 12): string[] => {
     const tokens = raw
       .toLowerCase()
       .replace(/[^\p{L}\p{N}\s]/gu, ' ')
       .split(/\s+/)
-      .filter((w) => w.length >= 4);
+      .filter((w) => w.length >= 5 && !STOPWORDS.has(w));
     const freq = new Map<string, number>();
     for (const w of tokens) freq.set(w, (freq.get(w) || 0) + 1);
+    // 排序：先按出现次数升序（越罕见越靠前），次数相同再按词长降序（越长越可能难）。
     return [...freq.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 12)
+      .sort((a, b) => (a[1] !== b[1] ? a[1] - b[1] : b[0].length - a[0].length))
+      .slice(0, limit)
       .map((e) => e[0]);
   };
 
@@ -124,32 +136,64 @@ const ImportView: React.FC<ImportViewProps> = ({ user }) => {
     setBusy(true);
     setTask('extract');
     setProgress(0);
-    setStatus({ type: 'info', msg: '正在提取高频词并补充释义……' });
-    const words = extractWords(text);
-    let added = 0;
-    for (let i = 0; i < words.length; i++) {
-      const w = words[i];
-      let details = { definition: '（离线占位，联网后可由 AI 补充）', example: '', partOfSpeech: '词性' };
-      try {
-        const d = await generateWordDetails(w, lang, user.nativeLanguage);
-        details = { definition: d.definition, example: d.example, partOfSpeech: d.partOfSpeech };
-      } catch {
-        /* 离线时保留占位 */
-      }
-      const item: VocabularyItem = {
-        id: crypto.randomUUID(),
-        word: w,
-        definition: details.definition,
-        exampleSentence: details.example,
-        partOfSpeech: details.partOfSpeech,
-        language: lang,
-        createdAt: Date.now(),
-      };
-      saveVocabularyItem(item);
-      setProgress(Math.round(((i + 1) / words.length) * 100));
-      added += 1;
+    setStatus({ type: 'info', msg: 'AI 正在挑选难点词 / 专业词……' });
+
+    // 优先走 AI：一次调用同时挑出值得学的难词/专业词并附释义例句。
+    const lp = user.progress[user.learningLanguage];
+    const cefr = lp?.cefrLevel || 'B1';
+    let selected: SelectedWord[] = [];
+    try {
+      selected = await selectVocabularyWords(text, lang, user.nativeLanguage, cefr);
+    } catch {
+      selected = [];
     }
-    setStatus({ type: 'ok', msg: `已从内容中提取并加入词库 ${added} 个单词，去「词汇」复习。` });
+    setProgress(50);
+
+    if (selected.length === 0) {
+      // AI 不可用（离线 / 未配置 key）：回落本地启发式挑低频长词，再逐词补释义。
+      const words = pickHardWordsLocally(text);
+      let added = 0;
+      for (let i = 0; i < words.length; i++) {
+        const w = words[i];
+        let details = { definition: '（离线占位，联网后可由 AI 补充）', example: '', partOfSpeech: '词性' };
+        try {
+          const d = await generateWordDetails(w, lang, user.nativeLanguage);
+          details = { definition: d.definition, example: d.example, partOfSpeech: d.partOfSpeech };
+        } catch {
+          /* 离线时保留占位 */
+        }
+        const item: VocabularyItem = {
+          id: crypto.randomUUID(),
+          word: w,
+          definition: details.definition,
+          exampleSentence: details.example,
+          partOfSpeech: details.partOfSpeech,
+          language: lang,
+          createdAt: Date.now(),
+        };
+        saveVocabularyItem(item);
+        setProgress(Math.round(50 + ((i + 1) / words.length) * 50));
+        added += 1;
+      }
+      setStatus({ type: 'ok', msg: `已提取 ${added} 个难点词加入词库，去「词汇」复习。` });
+    } else {
+      // AI 模式：直接落库，进度随落库递增。
+      for (let i = 0; i < selected.length; i++) {
+        const s = selected[i];
+        const item: VocabularyItem = {
+          id: crypto.randomUUID(),
+          word: s.word,
+          definition: s.definition || '（未获取到释义）',
+          exampleSentence: s.example,
+          partOfSpeech: s.partOfSpeech,
+          language: lang,
+          createdAt: Date.now(),
+        };
+        saveVocabularyItem(item);
+        setProgress(Math.round(50 + ((i + 1) / selected.length) * 50));
+      }
+      setStatus({ type: 'ok', msg: `AI 已挑出 ${selected.length} 个难点词 / 专业词加入词库，去「词汇」复习。` });
+    }
     setBusy(false);
     setTask(null);
   };
@@ -175,7 +219,7 @@ const ImportView: React.FC<ImportViewProps> = ({ user }) => {
             <p className="text-sm text-muted mb-4">
               {task === 'fetch'
                 ? '正在请求目标页面并解析正文，请稍候。'
-                : '正在逐个调用 AI 补充高频词的释义与例句，请稍候。'}
+                : '正在挑出难点词 / 专业词并补充释义与例句，请稍候。'}
             </p>
             {task === 'extract' && (
               <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
@@ -265,7 +309,7 @@ const ImportView: React.FC<ImportViewProps> = ({ user }) => {
           <Scissors size={16} /> 提取词汇进词库
         </button>
         <span className="flex items-center gap-1 text-xs text-muted self-center">
-          <Sparkles size={14} /> 高频词自动去重，释义由 AI 补充
+          <Sparkles size={14} /> 智能挑难点词 & 专业词，跳过高频词，释义由 AI 补充
         </span>
       </div>
 

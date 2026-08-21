@@ -966,6 +966,58 @@ export const generateWordDetails = async (word: string, targetLang: Language, na
   }
 };
 
+// 选词结果：AI 既挑「值得学的难点词/专业词」，又顺带给出释义例句，一次调用拿全部。
+export interface SelectedWord {
+  word: string;
+  definition: string;
+  example: string;
+  partOfSpeech: string;
+}
+
+/**
+ * 从一段正文里挑出「值得学」的词——而非最高频的词。
+ * 偏好：难词/低频词、领域术语/专业词汇、含义微妙的高级词。
+ * 排除：高频功能词（the/and/of…）、基础日常词、专有名词/品牌名、词缀碎屑。
+ * 网络/JSON 异常时返回空数组，由调用方回落本地启发式。
+ */
+export const selectVocabularyWords = async (
+  text: string,
+  targetLang: Language,
+  nativeLang: Language,
+  cefrLevel?: string
+): Promise<SelectedWord[]> => {
+  const level = cefrLevel || "B1";
+  const system =
+    `You are a vocabulary curator for language learners. Given a passage, you pick the words most worth learning — NOT the most frequent ones.\n` +
+    `Rules:\n` +
+    `- PREFER: advanced or rare words, domain-specific jargon, professional/technical terms, words with subtle meaning, low-frequency academic vocabulary.\n` +
+    `- AVOID: common high-frequency function words (the, and, of, to…), basic everyday words, proper nouns/names/brands, and affix fragments.\n` +
+    `- Choose up to 12 words a ${level} learner would genuinely benefit from adding to their study deck.\n` +
+    `- Each "word" must be a single clean token exactly as it appears in the text (use the base/lemma form if obvious); no multi-word phrases.\n` +
+    `Return ONLY valid JSON. No Markdown. Structure:\n` +
+    `[\n` +
+    `  { "word": "string", "definition": "concise meaning in ${nativeLang}", "example": "a natural usage sentence in ${targetLang}", "partOfSpeech": "noun/verb/adjective/..." }\n` +
+    `]`;
+  const prompt = `Passage (${targetLang}):\n"""\n${text.slice(0, 4000)}\n"""\n\nSelect the best vocabulary words to learn from this passage.`;
+  try {
+    const raw = await chatCompletionWithSystem(system, prompt, 0.3);
+    const arr = parseAIJSON<SelectedWord[]>(raw, []);
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .filter((w) => w && typeof w.word === "string" && w.word.trim())
+      .map((w) => ({
+        word: w.word.trim(),
+        definition: w.definition || "",
+        example: w.example || "",
+        partOfSpeech: w.partOfSpeech || "",
+      }));
+  } catch (e) {
+    console.warn("[LinguaFlow] selectVocabularyWords failed:", e);
+    return [];
+  }
+};
+
+
 // 引导式微写作：按模式上下文校验学习者的一句话/短文
 // mode='scaffold': context = { template, hint }  句型填空
 // mode='wordchain': context = { words: [{word,meaning}] }  看词造句
