@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/brand/linguaflow-app-icon.png" width="220" alt="LinguaFlow">
+</p>
+
 # LinguaFlow
 
 > **Mastery via Output** — 一套以「输出驱动」为核心的多语言沉浸式学习系统。
