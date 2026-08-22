@@ -43,7 +43,7 @@ export interface AIConfig {
 }
 
 export const defaultAIConfig = (): AIConfig => ({
-  active: 'glm', // 默认推荐智谱 GLM 免费模型（见 README「模型切换」）
+  active: 'openrouter', // 默认走 OpenRouter（模型见 .env 的 OPENROUTER_MODEL，当前 stealth/ox-alpha）
   glm: { baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'GLM-4.7-Flash', apiKey: '' },
   custom: { baseUrl: '', model: '', apiKey: '' },
   ttsVoice: 'Cherry',

@@ -20,12 +20,12 @@ const QWEN_LLM_MODEL = process.env.QWEN_MODEL || "qwen3.7-flash-2026-07-15";
 // Derive the DashScope host for TTS/STT endpoints (which live outside /compatible-mode).
 const QWEN_HOST = QWEN_BASE_URL.replace(/\/compatible-mode\/v1\/?$/, "");
 
-// Fallback provider (used when Qwen quota/rate-limit is hit).
+// OpenRouter provider（Settings -> 模型设置 可切换为主用；Qwen 限流时亦作兜底）。
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const OPENROUTER_API_KEY = process.env.API_KEY || "";
-// Model used for the OpenRouter fallback. Override via OPENROUTER_MODEL in .env.
-// (e.g. google/gemini-2.5-flash, openai/gpt-4o-mini, anthropic/claude-3.5-haiku, ...)
-const OPENROUTER_LLM_MODEL = process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash";
+// Model used for the OpenRouter provider. Override via OPENROUTER_MODEL in .env.
+// 默认 stealth/ox-alpha（OpenRouter 2026-08-20 上线的免费推理模型，1M 上下文，擅长长程推理与 Agent 工作流）。
+const OPENROUTER_LLM_MODEL = process.env.OPENROUTER_MODEL || "stealth/ox-alpha";
 
 // Zhipu GLM provider (switchable in Settings -> 模型设置). Base/model/key can be
 // overridden at runtime via the UI; the key falls back to .env when left blank.
@@ -68,35 +68,45 @@ interface LLMProvider {
 
 // Build the active provider list at call time from the runtime AI config
 // (Settings -> 模型设置) plus the env-based Qwen/OpenRouter providers.
-// The user's selected provider is tried first; env providers act as fallback.
+// The user's selected provider is tried first; if it has no key configured,
+// we gracefully fall back to the first available provider (rather than erroring).
 const buildProviders = (override?: AIConfig): LLMProvider[] => {
   const cfg = override || getAIConfig();
+
+  // Env-based providers (key present => available).
   const envProviders: LLMProvider[] = [];
   if (QWEN_API_KEY) envProviders.push({ name: "qwen", baseUrl: QWEN_BASE_URL, apiKey: QWEN_API_KEY, model: QWEN_LLM_MODEL });
   if (OPENROUTER_API_KEY) envProviders.push({ name: "openrouter", baseUrl: OPENROUTER_BASE_URL, apiKey: OPENROUTER_API_KEY, model: OPENROUTER_LLM_MODEL });
 
-  const active: LLMProvider[] = [];
+  // Runtime-config providers (Settings -> 模型设置).
   const glmKey = cfg.glm.apiKey || GLM_API_KEY;
-  if (cfg.active === "glm" && glmKey) {
-    active.push({ name: "glm", baseUrl: cfg.glm.baseUrl || GLM_BASE_URL, apiKey: glmKey, model: cfg.glm.model || GLM_MODEL });
-  } else if (cfg.active === "custom" && cfg.custom.apiKey) {
-    active.push({ name: "custom", baseUrl: cfg.custom.baseUrl, apiKey: cfg.custom.apiKey, model: cfg.custom.model });
-  } else if (cfg.active === "qwen" && QWEN_API_KEY) {
-    active.push(envProviders[0]);
-  } else if (cfg.active === "openrouter" && OPENROUTER_API_KEY) {
-    active.push(envProviders[1]);
-  }
+  const glmProvider: LLMProvider | null = glmKey
+    ? { name: "glm", baseUrl: cfg.glm.baseUrl || GLM_BASE_URL, apiKey: glmKey, model: cfg.glm.model || GLM_MODEL }
+    : null;
+  const customProvider: LLMProvider | null = cfg.custom.apiKey
+    ? { name: "custom", baseUrl: cfg.custom.baseUrl, apiKey: cfg.custom.apiKey, model: cfg.custom.model }
+    : null;
 
-  // Active provider first, then the remaining env providers as fallback.
-  const fallbacks = envProviders.filter((p) => p.name !== active[0]?.name);
-  return [...active, ...fallbacks];
+  // Resolve the user's chosen active provider; null if its key is missing.
+  let active: LLMProvider | null = null;
+  if (cfg.active === "glm") active = glmProvider;
+  else if (cfg.active === "custom") active = customProvider;
+  else if (cfg.active === "qwen") active = envProviders.find((p) => p.name === "qwen") ?? null;
+  else if (cfg.active === "openrouter") active = envProviders.find((p) => p.name === "openrouter") ?? null;
+
+  // All providers that actually have a key, in a stable order.
+  const all = [glmProvider, customProvider, ...envProviders].filter(Boolean) as LLMProvider[];
+
+  // Active first; if it's unavailable (no key), fall back to the first working provider.
+  const ordered = active ? [active, ...all.filter((p) => p.name !== active!.name)] : all;
+  return ordered;
 };
 
 // Surface the active configuration so users always know which model is in use.
 console.info(
   `[LinguaFlow] LLM providers (env): qwen → ${QWEN_LLM_MODEL}` +
   `${OPENROUTER_API_KEY ? `  |  openrouter → ${OPENROUTER_LLM_MODEL}` : ""}` +
-  `; 运行时模型可在 Settings -> 模型设置 切换（GLM / 自定义）`
+  `; 运行时模型可在 Settings -> 模型设置 切换（GLM / Qwen / OpenRouter / 自定义）`
 );
 console.info(`[LinguaFlow] Speech models — TTS: ${QWEN_TTS_MODEL} (multilingual)`);
 

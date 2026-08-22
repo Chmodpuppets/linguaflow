@@ -185,13 +185,13 @@ LinguaFlow 围绕一个理念设计：**你学得最好的语言，是你用得�
 
 | 能力 | 默认实现 | 说明 |
 | --- | --- | --- |
-| **大模型对话 / 生成（推荐）** | 智谱 **GLM 免费模型**（如 `GLM-4.7-Flash` / `GLM-4-Flash`） | 在 [open.bigmodel.cn](https://open.bigmodel.cn/) 注册即送免费额度，**推荐首选** |
-| **大模型（备选）** | 阿里云百炼 **Qwen**（`qwen3.7-flash-2026-07-15`） | 亦可在「设置 → 模型设置」切换为 Qwen / OpenRouter / 自定义 |
-| **额度耗尽自动降级** | **OpenRouter**（Gemini 兜底） | 当前 provider 触发 429/402/限流时自动跳到下一个，过程无感 |
+| **大模型对话 / 生成（默认）** | **OpenRouter · `stealth/ox-alpha`**（免费推理模型，1M 上下文，2026-08-20 上线） | 默认即用；Key 填 `.env` 的 `OPENROUTER_API_KEY`（[openrouter.ai/keys](https://openrouter.ai/keys) 创建） |
+| **大模型（备选）** | 阿里云百炼 **Qwen**（`qwen3.7-flash-2026-07-15`） / 智谱 **GLM 免费模型**（`GLM-4.7-Flash`） | 在「设置 → 模型设置」可随时切换为 Qwen / GLM / 自定义 |
+| **降级逻辑** | 当前 provider 触发 429/402/限流时自动跳到下一个；所选 provider 缺 Key 时自动回落首个可用 provider | 过程无感 |
 | **文字转语音 TTS** | 中文：`sambert-zhide-v1`；其他语言：浏览器 Web Speech | **依赖 Qwen/DashScope Key**，详见「语音 API 说明」 |
 | **语音转文字 STT（录音）** | 阿里云 **paraformer-v2** | **依赖 Qwen/DashScope Key + 开通 Paraformer**，详见「语音 API 说明」 |
 
-> **模型切换（推荐用 GLM）**：大模型默认推荐用智谱 GLM 免费模型。在「设置 → 模型设置」选 GLM 并填入你的 GLM Key 即可（也可随时切回 Qwen / OpenRouter / 自定义）。降级逻辑：请求依次尝试当前 provider → 备选 provider；只有命中「配额/限流/网络错误」才跳下一个，硬错误（参数错）直接报错。
+> **模型切换**：大模型默认走 **OpenRouter · `stealth/ox-alpha`**（免费推理模型）。在「设置 → 模型设置」可随时切换为 GLM / Qwen / OpenRouter / 自定义——选 OpenRouter 时模型固定为 `.env` 的 `OPENROUTER_MODEL`（当前 `stealth/ox-alpha`）。降级逻辑：请求依次尝试当前 provider → 备选 provider；只有命中「配额/限流/网络错误」才跳下一个，硬错误（参数错）直接报错。
 
 ---
 
@@ -261,7 +261,7 @@ npm run preview
 1. 注册 / 登录 [智谱开放平台 open.bigmodel.cn](https://open.bigmodel.cn/)。
 2. 在「API Keys」创建 Key。智谱提供**免费模型额度**（如 `GLM-4.7-Flash` / `GLM-4-Flash`，以控制台显示为准），白嫖够用。
 3. 填入 `.env` 的 `VITE_GLM_API_KEY`。
-4. 在应用内「设置 → 模型设置」选 GLM 作为当前模型（默认即为 GLM）。
+4. 在应用内「设置 → 模型设置」可随时切换模型；默认即为 OpenRouter（`stealth/ox-alpha`）。
 
 ### 备选：阿里云百炼（Qwen）
 1. 注册 / 登录 [阿里云百炼控制台](https://dashscope.console.aliyun.com/)。
@@ -325,7 +325,7 @@ linguaflow/
 
 | 变量 | 必填 | 说明 |
 | --- | --- | --- |
-| `VITE_GLM_API_KEY` | 否* | 智谱 GLM Key，**推荐首选大模型**；留空则回退到 Qwen / OpenRouter |
+| `VITE_GLM_API_KEY` | 否* | 智谱 GLM Key，可选大模型；留空则不影响（默认大模型已切到 OpenRouter） |
 | `VITE_GLM_BASE_URL` | 否 | GLM 接口地址，默认 `https://open.bigmodel.cn/api/paas/v4` |
 | `VITE_GLM_MODEL` | 否 | GLM 模型名，默认 `GLM-4.7-Flash`（如 `GLM-4-Flash`） |
 | `QWEN_API_KEY` | 否** | 阿里云百炼 Key，**仅当你需要中文朗读（TTS）/ 录音转写（STT）时才必填** |
@@ -333,8 +333,8 @@ linguaflow/
 | `QWEN_MODEL` | 否 | Qwen 大模型名，默认 `qwen3.7-flash-2026-07-15`（如 `qwen-max`、`qwen-turbo`） |
 | `QWEN_TTS_MODEL` | 否 | TTS 语音模型，默认 `sambert-zhide-v1`（如 `sambert-eva-v1`、`cosyvoice-v1`、`qwen-audio-3.0-tts-flash`） |
 | `QWEN_STT_MODEL` | 否 | STT 语音识别模型，默认 `paraformer-v2`（如 `paraformer-realtime-v2`） |
-| `OPENROUTER_API_KEY` | 否 | OpenRouter Key，当前大模型限流时自动兜底；留空则不启用 |
-| `OPENROUTER_MODEL` | 否 | 兜底大模型名，默认 `google/gemini-2.5-flash` |
+| `OPENROUTER_API_KEY` | 否 | OpenRouter Key，**默认大模型 provider**；留空则不启用 OpenRouter |
+| `OPENROUTER_MODEL` | 否 | OpenRouter 模型名，默认 `stealth/ox-alpha`（如 `google/gemini-2.5-flash`、`openai/gpt-4o-mini`） |
 
 > \* 若只填了 GLM Key，大模型即走 GLM 免费模型，无需其他 Key。
 > \** 若只用 GLM + 非中文朗读，可完全不填 `QWEN_API_KEY`（非中文朗读走浏览器原生语音，免 Key）；只有中文朗读 / 录音转写才需要它。
