@@ -192,6 +192,8 @@ LinguaFlow 围绕一个理念设计：**你学得最好的语言，是你用得�
 | **语音转文字 STT（录音）** | 阿里云 **paraformer-v2** | **依赖 Qwen/DashScope Key + 开通 Paraformer**，详见「语音 API 说明」 |
 
 > **模型切换**：大模型默认走 **OpenRouter · `stealth/ox-alpha`**（免费推理模型）。在「设置 → 模型设置」可随时切换为 GLM / Qwen / OpenRouter / 自定义——选 OpenRouter 时模型固定为 `.env` 的 `OPENROUTER_MODEL`（当前 `stealth/ox-alpha`）。降级逻辑：请求依次尝试当前 provider → 备选 provider；只有命中「配额/限流/网络错误」才跳下一个，硬错误（参数错）直接报错。
+>
+> **按任务分配模型**：「设置 → 模型设置」底部可按学习环节单独指定模型层级——`快模型`（GLM/Qwen，用于打字辅助、批量取词、翻译、注音、RPG 对话等高频小活）或 `高推理`（OpenRouter/ox-alpha，用于写作深度批改、错误模式诊断、自适应计划、考试评分、文章导学、跨文字特训、对话复盘、SRS 排程、定目标、Agentic 闭环等深推理活），亦可 `跟随全局`。缺省路由见 `services/storageService.ts` 的 `DEFAULT_TASK_ROUTES`。
 
 ---
 

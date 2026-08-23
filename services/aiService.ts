@@ -1,7 +1,7 @@
 
 import { Language, CEFRLevel, AssessmentResult, TypingContent, WritingFeedback, WritingRevisionFeedback, GuidedWritingFeedback, GuidedMode, WritingNode, NodeType, ReadingReflection, RPGScenario, RPGTurnResult, UserProfile, ScenarioDef, TargetExam, WritingRegister, CompositionGenre, GENRE_LABELS, ReferenceEssay } from '../types';
 import { MENTOR_PERSONAS } from '../constants';
-import { getAIConfig, AIConfig } from './storageService';
+import { getAIConfig, AIConfig, TaskCategory, TaskTier, DEFAULT_TASK_ROUTES } from './storageService';
 
 // --- Qwen (DashScope) + OpenRouter configuration ---
 // Primary LLM provider: Alibaba Cloud DashScope "Qwen" via its OpenAI-compatible
@@ -215,12 +215,77 @@ export const chatCompletionWithSystem = async (system: string, prompt: string, t
     throw lastErr;
 };
 
+// --- 按任务类别路由模型（fast=快模型 / reason=高推理 / auto=跟随全局）---
+// 把"活儿"分配到对的模型：高频小调用走快模型，深推理活走高推理模型。
+// env key 缺失时优雅回落到其它可用 provider，不会直接报错。
+const resolveTier = (tier: TaskTier): LLMProvider | null => {
+  const envProviders: LLMProvider[] = [];
+  if (QWEN_API_KEY) envProviders.push({ name: "qwen", baseUrl: QWEN_BASE_URL, apiKey: QWEN_API_KEY, model: QWEN_LLM_MODEL });
+  if (OPENROUTER_API_KEY) envProviders.push({ name: "openrouter", baseUrl: OPENROUTER_BASE_URL, apiKey: OPENROUTER_API_KEY, model: OPENROUTER_LLM_MODEL });
+  const glmKey = getAIConfig().glm.apiKey || GLM_API_KEY;
+  const glmProvider: LLMProvider | null = glmKey
+    ? { name: "glm", baseUrl: GLM_BASE_URL, apiKey: glmKey, model: GLM_MODEL }
+    : null;
+
+  if (tier === "auto") return buildProviders()[0] ?? null;
+  if (tier === "fast") {
+    // 高频小活：优先快模型，避开慢推理模型；仅当别无选择才回落 openrouter。
+    return envProviders.find((p) => p.name === "qwen") ?? glmProvider ?? envProviders.find((p) => p.name === "openrouter") ?? null;
+  }
+  // reason：深推理活：优先 OpenRouter（ox-alpha）。
+  return envProviders.find((p) => p.name === "openrouter") ?? envProviders.find((p) => p.name === "qwen") ?? glmProvider ?? null;
+};
+
+export const getProviderForTask = (category: TaskCategory): LLMProvider | null => {
+  const cfg = getAIConfig();
+  const tier = (cfg.taskRoutes && cfg.taskRoutes[category]) || DEFAULT_TASK_ROUTES[category] || "auto";
+  return resolveTier(tier) ?? buildProviders()[0] ?? null;
+};
+
+// 按任务类别选模型：先走路由到的 provider，失败（限流/网络）再回落全局 provider 链。
+const chatCompletionForTask = async (category: TaskCategory, prompt: string, temperature?: number): Promise<string> => {
+  const primary = getProviderForTask(category);
+  const rest = buildProviders().filter((p) => p.name !== primary?.name);
+  const chain = primary ? [primary, ...rest] : buildProviders();
+  let lastErr: unknown;
+  for (const p of chain) {
+    try {
+      return await callProvider(p, [{ role: "user", content: prompt }], temperature);
+    } catch (e: any) {
+      lastErr = e;
+      if (e?.quota || e?.network) continue;
+      throw e;
+    }
+  }
+  throw lastErr;
+};
+
+const chatCompletionWithSystemForTask = async (category: TaskCategory, system: string, prompt: string, temperature?: number): Promise<string> => {
+  const primary = getProviderForTask(category);
+  const rest = buildProviders().filter((p) => p.name !== primary?.name);
+  const chain = primary ? [primary, ...rest] : buildProviders();
+  let lastErr: unknown;
+  for (const p of chain) {
+    try {
+      return await callProvider(p, [
+        { role: "system", content: system },
+        { role: "user", content: prompt },
+      ], temperature);
+    } catch (e: any) {
+      lastErr = e;
+      if (e?.quota || e?.network) continue;
+      throw e;
+    }
+  }
+  throw lastErr;
+};
+
 // --- 翻译：复用通用 chat 接口，把源语言文本译为母语。失败时抛出，由调用方降级（留空）。 ---
 export const translateText = async (text: string, srcLang: Language, dstLang: Language): Promise<string> => {
   if (!text.trim()) return '';
   const system = `You are a precise subtitle/lyric translator. Translate the user's ${srcLang} text into ${dstLang}. Output ONLY the translation itself — no quotes, no explanation, no extra lines. Preserve meaning and tone.`;
   try {
-    const r = await chatCompletionWithSystem(system, text, 0.3);
+    const r = await chatCompletionWithSystemForTask('typing', system, text, 0.3);
     return r.trim();
   } catch (e) {
     console.error('[LinguaFlow] translateText failed', e);
@@ -242,7 +307,7 @@ Given one line of ${lang} text (which may contain kanji/汉字 or native script)
 - Other languages: a natural Latin romanization of the script.
 Output ONLY the transliteration — no quotes, no explanation, no extra lines.`;
   try {
-    const r = await chatCompletionWithSystem(system, text, 0.2);
+    const r = await chatCompletionWithSystemForTask('typing', system, text, 0.2);
     return r.trim();
   } catch (e) {
     console.error('[LinguaFlow] generatePhonetic failed', e);
@@ -265,7 +330,7 @@ Rules per entry:
 - Others: natural Latin romanization.
 Output ONLY the JSON array. No explanation, no Markdown code block.`;
   try {
-    const r = await chatCompletionWithSystem(system, numbered, 0.2);
+    const r = await chatCompletionWithSystemForTask('typing', system, numbered, 0.2);
     const arr = parseAIJSON<string[]>(r, []);
     if (!Array.isArray(arr)) throw new Error('AI 返回格式异常');
     const out = texts.map(() => '');
@@ -287,7 +352,7 @@ export const translateTextsBatch = async (texts: string[], srcLang: Language, ds
   const numbered = indexed.map((x, k) => `${k + 1}. ${x.t}`).join('\n');
   const system = `You are a precise subtitle/lyric translator. The user gives several numbered ${srcLang} lines. Return a JSON array of strings — the ${dstLang} translation of each line, in the SAME order and SAME length. Output ONLY the JSON array, no explanation, no Markdown code block.`;
   try {
-    const r = await chatCompletionWithSystem(system, numbered, 0.3);
+    const r = await chatCompletionWithSystemForTask('typing', system, numbered, 0.3);
     const arr = parseAIJSON<string[]>(r, []);
     if (!Array.isArray(arr)) throw new Error('AI 返回格式异常');
     const out = texts.map(() => '');
@@ -360,7 +425,7 @@ export const getInkQuestCoachFeedback = async (
     `评分满分 5 分，对初学者请宽松善意；若 fix 确实没有大问题，可写"整体很棒，挑不出毛病"。`;
   const prompt = `这是学生写的内容：\n"""\n${userText}\n"""\n请给教练反馈。`;
   try {
-    const raw = await chatCompletionWithSystem(system, prompt, 0.3);
+    const raw = await chatCompletionWithSystemForTask('typing', system, prompt, 0.3);
     return parseAIJSON<InkQuestCoachFeedback>(raw, INKQUEST_COACH_FALLBACK);
   } catch (e) {
     console.warn('InkQuest coach failed:', e);
@@ -380,7 +445,7 @@ export const getInkQuestScaffold = async (
     `适合 CEFR ${cefrLevel} 学习者在写「${theme}」主题时可以用到的 ${targetLanguage} 词汇或短句。` +
     `严禁输出对象、严禁输出对象数组、严禁加解释或前后缀文字，**只输出形如 ["词1","词2","词3"] 的纯 JSON 字符串数组**。`;
   try {
-    const raw = await chatCompletionWithSystem(system, `生成 3 个 ${targetLanguage} 词汇/短语，主题：${theme}`, 0.6);
+    const raw = await chatCompletionWithSystemForTask('typing', system, `生成 3 个 ${targetLanguage} 词汇/短语，主题：${theme}`, 0.6);
     const arr = parseAIJSON<unknown[]>(raw, []);
     if (!Array.isArray(arr)) return [];
     // 防御式归一：模型偶尔还是会返回对象（{word:'…', translation:'…'} 或 {term:'…', example:'…'} 等），落到字符串再过滤
@@ -413,7 +478,7 @@ export const getInkQuestDictationSentence = async (
     `你是语言学习素材生成器。请生成一句适合 CEFR ${cefrLevel} 学习者、主题「${theme}」的 ${targetLanguage} 短句` +
     `（1–2 句，尽量自然、口语化、长度适中，便于听写复述）。只输出句子本身，不要解释、不要引号、不要额外文字。`;
   try {
-    const raw = await chatCompletionWithSystem(system, `生成一句 ${targetLanguage} 听写句，主题：${theme}`, 0.5);
+    const raw = await chatCompletionWithSystemForTask('typing', system, `生成一句 ${targetLanguage} 听写句，主题：${theme}`, 0.5);
     const cleaned = (raw || '').trim().replace(/^["'「」『』\s]+|["'「」『』\s]+$/g, '').trim();
     return cleaned;
   } catch {
@@ -462,7 +527,7 @@ export const assessUserLevel = async (text: string, language: Language): Promise
   `;
 
   try {
-    const responseText = await chatCompletion(prompt);
+    const responseText = await chatCompletionForTask('typing', prompt);
 
     return parseAIJSON<AssessmentResult>(responseText, {
         level: CEFRLevel.A1,
@@ -548,7 +613,7 @@ Return ONLY valid JSON with this exact structure:
   `;
 
   try {
-    const responseText = await chatCompletionWithSystem(system, prompt, 0.5);
+    const responseText = await chatCompletionWithSystemForTask('typing', system, prompt, 0.5);
 
     const parsed = parseAIJSON<TypingContent>(responseText, {
         text: "Error generating content. Please try again.",
@@ -801,7 +866,7 @@ export const analyzeWriting = async (
   `;
 
   try {
-    const responseText = await chatCompletion(prompt, 0.2);
+    const responseText = await chatCompletionForTask('writingCritique', prompt, 0.2);
     const parsed = parseAIJSON<WritingFeedback>(responseText, {
         correctedText: text,
         suggestions: [],
@@ -927,7 +992,7 @@ export const analyzeWritingRevision = async (
   `;
 
   try {
-    const responseText = await chatCompletion(prompt, 0.2);
+    const responseText = await chatCompletionForTask('writingCritique', prompt, 0.2);
     const parsed = parseAIJSON<WritingRevisionFeedback>(responseText, {
       correctedText: revisedText,
       suggestions: [],
@@ -964,7 +1029,7 @@ export const generateWordDetails = async (word: string, targetLang: Language, na
   `;
 
   try {
-    const responseText = await chatCompletion(prompt);
+    const responseText = await chatCompletionForTask('vocabExtract', prompt);
     return parseAIJSON(responseText, { 
         definition: "Auto-generation failed", 
         example: "", 
@@ -1010,7 +1075,7 @@ export const selectVocabularyWords = async (
     `]`;
   const prompt = `Passage (${targetLang}):\n"""\n${text.slice(0, 4000)}\n"""\n\nSelect the best vocabulary words to learn from this passage.`;
   try {
-    const raw = await chatCompletionWithSystem(system, prompt, 0.3);
+    const raw = await chatCompletionWithSystemForTask('vocabExtract', system, prompt, 0.3);
     const arr = parseAIJSON<SelectedWord[]>(raw, []);
     if (!Array.isArray(arr)) return [];
     return arr
@@ -1105,7 +1170,7 @@ export const analyzeGuidedWriting = async (
   `;
 
   try {
-    const responseText = await chatCompletion(prompt, 0.2);
+    const responseText = await chatCompletionForTask('writingCritique', prompt, 0.2);
     const parsed = parseAIJSON<GuidedWritingFeedback>(responseText, {
       isCorrect: false,
       correctedText: text,
@@ -1141,7 +1206,7 @@ export const generateSentenceWords = async (
     { "words": [ { "word": "string", "meaning": "string" } ] }
   `;
   try {
-    const responseText = await chatCompletion(prompt);
+    const responseText = await chatCompletionForTask('typing', prompt);
     const parsed = parseAIJSON<{ words: Array<{ word: string; meaning: string }> }>(responseText, { words: [] });
     return parsed.words ?? [];
   } catch (error) {
@@ -1503,7 +1568,7 @@ export const analyzeReadingContent = async (text: string, language: Language, na
     `;
 
     try {
-        const responseText = await chatCompletion(prompt);
+        const responseText = await chatCompletionForTask('articleGuide', prompt);
         return parseAIJSON(responseText, {
             topic: "",
             impressivePoint: "",
@@ -1531,7 +1596,7 @@ export const generateTreeStructure = async (rootTitle: string, language: Languag
     `;
     
     try {
-        const responseText = await chatCompletion(prompt);
+        const responseText = await chatCompletionForTask('writingCritique', prompt);
         return parseAIJSON(responseText, []);
     } catch (error) {
         console.error(error);
@@ -1565,7 +1630,7 @@ export const classifyInspiration = async (text: string, existingNodes: WritingNo
     `;
     
     try {
-         const responseText = await chatCompletion(prompt);
+         const responseText = await chatCompletionForTask('writingCritique', prompt);
          const result = parseAIJSON(responseText, { 
             suggestedParentTitle: "Inspiration Box", 
             refinedTitle: "New Idea", 
@@ -1603,7 +1668,7 @@ export const polishText = async (text: string, language: Language): Promise<stri
     `;
     
     try {
-        const responseText = await chatCompletion(prompt);
+        const responseText = await chatCompletionForTask('writingCritique', prompt);
         
         // Cleanup response: Remove "Here is...", remove quotes, remove ```
         let refined = responseText?.trim() || text;
@@ -1641,7 +1706,7 @@ export const getWritingCoachFeedback = async (node: WritingNode, language: Langu
     `;
     
     try {
-        const responseText = await chatCompletion(prompt);
+        const responseText = await chatCompletionForTask('writingCritique', prompt);
         return responseText || "No feedback available.";
     } catch (error) {
         return "Coach is currently unavailable.";
@@ -1686,7 +1751,7 @@ export const startRPGScenario = async (
         try {
             const responseText = systemContext
                 ? await chatCompletionWithSystem(systemContext, prompt)
-                : await chatCompletion(prompt);
+                : await chatCompletionForTask('typing', prompt);
             const generated = parseAIJSON(responseText, {
                 initialMessage: '...',
                 initialSuggestedReply: '你好！',
@@ -1739,11 +1804,11 @@ export const startRPGScenario = async (
     `;
     
   try {
-    const responseText = systemContext
-        ? await chatCompletionWithSystem(systemContext, prompt)
-        : await chatCompletion(prompt);
-    return parseAIJSON(responseText, {
-        id: 'error',
+        const responseText = systemContext
+            ? await chatCompletionWithSystem(systemContext, prompt)
+            : await chatCompletionForTask('typing', prompt);
+        return parseAIJSON(responseText, {
+            id: 'error',
         theme: theme,
         title: 'Generation Failed',
         context: 'Please try again.',
@@ -1811,7 +1876,7 @@ export const continueRPGTurn = async (
   try {
     const responseText = systemContext
         ? await chatCompletionWithSystem(systemContext, prompt)
-        : await chatCompletion(prompt);
+        : await chatCompletionForTask('typing', prompt);
     return parseAIJSON(responseText, {
         aiReply: "...",
         translation: "...",

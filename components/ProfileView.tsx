@@ -1,9 +1,9 @@
 
 import React, { useMemo, useState, useRef } from 'react';
 import { UserProfile, ActivityLog, Language, LanguageProgress, CEFRLevel, MentorPersona, TargetExam } from '../types';
-import { getLogs, ensureLanguageProgress, saveUser, getAIConfig, saveAIConfig, clearAllLearningData, AIConfig, getLevelInfo, ALL_STORAGE_KEYS } from '../services/storageService';
+import { getLogs, ensureLanguageProgress, saveUser, getAIConfig, saveAIConfig, clearAllLearningData, AIConfig, getLevelInfo, ALL_STORAGE_KEYS, TaskCategory, TaskTier, TASK_CATEGORY_LABELS, DEFAULT_TASK_ROUTES } from '../services/storageService';
 import { testModelConnection, GLM_ENV_API_KEY, TTS_VOICES, previewVoice } from '../services/aiService';
-import { Trophy, Flame, Calendar, Clock, PenTool, Type, Zap, TrendingUp, TrendingDown, Activity, Check, Globe, Settings, GraduationCap, ChevronDown, User, LogOut, Download, Upload, Database, Crown, AlertTriangle, Volume2 } from 'lucide-react';
+import { Trophy, Flame, Calendar, Clock, PenTool, Type, Zap, TrendingUp, TrendingDown, Activity, Check, Globe, Settings, GraduationCap, ChevronDown, User, LogOut, Download, Upload, Database, Crown, AlertTriangle, Volume2, Cpu } from 'lucide-react';
 import { SUPPORTED_LANGUAGES, MENTOR_PERSONAS, TOPIC_PACKAGES } from '../constants';
 import AssessmentView from './AssessmentView';
 
@@ -42,6 +42,14 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
   const [modelCfg, setModelCfg] = useState<AIConfig>(() => getAIConfig());
   const [modelTest, setModelTest] = useState<{ status: 'idle' | 'testing' | 'ok' | 'error'; msg: string }>({ status: 'idle', msg: '' });
   const [voiceTest, setVoiceTest] = useState<{ status: 'idle' | 'playing' | 'error'; msg: string }>({ status: 'idle', msg: '' });
+
+  // 任务级模型路由：供「按任务分配模型」面板使用
+  const TIER_OPTIONS: { value: TaskTier; label: string }[] = [
+    { value: 'fast', label: '快模型 · GLM/Qwen' },
+    { value: 'reason', label: '高推理 · OpenRouter' },
+    { value: 'auto', label: '跟随全局' },
+  ];
+  const TASK_CATS = Object.keys(TASK_CATEGORY_LABELS) as TaskCategory[];
 
   // 试听：按当前学习语言给一句样例，直接用所选音色朗读（不依赖保存）
   const handlePreviewVoice = async () => {
@@ -691,7 +699,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                   <Settings size={20} className="text-neon" /> 模型设置
                 </h3>
                 <p className="text-xs text-muted mb-4 leading-relaxed">
-                  切换驱动 AI 的底层模型。保存后，打字、写作批改、RPG 对话等所有 AI 功能都会使用所选模型。
+                  切换驱动 AI 的底层模型。「当前模型」是默认全局选择；下方「按任务分配模型」可让不同学习环节用不同模型（高频小活走快模型、深推理活走高推理模型）。
                 </p>
 
                 <label className="text-sm font-bold text-muted mb-2 block">当前模型</label>
@@ -777,6 +785,32 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                   {voiceTest.msg && (
                     <p className={`text-xs mt-2 ${voiceTest.status === 'error' ? 'text-red-400' : 'text-muted'}`}>{voiceTest.msg}</p>
                   )}
+                </div>
+
+                {/* --- 按任务分配模型 --- */}
+                <div className="border-t border-line-strong pt-4">
+                  <label className="text-sm font-bold text-muted mb-1 flex items-center gap-2">
+                    <Cpu size={16} className="text-neon" /> 按任务分配模型
+                  </label>
+                  <p className="text-xs text-muted mb-3 leading-relaxed">
+                    不同学习环节用不同模型：打字辅助、取词等高频小活走 <b className="text-neon-2">快模型</b>（响应快）；写作批改、错误诊断、考试评分等深推理活走 <b className="text-neon">高推理模型</b>（OpenRouter）。可在每项单独覆盖。
+                  </p>
+                  <div className="space-y-2">
+                    {TASK_CATS.map((cat) => (
+                      <div key={cat} className="flex items-center justify-between gap-3">
+                        <span className="text-xs text-gray-200 flex-1">{TASK_CATEGORY_LABELS[cat]}</span>
+                        <select
+                          value={(modelCfg.taskRoutes?.[cat]) || DEFAULT_TASK_ROUTES[cat]}
+                          onChange={(e) => setModelCfg({ ...modelCfg, taskRoutes: { ...(modelCfg.taskRoutes ?? {}), [cat]: e.target.value as TaskTier } })}
+                          className="bg-white/5 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white outline-none focus:border-neon w-40"
+                        >
+                          {TIER_OPTIONS.map((t) => (
+                            <option key={t.value} value={t.value}>{t.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="flex gap-2">

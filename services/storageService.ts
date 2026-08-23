@@ -34,12 +34,67 @@ export const ALL_STORAGE_KEYS: string[] = [
 // Keys are stored ONLY in localStorage (browser), never committed to source.
 export type AIProviderId = 'qwen' | 'openrouter' | 'glm' | 'custom';
 
+/**
+ * 任务级模型路由：按"活儿"分配模型，而非全站一个默认模型。
+ * - 'fast'   ：高频小调用 / 实时性要求高（打字辅助、取词、翻译、注音）→ 走快模型（Qwen / GLM），避开慢推理模型。
+ * - 'reason' ：需要深推理的高价值任务（写作批改、错误诊断、计划、考试评分、文章导学、跨文字特训、对话复盘、SRS 排程、定目标、Agentic 闭环）→ 走高推理模型（OpenRouter / ox-alpha）。
+ * - 'auto'   ：跟随「当前模型」全局选择（默认 active provider）。
+ */
+export type TaskTier = 'fast' | 'reason' | 'auto';
+
+export type TaskCategory =
+  | 'typing'              // 打字辅助（生成打字文段、看词造句词表、 scaffolds 等）
+  | 'vocabExtract'        // 批量取词 / 单词释义
+  | 'writingCritique'     // 写作深度批改（含二稿、引导式写作）
+  | 'errorDiagnosis'      // 错误模式根因诊断
+  | 'studyPlan'           // 自适应学习计划
+  | 'examScoring'         // 考试评分有理据反馈
+  | 'articleGuide'        // 导入文章层级导学
+  | 'scriptTraining'      // 跨文字生成式特训设计
+  | 'conversationDebrief' // 对话复盘（非实时）
+  | 'srsSchedule'         // SRS 智能排程
+  | 'goalSetting'         // 定目标
+  | 'agenticLoop';        // Agentic 学习闭环
+
+export const TASK_CATEGORY_LABELS: Record<TaskCategory, string> = {
+  typing: '打字辅助',
+  vocabExtract: '批量取词',
+  writingCritique: '写作深度批改',
+  errorDiagnosis: '错误模式根因诊断',
+  studyPlan: '自适应学习计划',
+  examScoring: '考试评分有理据反馈',
+  articleGuide: '导入文章层级导学',
+  scriptTraining: '跨文字生成式特训',
+  conversationDebrief: '对话复盘（非实时）',
+  srsSchedule: 'SRS 智能排程',
+  goalSetting: '定目标',
+  agenticLoop: 'Agentic 学习闭环',
+};
+
+/** 默认路由：高频小活走 fast，深推理活走 reason。可在「个人中心 → 模型设置」逐项覆盖。 */
+export const DEFAULT_TASK_ROUTES: Record<TaskCategory, TaskTier> = {
+  typing: 'fast',
+  vocabExtract: 'fast',
+  writingCritique: 'reason',
+  errorDiagnosis: 'reason',
+  studyPlan: 'reason',
+  examScoring: 'reason',
+  articleGuide: 'reason',
+  scriptTraining: 'reason',
+  conversationDebrief: 'reason',
+  srsSchedule: 'reason',
+  goalSetting: 'reason',
+  agenticLoop: 'reason',
+};
+
 export interface AIConfig {
   active: AIProviderId;
   glm: { baseUrl: string; model: string; apiKey: string };
   custom: { baseUrl: string; model: string; apiKey: string };
   /** Qwen TTS 音色 id（qwen3-tts-flash 的 voice 参数），见 aiService.TTS_VOICES */
   ttsVoice: string;
+  /** 按任务类别分配模型层级（fast/reason/auto）；缺省项回落 DEFAULT_TASK_ROUTES。 */
+  taskRoutes?: Partial<Record<TaskCategory, TaskTier>>;
 }
 
 export const defaultAIConfig = (): AIConfig => ({
@@ -60,6 +115,7 @@ export const getAIConfig = (): AIConfig => {
       glm: { ...d.glm, ...(p.glm || {}) },
       custom: { ...d.custom, ...(p.custom || {}) },
       ttsVoice: p.ttsVoice || d.ttsVoice,
+      taskRoutes: (p.taskRoutes as Partial<Record<TaskCategory, TaskTier>>) || {},
     };
   } catch {
     return defaultAIConfig();
