@@ -33,7 +33,7 @@ const EXAM_OPTIONS: { value: TargetExam; label: string; lang: Language | null }[
 ];
 
 const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'settings' | 'models'>('overview');
   const [showAssessment, setShowAssessment] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [clearDataOnLogout, setClearDataOnLogout] = useState(false);
@@ -365,9 +365,15 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
           >
             <Settings size={16} /> 学习设置
           </button>
+          <button 
+            onClick={() => setActiveTab('models')}
+            className={`px-4 py-2 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'models' ? 'border-neon text-white' : 'border-transparent text-muted hover:text-gray-300'}`}
+          >
+            <Cpu size={16} /> 模型设置
+          </button>
       </div>
 
-      {activeTab === 'overview' ? (
+      {activeTab === 'overview' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in duration-300">
             {/* Left Col: Calendar & Multi-Language Stats */}
             <div className="space-y-6">
@@ -533,7 +539,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                 </div>
             </div>
           </div>
-      ) : (
+      )}
+
+      {activeTab === 'settings' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in duration-300">
               
               {/* Language Settings Card */}
@@ -693,17 +701,67 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                 </div>
               </div>
 
-              {/* Model Settings Card */}
+              {/* Data & Backup Card */}
               <div className="glass-panel border-white/10 rounded-2xl p-6 h-fit">
                 <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                  <Settings size={20} className="text-neon" /> 模型设置
+                  <Database size={20} className="text-neon-2" /> 数据备份与同步
+                </h3>
+                <p className="text-xs text-muted mb-4 leading-relaxed">
+                  LinguaFlow 默认<b className="text-white">纯本地</b>存储，隐私不出本机。导出备份可在换设备时恢复；云端同步（多端实时同步、无限存储）是计划中的增值功能。
+                </p>
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={exportBackup}
+                    className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-neon/20 hover:bg-neon/30 text-neon border border-neon/50 font-bold transition-colors"
+                  >
+                    <Download size={16} /> 导出本地备份
+                  </button>
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-200 border border-white/10 font-bold transition-colors"
+                  >
+                    <Upload size={16} /> 导入备份恢复
+                  </button>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="application/json"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) importBackup(f);
+                      e.target.value = '';
+                    }}
+                  />
+                </div>
+
+                <div className="mt-5 pt-4 border-t border-line-strong">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Crown size={16} className="text-yellow-400" />
+                    <span className="text-sm font-bold text-white">LinguaFlow 高级</span>
+                    {user.premium && <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-300">已解锁</span>}
+                  </div>
+                  <p className="text-xs text-muted leading-relaxed">
+                    高级模型、无限云同步、真人陪练预约等增值能力正在规划中。当前所有核心功能完全免费、本地可用。
+                  </p>
+                </div>
+              </div>
+
+          </div>
+      )}
+
+      {activeTab === 'models' && (
+          <div className="animate-in fade-in duration-300">
+              <div className="glass-panel border-white/10 rounded-2xl p-6 max-w-4xl mx-auto">
+                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                  <Cpu size={20} className="text-neon" /> 模型设置
                 </h3>
                 <p className="text-xs text-muted mb-4 leading-relaxed">
                   切换驱动 AI 的底层模型。「当前模型」是默认全局选择；下方「按任务分配模型」可让不同学习环节用不同模型（高频小活走快模型、深推理活走高推理模型）。
                 </p>
 
                 <label className="text-sm font-bold text-muted mb-2 block">当前模型</label>
-                <div className="grid grid-cols-2 gap-2 mb-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
                   {([
                     { id: 'glm', label: '智谱 GLM', desc: 'GLM-4.7-Flash' },
                     { id: 'qwen', label: 'Qwen', desc: 'DashScope' },
@@ -813,7 +871,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                   </div>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex gap-2 mt-6">
                   <button
                     onClick={handleSaveModel}
                     className="flex-1 py-2.5 rounded-xl bg-neon hover:bg-neon/80 text-white text-sm font-bold transition-colors shadow-glow-sm"
@@ -834,71 +892,22 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                   </p>
                 )}
               </div>
-
-              {/* Data & Backup Card */}
-              <div className="glass-panel border-white/10 rounded-2xl p-6 h-fit">
-                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                  <Database size={20} className="text-neon-2" /> 数据备份与同步
-                </h3>
-                <p className="text-xs text-muted mb-4 leading-relaxed">
-                  LinguaFlow 默认<b className="text-white">纯本地</b>存储，隐私不出本机。导出备份可在换设备时恢复；云端同步（多端实时同步、无限存储）是计划中的增值功能。
-                </p>
-                <div className="flex flex-col gap-2">
-                  <button
-                    onClick={exportBackup}
-                    className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-neon/20 hover:bg-neon/30 text-neon border border-neon/50 font-bold transition-colors"
-                  >
-                    <Download size={16} /> 导出本地备份
-                  </button>
-                  <button
-                    onClick={() => fileRef.current?.click()}
-                    className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-200 border border-white/10 font-bold transition-colors"
-                  >
-                    <Upload size={16} /> 导入备份恢复
-                  </button>
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    accept="application/json"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) importBackup(f);
-                      e.target.value = '';
-                    }}
-                  />
-                </div>
-
-                <div className="mt-5 pt-4 border-t border-line-strong">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Crown size={16} className="text-yellow-400" />
-                    <span className="text-sm font-bold text-white">LinguaFlow 高级</span>
-                    {user.premium && <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-300">已解锁</span>}
-                  </div>
-                  <p className="text-xs text-muted leading-relaxed">
-                    高级模型、无限云同步、真人陪练预约等增值能力正在规划中。当前所有核心功能完全免费、本地可用。
-                  </p>
-                </div>
-              </div>
-
-              {/* Assessment Area */}
-              {showAssessment ? (
-                  <div className="glass-panel border-white/10 rounded-2xl p-6 animate-in slide-in-from-right duration-500">
-                       <div className="flex justify-between items-center mb-4">
-                           <h3 className="font-bold text-white">水平评估</h3>
-                           <button onClick={() => setShowAssessment(false)} className="text-muted hover:text-white text-sm">取消</button>
-                       </div>
-                       <AssessmentView language={user.learningLanguage} onLevelSet={handleLevelChange} />
-                  </div>
-              ) : (
-                  <div className="flex flex-col items-center justify-center text-center p-8 bg-white/5 border border-dashed border-white/10 rounded-2xl">
-                      <Zap size={48} className="text-muted mb-4" />
-                      <p className="text-muted max-w-xs">
-                          做一次水平测试，让 AI 分析你的写作并自动设定 CEFR 等级。
-                      </p>
-                  </div>
-              )}
           </div>
+      )}
+
+      {/* AI 水平测试弹窗 */}
+      {showAssessment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-3xl glass-panel border-white/10 rounded-2xl shadow-glow-neon overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center p-4 border-b border-line-strong">
+              <h3 className="font-bold text-white flex items-center gap-2"><Zap size={18} className="text-neon" /> AI 水平测试</h3>
+              <button onClick={() => setShowAssessment(false)} className="text-muted hover:text-white text-sm px-2 py-1 rounded-lg hover:bg-white/5 transition-colors">关闭</button>
+            </div>
+            <div className="p-4 overflow-y-auto custom-scrollbar">
+              <AssessmentView language={user.learningLanguage} onLevelSet={handleLevelChange} />
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Logout confirmation modal */}
