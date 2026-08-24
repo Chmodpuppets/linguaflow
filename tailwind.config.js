@@ -32,8 +32,8 @@ export default {
         "neon-3": "rgb(var(--neon-3) / <alpha-value>)",
       },
       fontFamily: {
-        sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
-        mono: ["Fira Code", "ui-monospace", "monospace"],
+        sans: ['"Inter Variable"', "Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+        mono: ['"Fira Code Variable"', "Fira Code", "ui-monospace", "monospace"],
       },
       boxShadow: {
         glow: "0 0 24px rgba(124,108,255,0.35)",
