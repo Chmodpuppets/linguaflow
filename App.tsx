@@ -44,15 +44,17 @@ const NAV_GROUPS: { label: string; items: string[] }[] = [
   { label: '社区', items: ['social', 'profile'] },
 ];
 
-const GITHUB_REPO = 'Chmodpuppets/linguaflow';
-const GITHUB_STARS_KEY = 'linguaflow_github_stars';
+  const GITHUB_REPO = 'Chmodpuppets/linguaflow';
+  const GITHUB_STARS_KEY = 'linguaflow_github_stars';
+  // 静态兜底：离线/被墙时永远显示这个数而不是「—」，联网拉到真实值后再覆盖
+  const FALLBACK_STARS = 2;
 
 const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [mode, setMode] = useState<AppMode>(AppMode.Daily);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [typingInitialData, setTypingInitialData] = useState<{text: string; title: string; notes?: string} | null>(null);
-  const [stars, setStars] = useState<number | null>(null);
+  const [stars, setStars] = useState<number>(FALLBACK_STARS);
   // 侧栏折叠：整栏收成图标轨 + 分组单独收起
   // 默认：侧栏展开，「精进」「资源」「社区」三组收起（手风琴），仅「学习」展开
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -444,7 +446,7 @@ const App: React.FC = () => {
           {!isSidebarCollapsed && <span className="flex-1 truncate">Star on GitHub</span>}
           {!isSidebarCollapsed && (
             <span className="rounded-full bg-amber-400/15 px-2 py-0.5 text-xs font-semibold text-amber-300">
-              {stars != null ? stars : '—'}
+              {stars}
             </span>
           )}
         </a>
