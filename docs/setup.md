@@ -70,7 +70,7 @@ linguaflow/
 ├── constants.tsx           # 语言清单、导航项、关卡地图
 ├── .env.example            # 环境变量模板（复制为 .env 后填写）
 ├── public/favicon.png      # 站点图标（源自 assets/brand/linguaflow-icon.png）
-├── assets/brand/           # 品牌 LOGO 资源（三张 PNG，详见「品牌资源」）
+├── assets/brand/           # 品牌 LOGO 资源（三张 PNG）
 ├── components/             # 各模块视图（20 个）+ 登录/档案
 │   ├── LoginView.tsx          # 登录 / 语言与等级初始化
 │   ├── DailyView.tsx          # 今日一站式入口
@@ -136,16 +136,3 @@ linguaflow/
 - **手写板**：基于 Canvas 实现（`components/HandwritePad.tsx`，纯前端、无 OCR）
 - **AI 接入**：Fetch 调用智谱 GLM / 阿里云 DashScope / OpenRouter 的 OpenAI 兼容接口（无后端依赖）
 
----
-
-## 品牌资源
-
-应用使用统一品牌 LOGO 资源，集中放在 `assets/brand/` 目录（均为透明背景 PNG，随代码打包进 `dist/`）：
-
-| 文件 | 形态 | 使用位置 |
-| --- | --- | --- |
-| `linguaflow-app-icon.png` | 深色圆角方块版（1254×1254） | 登录页（LoginView）头部 |
-| `linguaflow-logo.png` | 横向文字版（2172×724） | 侧边栏展开态品牌区（App.tsx header） |
-| `linguaflow-icon.png` | 纯图标版（1254×1254） | 侧边栏折叠态、移动端 header、`public/favicon.png` |
-
-> 站点图标 `public/favicon.png` 由 `linguaflow-icon.png` 复制而来；Vite 会将 `public/` 映射到站点根路径，故 `index.html` 以 `/favicon.png` 引用。三张图经 `import` 接入代码（`App.tsx` / `LoginView.tsx`），构建后被打成 hash 资源，无需手动维护路径。
