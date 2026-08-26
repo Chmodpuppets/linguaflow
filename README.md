@@ -14,7 +14,7 @@ LinguaFlow 是一个**纯前端**的语言学习应用：用 AI 生成练习内�
 
 - [这个项目能做什么](#这个项目能做什么)
 - [支持的语言](#支持的语言)
-- [核心功能（19 个模块）](#核心功能19-个模块)
+- [核心功能（20 个模块）](#核心功能19-个模块)
 - [AI 能力说明](#ai-能力说明)
 - [技术栈](#技术栈)
 - [品牌资源](#品牌资源)
@@ -29,13 +29,14 @@ LinguaFlow 是一个**纯前端**的语言学习应用：用 AI 生成练习内�
 
 ## 这个项目能做什么
 
-LinguaFlow 围绕一个理念设计：**你学得最好的语言，是你用得最多的语言。** 所以应用里没有传统课本式的单选填空，而是把练习做成了 **19 个「上手就能玩」的模块**（覆盖输入、输出、复习、社交、复盘完整闭环）：
+LinguaFlow 围绕一个理念设计：**你学得最好的语言，是你用得最多的语言。** 所以应用里没有传统课本式的单选填空，而是把练习做成了 **20 个「上手就能玩」的模块**（覆盖输入、输出、复习、社交、复盘完整闭环）：
 
 | 你想练什么 | 用哪个模块 | 体验 |
 | --- | --- | --- |
 | 一站式入口、打卡与推荐 | **今日（Daily）** | 汇总连击、本周输出、推荐练习，一键直达 |
 | 沉浸式剧情对话、练口语思维 | **剧情对话（LinguaQuest）** | AI 扮演咖啡师、房东、面试官……多结局分支，可自定义生成 |
 | 边读边听、练打字节奏 | **打字闯关（Typing Adventure）** | 闯关解锁 + 朗读 + 录音纠音 |
+| 导入 EPUB/PDF、离线读书 | **书架（Books）** | 本地书库 + 封面渲染 + IndexedDB 存储 |
 | 长文写作、建自己的知识树 | **写作树（Writing Tree）** | 树状组织文章，AI 灵感盒分类润色 |
 | 系统化成文、从灵感到定稿 | **作文流水线（Composition Studio）** | 选题→提纲→草稿→批改→发布全流程 |
 | 自由写作、求批改 | **写作工坊（Writing Lab）** | 写一段，AI 逐句纠错 + CEFR 等级 |
@@ -65,9 +66,9 @@ LinguaFlow 围绕一个理念设计：**你学得最好的语言，是你用得�
 
 ---
 
-## 核心功能（19 个模块）
+## 核心功能（20 个模块）
 
-> 应用左侧导航共 **19 个模块**，覆盖「输入 → 输出 → 复习 → 社交 → 复盘」完整学习闭环。下面按导航顺序逐一说明。
+> 应用左侧导航共 **20 个模块**，覆盖「输入 → 输出 → 复习 → 社交 → 复盘」完整学习闭环。下面按导航顺序逐一说明。
 
 ### 1. 今日（Daily）
 - 一站式入口：汇总连击天数、本周输出字数、推荐练习。
@@ -76,62 +77,69 @@ LinguaFlow 围绕一个理念设计：**你学得最好的语言，是你用得�
 ### 2. 剧情对话（LinguaQuest）
 - 选一个主题（点咖啡、租房、面试、影视名场面……），AI 生成完整剧本：场景、你的角色、对方角色、开场白、分支选项。
 - 每一轮 AI 都返回：**自然回复 + 母语翻译 + 发音指引 + 建议下一句 + 本句重点词汇 + 目标完成度**，支持多结局。
+- 生词卡片可**一键加入 / 移除生词本**（加入时 emerald 高亮 + 弹出反馈，单字附喇叭听发音）；输入框「翻译」按钮可显隐母语翻译，**默认隐藏**。
 - 可自定义一键生成剧情，进度存入「我的剧本」。
 
 ### 3. 打字闯关（Typing Adventure）
 - AI 按你的 CEFR 等级生成 50–80 词的短文，附带母语翻译和核心词汇表。
-- 点击喇叭按钮可**朗读**（中文走千问 TTS，其他语言走浏览器原生语音）。
+- **TypeLit 风格重构**：非阻塞输入、顺滑光标，段落 / 换行 / 空格处理更自然，blur 不再丢字；正文改用 **Literata** 衬线字体，长文阅读更舒适。
+- 单词级发音走**语种门控**（见「语音 API 说明」）：英文单词→有道词典音、中文→千问 TTS、日语→浏览器原生语音；句子级「朗读」仍走千问 TTS + Web Speech 兜底。
 - 录音后点「识别发音」可用 AI 转写你的口语，和原文对照纠音。
 - 内置 14 个关卡（World 1「基础」→ World 4「大师」），按 WPM / 准确率逐关解锁，含 Boss 关。
 - 新增「打字库」标签：AI 生成的练习文本自动入库，可随时回放重练（零额外 token 消耗）。
 
-### 4. 写作树（Writing Tree）
+### 4. 书架（Books）
+- 本地书架：导入 **EPUB** / **PDF** 文件，建立个人书库，随应用离线可读。
+- 封面渲染：EPUB 取 `cover-image`、PDF 取首页光栅化作为封面。
+- 存储升级为 **IndexedDB**，突破此前 localStorage ~5MB 上限，大书与多书库稳定持久化。
+
+### 5. 写作树（Writing Tree）
 - 用树状结构组织你的写作项目（书 / 论文 / 博客），「灵感盒」丢入杂乱想法，AI 帮你归章、提炼、润色。
 - **纵向养成主线**：在原有项目树之外，新增与语言无关的「写作者养成」主线（观察积累 → 组织表达 → 修改打磨 → 完成发布），8 分支 + 作品小册，支持重复练习。
 - **重写 vs 改语法分离**：重写节点走双栏反馈（✎ 重写建议 / ⌁ 语言精修），重写建议按内容 / 结构 / 读者意识沉淀为弱项。
 - **考试 / 自由视角**：作文节点可切换考试视角，按目标考试维度评分；也可切自由视角只给通用反馈。
 - 按学习语言重建缓存（日语 / 英语 / 韩语已内置完整素材，其他语言待开发）。
 
-### 5. 作文流水线（Composition Studio）
+### 6. 作文流水线（Composition Studio）
 - 从选题、提纲、草稿到批改、发布的**全流程成文工作台**。
 - 与写作树 / 写作工坊打通，草稿可直接送审、定稿可入作品集。
 
-### 6. 写作工坊（Writing Lab）
+### 7. 写作工坊（Writing Lab）
 - 自由输入一段目标语言写作，AI 返回：修正后的全文、逐条修改建议（附母语解释）、总体评语、CEFR 等级估算。
 - 支持**引导写作**模板（日 / 英 / 韩 A1→B2 句型脚手架）。
 
-### 7. 记忆库（Memory Bank）
+### 8. 记忆库（Memory Bank）
 - 收藏任意好句 / 短文，附笔记。
 - 可让 AI 做「阅读反思」（主题、最打动你的点、例子、一句话总结），加深理解。
 - 一键把收藏内容送回 Typing Adventure 当作练习文本。
 
-### 8. 词汇（Vocabulary）
+### 9. 词汇（Vocabulary）
 - 练习中遇到的生词自动建档，支持 AI 一键补全释义、词性、例句。
 - 与个人闯关进度联动。
 
-### 9. 错题本（Error Book · SRS）
+### 10. 错题本（Error Book · SRS）
 - 自动沉淀各语言的写作错误，按**间隔重复（SRS）**算法排程复习。
 - 复习模式自动队列弱项，强化记忆曲线上的易忘点。
 
-### 10. 错误模式（Error Patterns）
+### 11. 错误模式（Error Patterns）
 - 把错题本按**类型化弱项**自动聚合（字形 / 拼写 / 时态 / 助词 / 语序 / 搭配 / 语体 / 内容 / 结构 / 读者意识……），沉淀为可追踪的「错误模式」看板。
 - 每日任务第三项的**弱项特训**由它驱动：今日弱项 → 自动派发对应练习（字形特训 / 写作练习）。
 - 写作树的「重写建议」也会按内容 / 结构 / 读者意识类型流入本模块，形成重复练习回路。
 
-### 11. 作品集（Portfolio）
+### 12. 作品集（Portfolio）
 - 集中展示已发布的作文、对应评分与成长轨迹。
 - 是「输出驱动」学习成果的可视化陈列。
 
-### 12. 写作趋势（Writing Trends）
+### 13. 写作趋势（Writing Trends）
 - 把字数 / 评分 / 错误类型做成可视化图表。
 - 帮你定位薄弱项，指导下一阶段练习方向。
 
-### 13. 文字特训（Script Trainer · 手写）
+### 14. 文字特训（Script Trainer · 手写）
 - 手写产出板（鼠标 / 触摸指针绘制，支持高分屏与清除）。
 - **不内置 OCR**——纯前端、无后端约束下，手写动作本身（参考普林斯顿手写 vs 打字研究）即产出价值。
 - 铁律：生成式练习，**绝不展示答案字形**。
 
-### 14. 墨程（InkQuest · 写作模块）
+### 15. 墨程（InkQuest · 写作模块）
 - 以「输出驱动写作」为核心的全新独立写作视图，把「写」做成有节奏、有反馈、有成长的循环。
 - **多赛季微写作**：4 个赛季（日常 / 想象创意 / 观点表达 / 情境应对），每日一卡给主题 + 脚手架词（必用词汇 / 句型），降低「写不出」门槛。
 - **自由写 + AI 教练**：写完即获 AI 三件套反馈——✨亮点 + 🔧改进点（母语解释）+ ✍️改写示范 + 四维小分（语法 / 流畅 / 词汇 / 任务完成度）。
@@ -139,26 +147,26 @@ LinguaFlow 围绕一个理念设计：**你学得最好的语言，是你用得�
 - **故事线 / 成长对决 / 听力库**：把亮点织成第一人称旅程日记、按周对比自我对决、回放 AI 听写句重练。
 - **自建写作题接入**：内容仓库自建的写作题可直接作为当轮主题，复用写作台 / 听写 / 手帐 / 故事线。
 
-### 15. 内容仓库（Content Repo）
+### 16. 内容仓库（Content Repo）
 - 把散落在 8 处 localStorage 的内容（写作赛季卡 / 手帐 / 听力库 / 打字库 / 字形包 / 通用记忆库 / 写作题库 / 词汇库）统一聚合、检索、管理。
 - 顶部筛选：类型 / 语言 / 来源（AI / 自建 / 预置）/ 关键词；卡片网格统一展示与删除。
 - **JSON 导入导出**：一键导出为 `linguaflow-content-pack.json`，导入按类型路由并自动换 id 防冲突。
 - **自建 5 类素材**：写作题 / 打字段 / 听写句 / 字形卡 / 词汇，写好后可直接接入对应训练视图（字形卡 → 文字特训、写作题 → 墨程）。
 
-### 16. 导入（Import）
+### 17. 导入（Import）
 - 粘贴文章 / 链接即可转为练习文本与记忆素材。
 - 把外部内容（播客文稿、新闻、书摘）纳入 LinguaFlow 练习闭环。
 
-### 17. 歌曲跟打（Song Lab）
+### 18. 歌曲跟打（Song Lab）
 - 粘贴歌词 / 歌曲文本，AI 逐行切分并生成跟打练习。
 - 朗读（TTS）跟唱 + 逐句打字跟打，按准确率 / WPM 评分，把「听歌」变成「听写 + 打字」双训练。
 - 跟打文本自动入库，可回放重练。
 
-### 18. 学习搭子（Social）
+### 19. 学习搭子（Social）
 - 生成**分享文案 / 分享码**，把你的等级、连击、本周输出一键发给朋友。
 - 找搭子互相打卡、纠音、共享素材。
 
-### 19. 我的资料（Profile）
+### 20. 我的资料（Profile）
 - 查看用户名下各语言的 XP、等级、CEFR 等级、连续打卡天数（Streak）。
 - 设置**目标考试**（IELTS / TOEFL / JLPT / TOPIK / DELE），切换学习语言、登出账号。
 
@@ -188,7 +196,7 @@ LinguaFlow 围绕一个理念设计：**你学得最好的语言，是你用得�
 | **大模型对话 / 生成（默认）** | **OpenRouter · `stealth/ox-alpha`**（免费推理模型，1M 上下文，2026-08-20 上线） | 默认即用；Key 填 `.env` 的 `OPENROUTER_API_KEY`（[openrouter.ai/keys](https://openrouter.ai/keys) 创建） |
 | **大模型（备选）** | 阿里云百炼 **Qwen**（`qwen3.7-flash-2026-07-15`） / 智谱 **GLM 免费模型**（`GLM-4.7-Flash`） | 在「设置 → 模型设置」可随时切换为 Qwen / GLM / 自定义 |
 | **降级逻辑** | 当前 provider 触发 429/402/限流时自动跳到下一个；所选 provider 缺 Key 时自动回落首个可用 provider | 过程无感 |
-| **文字转语音 TTS** | 中文：`sambert-zhide-v1`；其他语言：浏览器 Web Speech | **依赖 Qwen/DashScope Key**，详见「语音 API 说明」 |
+| **文字转语音 TTS** | 中文：`qwen3-tts-flash`（Qwen3-TTS，多语种）；英文单词：有道 `dictvoice`；其他语言：浏览器 Web Speech | **中文朗读依赖 Qwen/DashScope Key**，英文单词走有道免 Key，详见「语音 API 说明」 |
 | **语音转文字 STT（录音）** | 阿里云 **paraformer-v2** | **依赖 Qwen/DashScope Key + 开通 Paraformer**，详见「语音 API 说明」 |
 
 > **模型切换**：大模型默认走 **OpenRouter · `stealth/ox-alpha`**（免费推理模型）。在「设置 → 模型设置」可随时切换为 GLM / Qwen / OpenRouter / 自定义——选 OpenRouter 时模型固定为 `.env` 的 `OPENROUTER_MODEL`（当前 `stealth/ox-alpha`）。降级逻辑：请求依次尝试当前 provider → 备选 provider；只有命中「配额/限流/网络错误」才跳下一个，硬错误（参数错）直接报错。
@@ -291,11 +299,12 @@ linguaflow/
 ├── .env.example            # 环境变量模板（复制为 .env 后填写）
 ├── public/favicon.png      # 站点图标（源自 assets/brand/linguaflow-icon.png）
 ├── assets/brand/           # 品牌 LOGO 资源（三张 PNG，详见「品牌资源」）
-├── components/             # 各模块视图（19 个）+ 登录/档案
+├── components/             # 各模块视图（20 个）+ 登录/档案
 │   ├── LoginView.tsx          # 登录 / 语言与等级初始化
 │   ├── DailyView.tsx          # 今日一站式入口
 │   ├── RPGView.tsx            # 剧情对话 LinguaQuest
 │   ├── TypingView.tsx         # 打字闯关 Typing Adventure
+│   ├── BooksView.tsx          # 书架（EPUB/PDF 导入 + IndexedDB）
 │   ├── WritingTreeView.tsx    # 写作树
 │   ├── CompositionStudioView.tsx / CompositionEditor.tsx  # 作文流水线
 │   ├── WritingView.tsx        # 写作工坊 Writing Lab
@@ -314,8 +323,9 @@ linguaflow/
 │   ├── WritingLanguageGate.tsx# 写作语言门控（待开发语言提示）
 │   └── ProfileView.tsx        # 我的资料
 ├── services/
-│   ├── aiService.ts        # AI 能力封装（LLM / TTS / STT）
-│   └── storageService.ts   # localStorage 读写
+│   ├── aiService.ts        # AI 能力封装（LLM / TTS / STT / playWord 语种门控）
+│   ├── bookImport.ts       # EPUB/PDF 解析与封面提取
+│   └── storageService.ts   # localStorage 读写（含 IndexedDB 书库）
 └── ...
 ```
 
@@ -333,7 +343,7 @@ linguaflow/
 | `QWEN_API_KEY` | 否** | 阿里云百炼 Key，**仅当你需要中文朗读（TTS）/ 录音转写（STT）时才必填** |
 | `QWEN_BASE_URL` | 否 | 默认 `https://dashscope.aliyuncs.com/compatible-mode/v1` |
 | `QWEN_MODEL` | 否 | Qwen 大模型名，默认 `qwen3.7-flash-2026-07-15`（如 `qwen-max`、`qwen-turbo`） |
-| `QWEN_TTS_MODEL` | 否 | TTS 语音模型，默认 `sambert-zhide-v1`（如 `sambert-eva-v1`、`cosyvoice-v1`、`qwen-audio-3.0-tts-flash`） |
+| `QWEN_TTS_MODEL` | 否 | TTS 语音模型，默认 `qwen3-tts-flash`（Qwen3-TTS 多语种；如 `qwen-audio-3.0-tts-flash`、`cosyvoice-v1`） |
 | `QWEN_STT_MODEL` | 否 | STT 语音识别模型，默认 `paraformer-v2`（如 `paraformer-realtime-v2`） |
 | `OPENROUTER_API_KEY` | 否 | OpenRouter Key，**默认大模型 provider**；留空则不启用 OpenRouter |
 | `OPENROUTER_MODEL` | 否 | OpenRouter 模型名，默认 `stealth/ox-alpha`（如 `google/gemini-2.5-flash`、`openai/gpt-4o-mini`） |
@@ -350,10 +360,10 @@ linguaflow/
 LinguaFlow 的「声音」能力分两类，依赖不同接口与 Key，**请勿混淆**：
 
 ### 文字转语音（TTS，朗读）
-- **中文朗读**：调用阿里云百炼（DashScope）TTS 接口
-  `POST {QWEN_HOST}/api/v1/services/audio/tts/SpeechSynthesizer`
-  （默认模型 `sambert-zhide-v1`，返回 wav 音频播放）。**需要 `QWEN_API_KEY` 且开通 Sambert 语音合成服务。**
-- **其他语言朗读**：回退到**浏览器原生 Web Speech API**（`window.speechSynthesis`，系统自带语音），**无需任何 Key**。
+- **中文朗读**：调用阿里云百炼（DashScope）**Qwen3-TTS** 接口（默认模型 `qwen3-tts-flash`，一个模型覆盖中 / 英 / 日 / 韩 / 俄等多语种）。**需要 `QWEN_API_KEY` 且开通语音合成服务。**
+- **英文单词发音**：走**有道 `dictvoice`** 词典音（真人词典发音，免费、无需 Key），雅思默认英式、可在词汇复习模式切美式。
+- **其他语言 / 兜底**：回退到**浏览器原生 Web Speech API**（`window.speechSynthesis`，系统自带语音），**无需任何 Key**。
+- 单词级播放（`playWord`）按语种自动选源：英文→有道、中文→千问 TTS、日语→Web Speech；句子级「朗读」仍走千问 TTS + Web Speech 兜底。
 - 即：只练英 / 日 / 韩等非中文，朗读免 Key 可用；想让中文也有声，配 `QWEN_API_KEY`。
 
 ### 语音转文字（STT，录音转写）
@@ -367,14 +377,14 @@ LinguaFlow 的「声音」能力分两类，依赖不同接口与 Key，**请勿
 - **需要 `QWEN_API_KEY` 且开通 Paraformer 语音识别服务。**
 - ⚠️ **跨域（CORS）限制**：以上请求从浏览器直连 `dashscope.aliyuncs.com`，**可能受 CORS 限制导致录音功能失败**（本地 `npm run dev` 通常可用，公网部署较易触发）。这是纯前端直连的已知限制——本项目约定不内置后端代理；如需公网稳定使用，请自行加一层极薄的反向代理转发 DashScope 请求（Key 放代理侧也更安全）。
 
-> 一句话：**大模型用 GLM 免费模型（免费用、够强）；声音（中文朗读 + 录音）走 DashScope，需要单独的 Qwen Key。两套 Key 相互独立。**
+> 一句话：**大模型用 GLM 免费模型（免费用、够强）；英文单词发音走有道（免 Key），中文朗读 + 录音走 DashScope（需 Qwen Key）。两套 Key 相互独立。**
 
 ---
 
 ## 已知限制与常见问题
 
-**Q1：为什么非中文的朗读听起来不是「千问」的声音？**
-`sambert-zhide-v1` 是千问的中文音色。为保证各语言都能出声，非中文内容回退到**浏览器自带的 Web Speech API**（系统语音，免 Key）。若希望非中文也用千问声音，可接入百炼的 CosyVoice / Qwen-Audio-TTS 并扩展 `aiService.ts`。详见上文「语音 API 说明」。
+**Q1：为什么英文单词的发音是有道的声音、而中文句子是千问的声音？**
+这是有意的**语种门控**：英文单词走有道 `dictvoice` 真人词典音（免费、无需 Key、最贴近词典发音）；中文走千问 `qwen3-tts-flash`；日语与兜底走浏览器原生 Web Speech。句子级「朗读」仍默认走千问 TTS + Web Speech 兜底。若希望非中文句子也用千问声音，可接入百炼的 CosyVoice / Qwen-Audio-TTS 并扩展 `aiService.ts`。详见上文「语音 API 说明」。
 
 **Q2：录音识别（STT）没反应 / 报错？**
 录音走 DashScope `paraformer-v2`，完整链路见上文「语音 API 说明」。常见原因：
@@ -415,6 +425,8 @@ LinguaFlow 的「声音」能力分两类，依赖不同接口与 Key，**请勿
 ## 开源与贡献
 
 本项目以 MIT 许可证开源，欢迎 Issue 与 PR。
+
+> 版本与更新日志见 [CHANGELOG.md](./CHANGELOG.md)；当前最新版本 **`v0.1.0`**（Git tag `v0.1.0`）。
 
 使用约定：
 - 提交前请确认 `.env` 不会被纳入版本库（已默认忽略）。
