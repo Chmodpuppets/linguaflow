@@ -569,19 +569,26 @@ function normalizeTypingContent(
   content: TypingContent,
   targetLang: Language
 ): TypingContent {
-  const textMatchesTarget = scriptLikely(content.text, targetLang);
-  const translationMatchesTarget = scriptLikely(content.translation, targetLang);
+  // 去除首尾空白，避免光标停留在换行/空格等不可见字符上导致「光标没对齐」
+  const normalized = {
+    ...content,
+    text: (content.text ?? '').trim(),
+    translation: (content.translation ?? '').trim(),
+  };
 
-  if (!textMatchesTarget && translationMatchesTarget && content.translation.trim()) {
+  const textMatchesTarget = scriptLikely(normalized.text, targetLang);
+  const translationMatchesTarget = scriptLikely(normalized.translation, targetLang);
+
+  if (!textMatchesTarget && translationMatchesTarget && normalized.translation) {
     return {
-      ...content,
-      text: content.translation,
-      translation: content.text,
+      ...normalized,
+      text: normalized.translation,
+      translation: normalized.text,
       // phoneticGuide 原本就是目标语言文本的注音，交换后仍然对应新的 text
-      phoneticGuide: content.phoneticGuide,
+      phoneticGuide: normalized.phoneticGuide,
     };
   }
-  return content;
+  return normalized;
 }
 
 export const generateTypingContent = async (targetLang: Language, nativeLang: Language, level: CEFRLevel, topic?: string, instructions?: string): Promise<TypingContent> => {

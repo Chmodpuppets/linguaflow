@@ -1,16 +1,18 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { TypingContent, UserProfile, UserContent, CEFRLevel, VocabularyItem } from '../types';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { TypingContent, UserProfile, UserContent, CEFRLevel, VocabularyItem, Book } from '../types';
 import { generateTypingContent, generateSpeech, cancelSpeech, languageToSpeechLang } from '../services/aiService';
-import { addActivity, getLibrary, saveLibraryItem, saveVocabularyItem, getTypingLibraryItems, saveTypingLibraryItem, deleteTypingLibraryItem, touchTypingLibraryItem, TypingLibraryItem } from '../services/storageService';
+import { addActivity, getLibrary, saveLibraryItem, saveVocabularyItem, getTypingLibraryItems, saveTypingLibraryItem, deleteTypingLibraryItem, touchTypingLibraryItem, TypingLibraryItem, updateBookProgress } from '../services/storageService';
 import { TYPING_STAGES, DRILL_TOPICS } from '../constants';
-import { RefreshCw, Play, Keyboard, Eye, EyeOff, BookOpen, Zap, Star, Sparkles, LayoutGrid, Book, Volume2, StopCircle, Mic, Square, Trash2, Ear, Pause, X, Lock, CheckCircle2, Swords, Crown, ShieldAlert, Plus, Check, Bookmark, Library, Repeat } from 'lucide-react';
+import { RefreshCw, Play, Keyboard, Eye, EyeOff, BookOpen, Zap, Star, Sparkles, LayoutGrid, Book as BookIcon, Volume2, StopCircle, Mic, Square, Trash2, Ear, Pause, X, Lock, CheckCircle2, Swords, Crown, ShieldAlert, Plus, Check, Bookmark, Library, Repeat, ChevronLeft, ChevronRight } from 'lucide-react';
 import TtsAudioPlayer, { TtsAudioPlayerHandle } from './TtsAudioPlayer';
 
 interface TypingViewProps {
   user: UserProfile;
   onComplete: (user: UserProfile) => void;
   initialData?: { text: string; title: string; notes?: string } | null;
+  book?: Book | null;
+  onExitBook?: () => void;
 }
 
 // --- Helper: Safe ID Generation ---
@@ -32,8 +34,47 @@ const RunSpan = React.memo(({ text, status }: RunSpanProps) => {
             : status === 'wrong'
             ? 'text-red-400 underline decoration-red-500/70 decoration-wavy underline-offset-4'
             : 'text-muted';
-    return <span className={cls}>{text}</span>;
+    // 收尾连续空格 → \u00A0：inline span 边界的普通空格会被 HTML 折叠规则吞掉（变宽 0），
+    // 导致"Other 空格"看起来紧贴下一个字符、像"字消失"。换成不间断空格即可。
+    const safe = text.replace(/^\s+|\s+$/g, (m) => '\u00A0'.repeat(m.length)) || text;
+    // transition-colors：字符状态切换（灰→绿/红）颜色平滑过渡，对齐 TypeLit 的 color 30ms 渐变
+    return <span className={`${cls} transition-colors duration-75`}>{safe}</span>;
 });
+
+// --- 原文 token 化：把含换行的文本拆成 text / break / para ---
+// - text：连续非 \n 字符（可见字符，计入 inputValue 索引）
+// - break：单个 \n → 软换行（<br>）
+// - para：连续 \n\n+ → 段落分隔（块级留白）
+interface TextToken {
+    type: 'text' | 'break' | 'para';
+    content?: string;
+}
+const tokenizeText = (rawText: string): TextToken[] => {
+    const tokens: TextToken[] = [];
+    let i = 0;
+    let buf = '';
+    const flush = () => {
+        if (buf) {
+            tokens.push({ type: 'text', content: buf });
+            buf = '';
+        }
+    };
+    while (i < rawText.length) {
+        if (rawText[i] === '\n') {
+            let j = i;
+            while (j < rawText.length && rawText[j] === '\n') j++;
+            const count = j - i;
+            flush();
+            tokens.push(count >= 2 ? { type: 'para' } : { type: 'break' });
+            i = j;
+        } else {
+            buf += rawText[i];
+            i++;
+        }
+    }
+    flush();
+    return tokens;
+};
 
 // --- Helper: Parse Notes for Context ---
 const LATIN_SCRIPT_LANGUAGES = new Set(['English', 'Spanish', 'French', 'German', 'Italian']);
@@ -49,9 +90,11 @@ const parseNotes = (notes: string) => {
 
 // --- Audio: AI TTS now uses the browser's Web Speech API (see generateSpeech) ---
 
-const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }) => {
+const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData, book, onExitBook }) => {
   const [content, setContent] = useState<TypingContent | null>(null);
   const [activeStage, setActiveStage] = useState<typeof TYPING_STAGES[0] | null>(null);
+  // 书架分页模式：当前页索引
+  const [bookPage, setBookPage] = useState(0);
 
   const [inputValue, setInputValue] = useState('');
   const [startTime, setStartTime] = useState<number | null>(null);
@@ -96,12 +139,18 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
   
   const inputRef = useRef<HTMLInputElement>(null);
   const textContainerRef = useRef<HTMLDivElement>(null);
+  const textContentRef = useRef<HTMLDivElement>(null);
   const currentCharRef = useRef<HTMLSpanElement>(null);
 
-  // --- Accuracy tracking refs (keystroke-level) ---
-  const totalTypedRef = useRef(0);   // total characters typed (incl. corrections)
-  const errorCountRef = useRef(0);   // characters typed wrong at the moment of typing
-  const prevInputLenRef = useRef(0); // previous input length, to detect additions
+  // 平滑光标：覆盖层的绝对坐标（相对文本内容区），随当前字符位置平滑滑动
+  const [cursorPos, setCursorPos] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+
+  // 缓存「可见字符」长度（剔除 \n 段分隔），用于进度/准确率/XP 等所有以字符为单位的指标
+  const visibleLength = useMemo(
+    () => (content?.text ?? '').replace(/\n/g, '').length,
+    [content?.text]
+  );
+
   const [accuracy, setAccuracy] = useState(100);
 
   useEffect(() => {
@@ -130,26 +179,59 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
       setSavedToLibrary(false);
       setAddedVocabWords(new Set());
       setErrorMsg(null);
-      // Reset accuracy tracking for the new drill
-      totalTypedRef.current = 0;
-      errorCountRef.current = 0;
-      prevInputLenRef.current = 0;
+      // Reset accuracy for the new drill
       setAccuracy(100);
+      // 重置平滑光标覆盖层位置
+      setCursorPos(null);
       // 新练习开始时文本区回到顶部
       if (textContainerRef.current) {
           textContainerRef.current.scrollTop = 0;
       }
   }, [content]);
 
-  // 打字时让当前光标保持在可视区域：交给浏览器原生 scrollIntoView 处理，
-  // 仅当光标真正离屏时才滚动，且不再手动读取布局（getBoundingClientRect
-  // 会强制同步重排，长文本下每次按键都会触发，是卡顿主因之一）
+  // 平滑光标定位 + 保持可视：
+  // - rAF 节流，每次只测量「当前字符」单个元素（getBoundingClientRect 开销小，非全量测量）
+  // - 用 transform 定位覆盖层并配 transition，光标平滑滑到下一字符（对齐 TypeLit 的顺滑感）
+  // - 仅当字符离屏时才滚动容器，滚动后再测一次同步光标位置
   useEffect(() => {
       if (!content || finished) return;
-      const cursor = currentCharRef.current;
-      if (!cursor) return;
-      cursor.scrollIntoView({ block: 'nearest' });
+      const measure = () => {
+          const charEl = currentCharRef.current;
+          const contentEl = textContentRef.current;
+          const container = textContainerRef.current;
+          if (!charEl || !contentEl) return;
+          const c = charEl.getBoundingClientRect();
+          const b = contentEl.getBoundingClientRect();
+          setCursorPos({ x: c.left - b.left, y: c.top - b.top, w: c.width, h: c.height });
+          if (container) {
+              const cb = container.getBoundingClientRect();
+              if (c.top < cb.top || c.bottom > cb.bottom) {
+                  charEl.scrollIntoView({ block: 'nearest' });
+              }
+          }
+      };
+      const raf = requestAnimationFrame(measure);
+      const container = textContainerRef.current;
+      const onScroll = () => requestAnimationFrame(measure);
+      container?.addEventListener('scroll', onScroll, { passive: true });
+      window.addEventListener('resize', onScroll);
+      return () => {
+          cancelAnimationFrame(raf);
+          container?.removeEventListener('scroll', onScroll);
+          window.removeEventListener('resize', onScroll);
+      };
   }, [inputValue, content, finished]);
+
+  // 切换回该标签页时自动恢复输入焦点，避免光标离开后需要再点一次卡片
+  useEffect(() => {
+      const onWinFocus = () => {
+          if (content && !finished) {
+              inputRef.current?.focus();
+          }
+      };
+      window.addEventListener('focus', onWinFocus);
+      return () => window.removeEventListener('focus', onWinFocus);
+  }, [content, finished]);
 
   // --- Audio Engine Logic (delegated to TtsAudioPlayer) ---
   // 工具栏的「朗读」按钮通过 ref 调用播放器；播放器自己管理 url / 进度 / AB / 循环。
@@ -367,13 +449,41 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
       setActiveStage(null);
       setIsAISource(false); // 重练不重复写通用记忆库
       setContent({
-        text: item.text,
+        text: item.text.trim(),
         topic: item.topic,
         phoneticGuide: item.phoneticGuide,
-        translation: item.translation,
+        translation: (item.translation ?? '').trim(),
         keyVocabulary: item.keyVocabulary,
       });
       setTypingLib(touchTypingLibraryItem(item.id, item.language));
+      setTimeout(() => inputRef.current?.focus(), 100);
+  };
+
+  // 书架分页模式：加载某一页
+  const loadBookPage = (pageIdx: number) => {
+      if (!book) return;
+      const page = book.pages[pageIdx];
+      if (page == null) return;
+      stopAudio();
+      setIsLoading(false);
+      setErrorMsg(null);
+      setInputValue('');
+      setStartTime(null);
+      setWpm(0);
+      setFinished(false);
+      setPassedStage(false);
+      setActiveStage(null);
+      setIsAISource(false);
+      setAccuracy(100);
+      setContent({
+        text: page,
+        topic: book.title,
+        phoneticGuide: '',
+        translation: '',
+        keyVocabulary: [],
+      });
+      setBookPage(pageIdx);
+      updateBookProgress(book.id, pageIdx);
       setTimeout(() => inputRef.current?.focus(), 100);
   };
 
@@ -435,33 +545,35 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
     }
   }, [initialData]);
 
+  // 书架分页模式：book 变化（打开一本书）时加载起始页
+  useEffect(() => {
+      if (book) {
+          loadBookPage(book.currentPage || 0);
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [book?.id]);
+
   const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (finished) return;
     const val = e.target.value;
     if (!startTime) setStartTime(Date.now());
 
-    // Accuracy tracking: count each newly-added character against the target
-    const prevLen = prevInputLenRef.current;
-    if (val.length > prevLen && content?.text) {
-      for (let i = prevLen; i < val.length; i++) {
-        totalTypedRef.current += 1;
-        if (val[i] !== content.text[i]) {
-          errorCountRef.current += 1;
-        }
-      }
-    }
-    prevInputLenRef.current = val.length;
-
     setInputValue(val);
 
-    // 实时准确率：随输入立即更新，方便用户在顶部工具栏看到当前状态
-    const totalTyped = totalTypedRef.current;
-    const errors = errorCountRef.current;
-    setAccuracy(
-      totalTyped > 0
-        ? Math.max(0, Math.min(100, Math.round(((totalTyped - errors) / totalTyped) * 100)))
-        : 100
-    );
+    // 实时准确率：用户输入不含 \n，与目标文本的「可见字符」逐字比对
+    // （目标文本含 \n\n 段落分隔，需要剔除 \n 再比对，否则会错位）
+    const target = content?.text || '';
+    const visibleTarget = target.replace(/\n/g, '');
+    if (visibleTarget && val.length > 0) {
+      let correct = 0;
+      const n = Math.min(val.length, visibleTarget.length);
+      for (let i = 0; i < n; i++) {
+        if (val[i] === visibleTarget[i]) correct++;
+      }
+      setAccuracy(Math.round((correct / val.length) * 100));
+    } else {
+      setAccuracy(100);
+    }
 
     if (startTime) {
       const timeElapsed = (Date.now() - startTime) / 60000;
@@ -469,31 +581,43 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
       setWpm(Math.round(wordsTyped / timeElapsed) || 0);
     }
 
-    if (content && content.text && val === content.text) {
-        finishDrill(val.length);
+    // 非阻塞：输入到达可见字符末尾即结算（与 TypeLit 一致）
+    if (content && visibleTarget && val.length >= visibleTarget.length) {
+        finishDrill(val);
     }
   };
 
-  const finishDrill = (length: number) => {
+  const finishDrill = (typed: string) => {
       setFinished(true);
-      
+
+      const length = typed.length;
+      const timeElapsed = startTime ? (Date.now() - startTime) / 60000 : 0;
+      const liveWpm = timeElapsed > 0 ? Math.round((length / 5) / timeElapsed) : 0;
+      setWpm(liveWpm);
+
       const baseXP = 20;
       const lengthXP = Math.floor(length / 5);
-      const speedBonus = wpm > 40 ? 10 : 0;
+      const speedBonus = liveWpm > 40 ? 10 : 0;
       const totalXP = baseXP + lengthXP + speedBonus;
 
-      // Real accuracy: correct keystrokes / total keystrokes typed
-      const totalTyped = totalTypedRef.current;
-      const errors = errorCountRef.current;
-      const finalAccuracy = totalTyped > 0
-        ? Math.max(0, Math.min(100, Math.round(((totalTyped - errors) / totalTyped) * 100)))
+      // 最终准确率：以结算时输入文本与目标文本的「可见字符」逐字比对为准
+      // （含段落分隔的文本需要剔除 \n，否则用户在段末会算错）
+      const target = content?.text || '';
+      const visibleTarget = target.replace(/\n/g, '');
+      const finalLen = Math.min(length, visibleTarget.length);
+      let correct = 0;
+      for (let i = 0; i < finalLen; i++) {
+        if (typed[i] === visibleTarget[i]) correct++;
+      }
+      const finalAccuracy = visibleTarget.length > 0
+        ? Math.max(0, Math.min(100, Math.round((correct / visibleTarget.length) * 100)))
         : 100;
       setAccuracy(finalAccuracy);
-      
+
       let stagePassed = false;
       // Check pass criteria if in Adventure Mode
       if (activeStage) {
-          if (wpm >= activeStage.minWpm) {
+          if (liveWpm >= activeStage.minWpm) {
               stagePassed = true;
               setPassedStage(true);
           }
@@ -514,8 +638,8 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
           totalXP,
           activeStage ? `Stage ${activeStage.id + 1}: ${activeStage.title}` : `Drill: ${content?.topic}`,
           {
-              wpm: wpm,
-              accuracy: finalAccuracy, 
+              wpm: liveWpm,
+              accuracy: finalAccuracy,
               wordCount: Math.floor(length / 5),
               stageId: activeStage?.id,
               passed: stagePassed
@@ -545,14 +669,18 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
         setTimeout(() => inputRef.current?.focus(), 100);
   };
 
-  const renderText = () => {
-    if (!content || !content.text) return null;
-    const text = content.text;
-    const len = inputValue.length;
-    const showCursor = !finished;
-
-    // 把文本按「已输入正确 / 已输入错误 / 未输入」三种状态合并成连续片段，
-    // 仅在光标位置插入一个独立的光标 span，避免逐字符渲染上千个 DOM 节点。
+  // 渲染单个 text token（不含 \n）：run 合并 + RunSpan 记忆化 + 非阻塞错字逐字渲染。
+  // offset = 该 token 在「可见字符」中的全局起始索引（不含 \n），与 inputValue 索引对齐。
+  // cursorHere / localPos = 光标是否在本 token 及其局部位置（localPos === text.length 表示末尾空光标）。
+  const renderSegment = (
+    text: string,
+    offset: number,
+    globalLen: number,
+    showCursor: boolean,
+    cursorHere: boolean,
+    localPos: number,
+    segIdx: number
+  ): React.ReactNode[] => {
     const nodes: React.ReactNode[] = [];
     let runStart = 0;
     let runStatus: 'correct' | 'wrong' | 'untyped' | null = null;
@@ -563,7 +691,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
       if (chunk) {
         nodes.push(
           <RunSpan
-            key={`${runStatus}-${runStart}`}
+            key={runStatus === 'untyped' ? `s${segIdx}-untyped` : `s${segIdx}-${runStatus}-${offset + runStart}`}
             text={chunk}
             status={runStatus}
           />
@@ -573,37 +701,143 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
     };
 
     for (let idx = 0; idx < text.length; idx++) {
-      // 在光标所在位置插入光标竖线（仅在未完成且未到达末尾时）
-      if (showCursor && idx === len) {
+      if (cursorHere && idx === localPos) {
         pushRun(idx);
+        // 当前字符单独渲染（ref 锚点），由覆盖层绝对定位在其上，实现平滑滑动
         nodes.push(
           <span
-            key="cursor"
+            key="cursor-char"
             ref={currentCharRef}
-            className="relative inline-block rounded-sm bg-secondary/15"
+            className="text-body"
           >
-            <span className="absolute left-0 top-0 h-full w-[3px] bg-secondary text-secondary shadow-[0_0_6px_currentColor] animate-pulse" />
-            {'​'}
+            {text[idx] === ' ' ? '\u00A0' : text[idx]}
           </span>
         );
         runStatus = null;
+        runStart = idx + 1;
       }
+
+      const visibleCharIdx = offset + idx;
       const status: 'correct' | 'wrong' | 'untyped' =
-        idx < len
-          ? inputValue[idx] === text[idx]
+        visibleCharIdx < globalLen
+          ? inputValue[visibleCharIdx] === text[idx]
             ? 'correct'
             : 'wrong'
           : 'untyped';
-      if (runStatus !== status) {
+
+      if (status === 'wrong') {
+        pushRun(idx);
+        runStatus = null;
+        runStart = idx + 1;
+        const wrongChar = inputValue[visibleCharIdx] ?? text[idx];
+        nodes.push(
+          <span
+            key={`s${segIdx}-w-${offset + idx}`}
+            className="text-red-400 underline decoration-red-500/70 decoration-wavy underline-offset-4"
+          >
+            {wrongChar === ' ' ? '\u00A0' : wrongChar}
+          </span>
+        );
+      } else if (runStatus !== status) {
         pushRun(idx);
         runStatus = status;
       }
     }
-    pushRun(text.length);
+
+    // 末尾空光标（localPos === text.length）：竖条锚点，提示"从这里继续"
+    if (cursorHere && localPos === text.length) {
+      pushRun(text.length);
+      nodes.push(
+        <span
+          key="cursor-char"
+          ref={currentCharRef}
+          className="inline-block w-0.5 h-[1.1em] align-middle"
+        />
+      );
+    } else {
+      pushRun(text.length);
+    }
+
+    return nodes;
+  };
+
+  const renderText = () => {
+    if (!content || !content.text) return null;
+    const rawText = content.text;
+    const len = inputValue.length;
+    const showCursor = !finished;
+
+    const tokens = tokenizeText(rawText);
+
+    // 第一遍：计算总可见长度 + 定位光标所在 text token
+    let visibleIdx = 0;
+    let totalVisible = 0;
+    let cursorSegIndex = -1;
+    let cursorLocalPos = -1;
+
+    for (let tIdx = 0; tIdx < tokens.length; tIdx++) {
+      const tk = tokens[tIdx];
+      if (tk.type !== 'text') continue;
+      const start = visibleIdx;
+      const end = start + (tk.content?.length ?? 0);
+      if (showCursor && cursorSegIndex === -1 && len >= start && len < end) {
+        cursorSegIndex = tIdx;
+        cursorLocalPos = len - start;
+      }
+      visibleIdx = end;
+    }
+    totalVisible = visibleIdx;
+
+    // 全部输入完（len === totalVisible）：光标放在最后一个 text token 末尾
+    if (showCursor && cursorSegIndex === -1 && totalVisible > 0) {
+      for (let tIdx = tokens.length - 1; tIdx >= 0; tIdx--) {
+        if (tokens[tIdx].type === 'text') {
+          cursorSegIndex = tIdx;
+          cursorLocalPos = (tokens[tIdx].content ?? '').length;
+          break;
+        }
+      }
+    }
+
+    // 第二遍：渲染 tokens
+    const nodes: React.ReactNode[] = [];
+    visibleIdx = 0;
+    let segCounter = 0;
+
+    tokens.forEach((tk, tIdx) => {
+      if (tk.type === 'para') {
+        nodes.push(<div key={`para-${tIdx}`} className="h-6 w-full" />);
+      } else if (tk.type === 'break') {
+        nodes.push(<br key={`br-${tIdx}`} />);
+      } else {
+        const content = tk.content ?? '';
+        const offset = visibleIdx;
+        const cursorHere = showCursor && tIdx === cursorSegIndex;
+        const localPos = cursorHere ? cursorLocalPos : 0;
+        nodes.push(...renderSegment(content, offset, len, showCursor, cursorHere, localPos, segCounter));
+        visibleIdx += content.length;
+        segCounter++;
+      }
+    });
 
     return (
-      <div className="text-lg md:text-xl lg:text-2xl font-sans leading-loose break-words text-gray-200">
+      <div
+        ref={textContentRef}
+        className="relative font-literata font-bold text-lg md:text-xl lg:text-2xl leading-loose tracking-[0.075em] text-gray-200"
+      >
         {nodes}
+        {/* 平滑光标覆盖层：absolute 定位 + transform 过渡，滑到下一个字符 */}
+        {showCursor && cursorPos && (
+          <div
+            className="absolute left-0 top-0 rounded-[3px] bg-secondary/30 ring-1 ring-secondary/70 shadow-[0_0_8px_rgba(139,92,246,0.45)] pointer-events-none z-0"
+            style={{
+              transform: `translate(${cursorPos.x}px, ${cursorPos.y}px)`,
+              width: cursorPos.w,
+              height: cursorPos.h,
+              transition: 'transform 70ms ease-out, width 70ms ease-out, height 70ms ease-out',
+            }}
+          />
+        )}
       </div>
     );
   };
@@ -692,6 +926,30 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
       {/* HEADER CONTROLS (Only visible when drilling) */}
       {content && (
         <div className="glass-panel p-4 rounded-xl animate-in slide-in-from-top-4 space-y-4 shadow-card">
+            {/* 书架分页导航（仅 book 模式） */}
+            {book && (
+                <div className="flex items-center justify-between gap-3 pb-3 border-b border-line/60">
+                    <button
+                        onClick={() => loadBookPage(Math.max(0, bookPage - 1))}
+                        disabled={bookPage === 0}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-surface-2/70 hover:bg-surface-3 text-sm font-medium text-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                    >
+                        <ChevronLeft size={16} /> 上一页
+                    </button>
+                    <div className="text-center">
+                        <div className="text-sm font-bold text-white">Page {bookPage + 1} / {book.pages.length}</div>
+                        <div className="text-[11px] text-muted">{book.title}</div>
+                    </div>
+                    <button
+                        onClick={() => loadBookPage(Math.min(book.pages.length - 1, bookPage + 1))}
+                        disabled={bookPage === book.pages.length - 1}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-surface-2/70 hover:bg-surface-3 text-sm font-medium text-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                    >
+                        下一页 <ChevronRight size={16} />
+                    </button>
+                </div>
+            )}
+
             {/* 标题 / 等级 / 统计 / 退出 */}
             <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-3 min-w-0">
@@ -701,7 +959,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                     <div className="min-w-0">
                         <h2 className="text-sm md:text-base font-bold text-white truncate">{content.topic}</h2>
                         <p className="text-xs text-muted">
-                            {inputValue.length}/{content.text.length} 字符 · {Math.min(100, Math.round((inputValue.length / content.text.length) * 100))}%
+                            {inputValue.length}/{visibleLength} 字符 · {Math.min(100, Math.round((inputValue.length / Math.max(1, visibleLength)) * 100))}%
                         </p>
                     </div>
                 </div>
@@ -716,7 +974,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                         <span className="text-base md:text-lg font-bold text-white tabular-nums">{accuracy}%</span>
                     </div>
                     <button
-                        onClick={() => setContent(null)}
+                        onClick={() => { if (book) { onExitBook?.(); } else { setContent(null); } }}
                         disabled={isLoading}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-3 hover:bg-surface-3 text-white rounded-lg transition-colors text-sm font-medium"
                     >
@@ -730,7 +988,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
             <div className="h-1.5 w-full bg-surface-2/70 rounded-full overflow-hidden">
                 <div
                     className="h-full xp-bar rounded-full transition-all duration-200"
-                    style={{ width: `${Math.min(100, (inputValue.length / content.text.length) * 100)}%` }}
+                    style={{ width: `${Math.min(100, (inputValue.length / Math.max(1, visibleLength)) * 100)}%` }}
                 />
             </div>
 
@@ -851,7 +1109,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                         onClick={() => setActiveTab('memory')}
                         className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'memory' ? 'bg-gradient-to-r from-neon to-neon-2 text-white shadow-glow-neon' : 'bg-surface-2/70 text-muted hover:bg-surface-3 hover:text-white'}`}
                     >
-                        <Book size={18} /> 记忆库
+                        <BookIcon size={18} /> 记忆库
                     </button>
                     <button
                         onClick={() => setActiveTab('typinglib')}
@@ -962,7 +1220,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
           >
             <div
               ref={textContainerRef}
-              className="max-h-[60vh] overflow-y-auto pr-3 pb-2 custom-scrollbar space-y-5"
+              className="relative z-10 max-h-[60vh] overflow-y-auto pr-3 pb-2 custom-scrollbar space-y-5"
             >
                 {/* Phonetic / Input Hint — 仅非拉丁字母语言显示（英语等不需要罗马音辅助） */}
                 {content.phoneticGuide && showPhonetic && !isStrictMode && !LATIN_SCRIPT_LANGUAGES.has(user.learningLanguage) && (
@@ -982,11 +1240,11 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                 )}
             </div>
 
-            {/* Hidden Input：覆盖整张卡片用于点击聚焦，但不拦截鼠标事件，避免挡住滚动条 */}
+            {/* Hidden Input：铺在文本下方接收输入与点击，不遮挡文本、不显示 caret */}
             <input
               ref={inputRef}
               type="text"
-              className="opacity-0 absolute inset-0 cursor-default pointer-events-none"
+              className="absolute inset-0 opacity-0 cursor-text outline-none caret-transparent z-0"
               value={inputValue}
               onChange={handleInput}
               autoFocus
@@ -1008,7 +1266,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                 </div>
                 <div>
                     <h3 className="text-xl font-bold text-green-400">
-                        {activeStage ? (passedStage ? "关卡通过！" : "练习完成") : "练习已完成！"}
+                        {book ? `第 ${bookPage + 1} 页完成` : (activeStage ? (passedStage ? "关卡通过！" : "练习完成") : "练习已完成！")}
                     </h3>
                     <p className="text-green-300/70">
                         {savedToLibrary && isAISource ? "已获得经验并存入记忆库。" : "已获得经验，记忆已巩固。"}
@@ -1027,14 +1285,26 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData }
                      <span className="text-xs text-green-500/80 uppercase">获得经验</span>
                      <span className="text-2xl font-bold text-white flex items-center gap-1">
                          <Star size={16} className="text-yellow-400" fill="currentColor" /> 
-                         {20 + Math.floor(content!.text.length/5) + (wpm > 40 ? 10 : 0)}
+                         {20 + Math.floor(visibleLength/5) + (wpm > 40 ? 10 : 0)}
                      </span>
                  </div>
                  <button 
-                    onClick={() => {setContent(null); setFinished(false);}}
+                    onClick={() => {
+                        if (book) {
+                            if (bookPage < book.pages.length - 1) {
+                                loadBookPage(bookPage + 1);
+                            } else {
+                                updateBookProgress(book.id, book.pages.length); // 标记读完
+                                onExitBook?.();
+                            }
+                        } else {
+                            setContent(null);
+                            setFinished(false);
+                        }
+                    }}
                     className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg transition-colors flex items-center gap-2"
                 >
-                    下一个练习 <Play size={16} />
+                    {book ? (bookPage < book.pages.length - 1 ? <>下一页 <ChevronRight size={16} /></> : <>读完了 <BookOpen size={16} /></>) : <>下一个练习 <Play size={16} /></>}
                 </button>
             </div>
         </div>

@@ -1,5 +1,5 @@
 
-import { UserProfile, ActivityLog, Language, CEFRLevel, UserContent, LanguageProgress, WritingNode, VocabularyItem, DailyQuest, QuestKind, MentorPersona, AIMemory, ScriptItem, ScriptCardProgress, ErrorCard, WritingScoreRecord, TypingContent, ErrorPattern, ErrorPatternType, ERROR_PATTERN_LABELS, FlywheelStep, DailyFlywheel, SongPack } from '../types';
+import { UserProfile, ActivityLog, Language, CEFRLevel, UserContent, LanguageProgress, WritingNode, VocabularyItem, DailyQuest, QuestKind, MentorPersona, AIMemory, ScriptItem, ScriptCardProgress, ErrorCard, WritingScoreRecord, TypingContent, ErrorPattern, ErrorPatternType, ERROR_PATTERN_LABELS, FlywheelStep, DailyFlywheel, SongPack, Book } from '../types';
 import { createDefaultGrowthTree, CEFR_RANK } from '../data/growthTree';
 import { getScriptPackForLanguage } from '../data/scriptPacks';
 
@@ -18,6 +18,7 @@ const STORAGE_KEY_INKQUEST_LISTENING = 'linguaflow_inkquest_listening';
 const STORAGE_KEY_TYPING_LIBRARY = 'linguaflow_typing_library';
 const STORAGE_KEY_ERROR_PATTERNS = 'linguaflow_error_patterns';
 const STORAGE_KEY_FLYWHEEL = 'linguaflow_daily_flywheel';
+const STORAGE_KEY_BOOKS = 'linguaflow_books';
 
 // 所有持久化 key 的权威集合（本地备份/恢复用）。集中维护，避免新增模块后备份遗漏、静默丢数据。
 // 用字面量以避免引用下方靠后声明的 const 触发 TDZ。
@@ -27,7 +28,7 @@ export const ALL_STORAGE_KEYS: string[] = [
   'linguaflow_writing_history', 'linguaflow_inkquest', 'linguaflow_inkquest_story',
   'linguaflow_inkquest_listening', 'linguaflow_typing_library', 'linguaflow_error_patterns',
   'linguaflow_daily_flywheel', 'linguaflow_custom_script', 'linguaflow_custom_writing',
-  'linguaflow_rpg_session', 'linguaflow_rpg_custom', 'linguaflow_song_packs',
+  'linguaflow_rpg_session', 'linguaflow_rpg_custom', 'linguaflow_song_packs', 'linguaflow_books',
 ];
 
 // --- Runtime AI model configuration (switcher in Settings -> 模型设置) ---
@@ -1307,6 +1308,173 @@ export const deleteSongClips = async (packId: string): Promise<void> => {
             };
             req.onerror = () => reject(req.error);
         });
+    } finally {
+        db.close();
+    }
+};
+
+// ==================== 书架（Book）====================
+
+// 分页：按段落（\n\n）累积，达到 targetChars 左右切成一页，不切断段落。
+// 单段超长（超过 1.5 倍目标）则硬切，避免单页过长。
+export const paginateText = (rawText: string, targetChars = 1500): string[] => {
+    const text = rawText.trim();
+    if (!text) return [];
+    const paragraphs = text.split(/\n\n+/).map((p) => p.trim()).filter((p) => p.length > 0);
+    if (paragraphs.length === 0) return [text];
+
+    const pages: string[] = [];
+    let current = '';
+    const hardCut = Math.max(targetChars, 600);
+
+    const flush = () => {
+        if (current.trim()) pages.push(current.trim());
+        current = '';
+    };
+
+    for (const para of paragraphs) {
+        // 单段超长：硬切成多页
+        if (para.length > targetChars * 1.5) {
+            flush();
+            let rest = para;
+            while (rest.length > hardCut) {
+                pages.push(rest.slice(0, hardCut));
+                rest = rest.slice(hardCut);
+            }
+            current = rest;
+            continue;
+        }
+        if (current && (current.length + para.length) > targetChars) {
+            flush();
+            current = para;
+        } else {
+            current = current ? current + '\n\n' + para : para;
+        }
+    }
+    flush();
+    return pages.length > 0 ? pages : [text];
+};
+
+// 书架存储升级为 IndexedDB：容量远大于 localStorage（~5MB），可容纳大量长文本书籍。
+// 原 localStorage 的旧数据在首次读取时自动迁移到 IndexedDB，迁移后清除旧 key。
+
+const BOOKS_DB = 'linguaflow_books_db';
+const BOOKS_STORE = 'books';
+
+const openBooksDB = (): Promise<IDBDatabase> =>
+    new Promise((resolve, reject) => {
+        const req = indexedDB.open(BOOKS_DB, 1);
+        req.onupgradeneeded = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains(BOOKS_STORE)) {
+                const store = db.createObjectStore(BOOKS_STORE, { keyPath: 'id' });
+                store.createIndex('language', 'language', { unique: false });
+                store.createIndex('createdAt', 'createdAt', { unique: false });
+            }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+
+// 迁移 localStorage 旧 books → IndexedDB（只跑一次，迁移后清除旧 key）
+const migrateBooksFromLocalStorage = async (db: IDBDatabase): Promise<void> => {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY_BOOKS);
+        if (!raw) return;
+        const old: Book[] = JSON.parse(raw);
+        if (!Array.isArray(old) || old.length === 0) { localStorage.removeItem(STORAGE_KEY_BOOKS); return; }
+        await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction(BOOKS_STORE, 'readwrite');
+            const store = tx.objectStore(BOOKS_STORE);
+            for (const b of old) store.put(b);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+        localStorage.removeItem(STORAGE_KEY_BOOKS);
+    } catch {
+        /* 迁移失败不阻塞 */
+    }
+};
+
+const sortBooks = (all: Book[], lang?: Language): Book[] => {
+    const filtered = lang ? all.filter((b) => b.language === lang) : all;
+    return filtered.sort((a, b) => (b.lastReadAt ?? b.createdAt) - (a.lastReadAt ?? a.createdAt));
+};
+
+export const getBooks = async (lang?: Language): Promise<Book[]> => {
+    const db = await openBooksDB();
+    try {
+        await migrateBooksFromLocalStorage(db);
+        const all = await new Promise<Book[]>((resolve, reject) => {
+            const tx = db.transaction(BOOKS_STORE, 'readonly');
+            const req = tx.objectStore(BOOKS_STORE).getAll();
+            req.onsuccess = () => resolve((req.result as Book[]) ?? []);
+            req.onerror = () => reject(req.error);
+        });
+        return sortBooks(all, lang);
+    } catch {
+        return [];
+    } finally {
+        db.close();
+    }
+};
+
+export const saveBook = async (book: Book): Promise<Book[]> => {
+    const db = await openBooksDB();
+    try {
+        await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction(BOOKS_STORE, 'readwrite');
+            tx.objectStore(BOOKS_STORE).put(book);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+        return await getBooks(book.language);
+    } catch {
+        return getBooks(book.language);
+    } finally {
+        db.close();
+    }
+};
+
+export const deleteBook = async (id: string, lang?: Language): Promise<Book[]> => {
+    const db = await openBooksDB();
+    try {
+        await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction(BOOKS_STORE, 'readwrite');
+            tx.objectStore(BOOKS_STORE).delete(id);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+        return await getBooks(lang);
+    } catch {
+        return [];
+    } finally {
+        db.close();
+    }
+};
+
+// 更新阅读进度
+export const updateBookProgress = async (id: string, currentPage: number): Promise<Book[]> => {
+    const db = await openBooksDB();
+    try {
+        await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction(BOOKS_STORE, 'readwrite');
+            const store = tx.objectStore(BOOKS_STORE);
+            const req = store.get(id);
+            req.onsuccess = () => {
+                const book = req.result as Book | undefined;
+                if (book) {
+                    book.currentPage = currentPage;
+                    book.lastReadAt = Date.now();
+                    store.put(book);
+                }
+            };
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+        return await getBooks();
+    } catch {
+        return getBooks();
     } finally {
         db.close();
     }

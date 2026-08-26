@@ -34,6 +34,7 @@ export default {
       fontFamily: {
         sans: ['"Inter Variable"', "Inter", "ui-sans-serif", "system-ui", "sans-serif"],
         mono: ['"Fira Code Variable"', "Fira Code", "ui-monospace", "monospace"],
+        literata: ['"Literata Variable"', "Literata", "Georgia", "ui-serif", "serif"],
       },
       boxShadow: {
         glow: "0 0 24px rgba(124,108,255,0.35)",

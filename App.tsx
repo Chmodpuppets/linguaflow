@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
-import { Language, CEFRLevel, AppMode, UserProfile } from './types';
+import { Language, CEFRLevel, AppMode, UserProfile, Book } from './types';
 import { SUPPORTED_LANGUAGES, NAV_ITEMS } from './constants';
 import { getUser, saveUser, ensureLanguageProgress, logoutUser, checkStreakOnLoad, rolloverDailyQuests, getDueErrorCards, getLevelInfo } from './services/storageService';
 import { ChevronDown, Menu, Flame, Star, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
@@ -21,6 +21,7 @@ const RPGView = lazy(() => import('./components/RPGView'));
 const DailyView = lazy(() => import('./components/DailyView'));
 const ImportView = lazy(() => import('./components/ImportView'));
 const SongLabView = lazy(() => import('./components/SongLabView'));
+const BooksView = lazy(() => import('./components/BooksView'));
 const SocialView = lazy(() => import('./components/SocialView'));
 const ScriptTrainerView = lazy(() => import('./components/ScriptTrainerView'));
 const ErrorBookView = lazy(() => import('./components/ErrorBookView'));
@@ -38,7 +39,7 @@ const ViewFallback = () => (
 
 // 侧边栏导航分组（信息架构：降低 15 个一级入口的视觉过载）
 const NAV_GROUPS: { label: string; items: string[] }[] = [
-  { label: '学习', items: ['daily', 'typing', 'writing', 'rpg'] },
+  { label: '学习', items: ['daily', 'typing', 'books', 'writing', 'rpg'] },
   { label: '精进', items: ['writing_tree', 'composition_studio', 'ink_quest', 'script_trainer', 'vocabulary', 'errorbook', 'error_patterns'] },
   { label: '资源', items: ['library', 'content_repo', 'import', 'song_lab', 'trend', 'portfolio'] },
   { label: '社区', items: ['social', 'profile'] },
@@ -54,6 +55,7 @@ const App: React.FC = () => {
   const [mode, setMode] = useState<AppMode>(AppMode.Daily);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [typingInitialData, setTypingInitialData] = useState<{text: string; title: string; notes?: string} | null>(null);
+  const [activeBook, setActiveBook] = useState<Book | null>(null);
   const [stars, setStars] = useState<number>(FALLBACK_STARS);
   // 侧栏折叠：整栏收成图标轨 + 分组单独收起
   // 默认：侧栏展开，「精进」「资源」「社区」三组收起（手风琴），仅「学习」展开
@@ -131,13 +133,22 @@ const App: React.FC = () => {
   };
 
   const handlePracticeFromLibrary = (content: {text: string; title: string; notes?: string}) => {
+    setActiveBook(null);
     setTypingInitialData(content);
+    setMode(AppMode.Typing);
+  };
+
+  // 打开一本书进入分页打字
+  const handleOpenBook = (book: Book) => {
+    setTypingInitialData(null);
+    setActiveBook(book);
     setMode(AppMode.Typing);
   };
 
   const handleModeChange = (newMode: AppMode) => {
     if (newMode !== AppMode.Typing) {
         setTypingInitialData(null); // Clear custom data if leaving typing or switching explicitly
+        setActiveBook(null);
     }
     if (window.__importProcessing && newMode !== AppMode.Import) {
       const ok = window.confirm('正在抓取/处理内容，切换页面将中断当前操作。确定要离开吗？');
@@ -178,6 +189,15 @@ const App: React.FC = () => {
                 user={user}
                 onComplete={handleUserUpdate}
                 initialData={typingInitialData}
+                book={activeBook}
+                onExitBook={() => { setActiveBook(null); setMode(AppMode.Books); }}
+            />
+        );
+      case AppMode.Books:
+        return (
+            <BooksView 
+                user={user}
+                onOpenBook={handleOpenBook}
             />
         );
       case AppMode.Writing:

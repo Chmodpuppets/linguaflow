@@ -121,7 +121,8 @@ export enum AppMode {
   CompositionStudio = 'composition_studio',
   InkQuest = 'ink_quest',
   ContentRepo = 'content_repo',
-  SongLab = 'song_lab'
+  SongLab = 'song_lab',
+  Books = 'books'
 }
 
 // --- Personalization (Phase 2/3) ---
@@ -326,6 +327,19 @@ export interface UserContent {
   language: Language;
   createdAt: number;
   reflection?: ReadingReflection;
+}
+
+// 书架：一本书/短篇小说，导入后自动分页，逐页打字练习（对齐 TypeLit 的 Pages 体验）
+export interface Book {
+  id: string;
+  title: string;
+  author?: string;       // 作者（EPUB 从 metadata dc:creator 提取；当前为可选）
+  cover?: string;        // data URL（image/jpeg 或 image/png），EPUB 取 cover-image、PDF 渲第一页
+  language: Language;
+  pages: string[];      // 分页后的文本，每页一个片段
+  currentPage: number;  // 阅读进度（0-based）
+  createdAt: number;
+  lastReadAt?: number;
 }
 
 export interface VocabularyItem {
