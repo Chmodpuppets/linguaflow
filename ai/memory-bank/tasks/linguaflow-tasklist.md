@@ -5,9 +5,10 @@
 **技术栈**：React 19 + TS + Vite 6 + Tailwind + lucide-react + localStorage。
 **目标节奏**：小步快跑，单任务 30–60 分钟可交付。
 
-## 项目真实进度快照（2026-08-18 盘点）
-- 实际已交付特性（超出原基线，尚未全部入档）：SongLab 歌曲跟打、个人错误模式引擎 + 每日产出飞轮、暗夜霓虹 UI 重设计（Wave 0–4）、XP 进度条 `getLevelInfo` 统一修复、Gemini 迁出（无 geminiService）、侧栏两层折叠、录音转写回退本地回放。
-- 代码实际模块数：**19 导航模块 / 11 语言**，README 写 17 模块、本 tasklist 基线为 7 模式——文档已不同步，本次盘点已同步 `site-setup.md`。
+## 项目真实进度快照（2026-08-27 盘点）
+- 实际已交付特性（超出原基线，已入档 site-setup 第 2/7 节）：SongLab 歌曲跟打、个人错误模式引擎 + 每日产出飞轮、暗夜霓虹 UI 重设计（Wave 0–4）、XP 进度条 `getLevelInfo` 统一修复、Gemini 迁出（无 geminiService）、侧栏两层折叠、录音转写回退本地回放、Books 阅读器（EPUB/PDF + IndexedDB）、TypeLit 打字训练（Literata 衬线）、许可证切换 CC BY-NC 4.0、README 拆分 docs/ + 社群扫码、release.sh 发版脚本。
+- 代码实际模块数：**20 导航模块 / 11 语言**（`constants.tsx` NAV_ITEMS），与 `site-setup.md` 已同步。
+- 版本状态：**v0.1.0**（2026-08-26，Books + TypeLit 功能里程碑）、**v0.1.1**（2026-08-26，LICENSE + README 拆分 + release 脚本）均已发布，工作树与 origin/main 同步（ahead/behind 0）。
 - Task 2–6 仍为待立项候选（My Profile 整体备份未做、STT 代理未做、TTS 扩展未做、Playwright 未做、Task 6 未做）。
 
 ## 开发任务
@@ -19,6 +20,18 @@
 - 新需求有可写入的入口（site-setup 第 7 节候选区）。
 **文件**：ai/memory-bank/site-setup.md, tasks/linguaflow-tasklist.md, PM-METHODOLOGY.md
 **参考**：PM-METHODOLOGY.md 核心循环
+
+### [x] Task 1.1: v0.1.0 功能里程碑（Books + TypeLit）
+**描述**：新增 Books 阅读器（EPUB/PDF 导入 + IndexedDB 存储 + 封面渲染）与 TypeLit 风格打字训练（Literata 衬线 + 平滑光标）。
+**验收标准**：EPUB/PDF 可导入并持久化；打字体验无输入丢失；已发布 `v0.1.0`（2026-08-26）。
+**文件**：components/BooksView.tsx, services/bookImport.ts 等
+**参考**：CHANGELOG.md [0.1.0]
+
+### [x] Task 1.2: v0.1.1 文档与许可
+**描述**：新增 CC BY-NC 4.0 LICENSE（非商业 + 商用付费授权）；README 拆分为 `docs/`（features/setup/ai-voice/faq/contributing）+ 社群扫码；新增 `scripts/release.sh` 发版脚本。
+**验收标准**：LICENSE 就位；README 枢纽 + docs 子文件可达；release.sh 可一键 bump+CHANGELOG+tag+Release；已发布 `v0.1.1`（2026-08-26）。
+**文件**：LICENSE, README.md, docs/*.md, scripts/release.sh
+**参考**：CHANGELOG.md [0.1.1]
 
 ### [ ] Task 2: localStorage 数据导出 / 导入
 **描述**：在 My Profile 增加「导出 JSON / 导入 JSON」按钮，备份学习数据。
@@ -70,4 +83,6 @@
 
 ## 技术备注
 - 当前为 React 前端；PM 角色通用模板里的 FluxUI / Laravel 不适用，已按实际栈调整。
-- dev：`npm run dev`（端口 3011）；build：`npm run build`。
+- dev：`npm run dev`（端口 3011）；build：`npm run build`；发版：`npm run release`（scripts/release.sh）。
+- 文档：`README.md` 为枢纽，详细内容拆至 `docs/`（features/setup/ai-voice/faq/contributing）。
+- site-setup 第 2 节为唯一事实来源，代码事实以 `constants.tsx` NAV_ITEMS / `services/aiService.ts` 为准。

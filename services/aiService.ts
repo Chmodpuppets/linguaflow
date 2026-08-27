@@ -5,7 +5,7 @@ import { getAIConfig, AIConfig, TaskCategory, TaskTier, DEFAULT_TASK_ROUTES } fr
 
 // --- Qwen (DashScope) + OpenRouter configuration ---
 // Primary LLM provider: Alibaba Cloud DashScope "Qwen" via its OpenAI-compatible
-// chat completions endpoint. TTS uses sambert-zhide-v1; STT uses paraformer-v2.
+// chat completions endpoint. TTS uses qwen3-tts-flash (multilingual); STT uses paraformer-v2.
 // When Qwen's quota/rate-limit is exhausted, requests fall back to OpenRouter.
 const QWEN_BASE_URL =
   process.env.QWEN_BASE_URL || "https://dashscope.aliyuncs.com/compatible-mode/v1";
@@ -1222,9 +1222,9 @@ export const generateSentenceWords = async (
   }
 };
 
-// --- Text-to-Speech (Qwen sambert-zhide-v1 + Web Speech fallback) ---
-// sambert-zhide-v1 is a Chinese voice served by DashScope. For Chinese content we
-// stream it from Qwen; for other languages (or if the cloud call fails) we fall
+// --- Text-to-Speech (Qwen qwen3-tts-flash, multilingual + Web Speech fallback) ---
+// qwen3-tts-flash is a single multilingual model covering zh/en/ja/ko/ru/etc.
+// We stream it from Qwen; for any language (or if the cloud call fails) we fall
 // back to the browser's built-in SpeechSynthesis (keyless, multilingual).
 const SPEECH_LANG_MAP: Record<string, string> = {
   English: "en-US",
