@@ -9,7 +9,7 @@ export interface GuidedTemplate {
   register?: WritingRegister; // 语体/口气（可选，缺省按 CEFR 等级默认）
 }
 
-// 按语言 × 等级维护的句型模板库。结构通用可扩展，新增语言只需往此处加条目。
+// 按语言 × 等级维护的句型模板库。结构通用可扩展，当前覆盖 11 种支持语言。
 export const GUIDED_TEMPLATES: Partial<Record<Language, Partial<Record<CEFRLevel, GuidedTemplate[]>>>> = {
   [Language.Japanese]: {
     [CEFRLevel.A1]: [
@@ -119,6 +119,142 @@ export const GUIDED_TEMPLATES: Partial<Record<Language, Partial<Record<CEFRLevel
       { id: 'ko-b2-1', template: '어떤 사람들은 ___라고 생각하지만, 저는 ___라고 주장하고 싶어요.', hint: '对立观点 / 你的论点（如 돈이 행복을 산다 钱能买幸福 / 그렇지 않다 并非如此）', answerExample: '돈이 행복을 산다' },
       { id: 'ko-b2-2', template: '___에 대한 문제는 ___에 대해 상당한 논쟁을 불러일으켰어요.', hint: '议题 / 争议点（如 AI / 일자리에 미치는 영향 对就业的影响）', answerExample: 'AI' },
       { id: 'ko-b2-3', template: '___은/는 ___할 뿐만 아니라, ___도 해요.', hint: '事物 / 附加影响（如 이 앱 这个应用 / 시간을 절약해요 节省时间 / 집중력도 높여요 也提高专注力）', answerExample: '이 앱' },
+    ],
+  },
+  [Language.Spanish]: {
+    [CEFRLevel.A1]: [
+      { id: 'es-a1-1', template: 'Soy ___ .', hint: '填你的职业（如 un estudiante 学生 / un profesor 老师）', answerExample: 'un estudiante' },
+      { id: 'es-a1-2', template: 'Me gusta ___ .', hint: '填你喜欢的事物（如 la música 音乐 / los perros 狗）', answerExample: 'la música' },
+      { id: 'es-a1-3', template: 'Este es mi ___ .', hint: '填一件物品（如 libro 书 / teléfono 手机）', answerExample: 'libro' },
+      { id: 'es-a1-4', template: 'Desayuno ___ .', hint: '填早餐食物（如 pan 面包 / huevos 鸡蛋）', answerExample: 'pan' },
+      { id: 'es-a1-5', template: 'Me llamo ___ .', hint: '填你的名字', answerExample: 'Ana' },
+      { id: 'es-a1-6', template: 'Soy de ___ .', hint: '填你的国家（如 China 中国 / España 西班牙）', answerExample: 'China' },
+    ],
+    [CEFRLevel.A2]: [
+      { id: 'es-a2-1', template: 'Ayer ___ con ___ .', hint: '前填做的事（过去时），后填人（如 fui al cine 去了电影院 / mi amigo 我朋友）', answerExample: 'fui al cine' },
+      { id: 'es-a2-2', template: 'Mi ___ favorito/a es ___ porque ___ .', hint: '类别 / 事物 / 原因（如 comida 食物 / la pizza / es deliciosa 好吃）', answerExample: 'comida' },
+      { id: 'es-a2-3', template: 'Normalmente ___ por la mañana, pero hoy ___ .', hint: '日常 / 今天不同（如 desayuno a las ocho 八点吃早餐 / desayuné tarde 吃得晚）', answerExample: 'desayuno a las ocho' },
+      { id: 'es-a2-4', template: 'Si tengo tiempo, ___ .', hint: '填计划（如 visitaré a mi abuela 会去看奶奶）', answerExample: 'visitaré a mi abuela' },
+      { id: 'es-a2-5', template: 'Creo que ___ es ___ .', hint: '事物 / 评价（如 este libro 这本书 / interesante 有趣）', answerExample: 'este libro' },
+    ],
+  },
+  [Language.French]: {
+    [CEFRLevel.A1]: [
+      { id: 'fr-a1-1', template: 'Je suis ___ .', hint: '填你的职业（如 un étudiant 学生 / un professeur 老师）', answerExample: 'un étudiant' },
+      { id: 'fr-a1-2', template: "J'aime ___ .", hint: '填你喜欢的事物（如 la musique 音乐 / les chiens 狗）', answerExample: 'la musique' },
+      { id: 'fr-a1-3', template: 'Ceci est mon ___ .', hint: '填一件物品（如 livre 书 / téléphone 手机）', answerExample: 'livre' },
+      { id: 'fr-a1-4', template: 'Je mange ___ au petit-déjeuner.', hint: '填早餐食物（如 du pain 面包 / des œufs 鸡蛋）', answerExample: 'du pain' },
+      { id: 'fr-a1-5', template: "Je m'appelle ___ .", hint: '填你的名字', answerExample: 'Marie' },
+      { id: 'fr-a1-6', template: 'Je viens de ___ .', hint: '填你的国家（如 Chine 中国 / France 法国）', answerExample: 'Chine' },
+    ],
+    [CEFRLevel.A2]: [
+      { id: 'fr-a2-1', template: "Hier, j'ai ___ avec ___ .", hint: '前填做的事（过去时），后填人（如 vu un film 看了电影 / mon ami 我朋友）', answerExample: 'vu un film' },
+      { id: 'fr-a2-2', template: 'Mon/Ma ___ préféré(e) est ___ parce que ___ .', hint: "类别 / 事物 / 原因（如 nourriture 食物 / la pizza / c'est délicieux 好吃）", answerExample: 'nourriture' },
+      { id: 'fr-a2-3', template: "D'habitude, je ___ le matin, mais aujourd'hui je ___ .", hint: '日常 / 今天不同（如 prends le petit-déjeuner à huit heures 八点吃早餐 / ai pris mon petit-déjeuner tard 吃得晚）', answerExample: 'prends le petit-déjeuner à huit heures' },
+      { id: 'fr-a2-4', template: "Si j'ai le temps, je ___ .", hint: '填计划（如 rendrai visite à ma grand-mère 会去看奶奶）', answerExample: 'rendrai visite à ma grand-mère' },
+      { id: 'fr-a2-5', template: 'Je pense que ___ est ___ .', hint: '事物 / 评价（如 ce livre 这本书 / intéressant 有趣）', answerExample: 'ce livre' },
+    ],
+  },
+  [Language.German]: {
+    [CEFRLevel.A1]: [
+      { id: 'de-a1-1', template: 'Ich bin ___ .', hint: '填你的职业（如 ein Student 学生 / ein Lehrer 老师）', answerExample: 'ein Student' },
+      { id: 'de-a1-2', template: 'Ich mag ___ .', hint: '填你喜欢的事物（如 Musik 音乐 / Hunde 狗）', answerExample: 'Musik' },
+      { id: 'de-a1-3', template: 'Das ist mein/eine ___ .', hint: '填一件物品（如 Buch 书 / Handy 手机）', answerExample: 'Buch' },
+      { id: 'de-a1-4', template: 'Zum Frühstück esse ich ___ .', hint: '填早餐食物（如 Brot 面包 / Eier 鸡蛋）', answerExample: 'Brot' },
+      { id: 'de-a1-5', template: 'Ich heiße ___ .', hint: '填你的名字', answerExample: 'Anna' },
+      { id: 'de-a1-6', template: 'Ich komme aus ___ .', hint: '填你的国家（如 China 中国 / Deutschland 德国）', answerExample: 'China' },
+    ],
+    [CEFRLevel.A2]: [
+      { id: 'de-a2-1', template: 'Gestern habe ich ___ mit ___ .', hint: '前填做的事，后填人（如 einen Film gesehen 看了电影 / meinem Freund 我朋友）', answerExample: 'einen Film gesehen' },
+      { id: 'de-a2-2', template: 'Mein/eine Lieblings-___ ist ___ , weil ___ .', hint: '类别 / 事物 / 原因（如 Speise 食物 / Pizza / sie lecker ist 好吃）', answerExample: 'Speise' },
+      { id: 'de-a2-3', template: 'Normalerweise ___ ich am Morgen, aber heute ___ ich ___ .', hint: '日常 / 今天不同（如 frühstücke 吃早餐 / habe / spät gefrühstückt 吃得晚）', answerExample: 'frühstücke' },
+      { id: 'de-a2-4', template: 'Wenn ich Zeit habe, werde ich ___ .', hint: '填计划（如 meine Großmutter besuchen 去看奶奶）', answerExample: 'meine Großmutter besuchen' },
+      { id: 'de-a2-5', template: 'Ich finde, ___ ist ___ .', hint: '事物 / 评价（如 dieses Buch 这本书 / interessant 有趣）', answerExample: 'dieses Buch' },
+    ],
+  },
+  [Language.Italian]: {
+    [CEFRLevel.A1]: [
+      { id: 'it-a1-1', template: 'Sono ___ .', hint: '填你的职业（如 uno studente 学生 / un insegnante 老师）', answerExample: 'uno studente' },
+      { id: 'it-a1-2', template: 'Mi piace ___ .', hint: '填你喜欢的事物（如 la musica 音乐 / i cani 狗）', answerExample: 'la musica' },
+      { id: 'it-a1-3', template: 'Questo è il mio ___ .', hint: '填一件物品（如 libro 书 / telefono 手机）', answerExample: 'libro' },
+      { id: 'it-a1-4', template: 'A colazione mangio ___ .', hint: '填早餐食物（如 pane 面包 / uova 鸡蛋）', answerExample: 'pane' },
+      { id: 'it-a1-5', template: 'Mi chiamo ___ .', hint: '填你的名字', answerExample: 'Marco' },
+      { id: 'it-a1-6', template: 'Vengo da ___ .', hint: '填你的国家（如 Cina 中国 / Italia 意大利）', answerExample: 'Cina' },
+    ],
+    [CEFRLevel.A2]: [
+      { id: 'it-a2-1', template: 'Ieri ___ con ___ .', hint: '前填做的事（过去时），后填人（如 sono andato al cinema 去了电影院 / il mio amico 我朋友）', answerExample: 'sono andato al cinema' },
+      { id: 'it-a2-2', template: 'Il mio ___ preferito è ___ perché ___ .', hint: '类别 / 事物 / 原因（如 cibo 食物 / la pizza / è buona 好吃）', answerExample: 'cibo' },
+      { id: 'it-a2-3', template: 'Di solito ___ la mattina, ma oggi ___ .', hint: '日常 / 今天不同（如 faccio colazione alle otto 八点吃早餐 / ho fatto colazione tardi 吃得晚）', answerExample: 'faccio colazione alle otto' },
+      { id: 'it-a2-4', template: 'Se ho tempo, ___ .', hint: '填计划（如 andrò a trovare mia nonna 会去看奶奶）', answerExample: 'andrò a trovare mia nonna' },
+      { id: 'it-a2-5', template: 'Penso che ___ sia ___ .', hint: '事物 / 评价（如 questo libro 这本书 / interessante 有趣）', answerExample: 'questo libro' },
+    ],
+  },
+  [Language.Russian]: {
+    [CEFRLevel.A1]: [
+      { id: 'ru-a1-1', template: 'Я ___ .', hint: '填你的职业（如 студент 学生 / учитель 老师）', answerExample: 'студент' },
+      { id: 'ru-a1-2', template: 'Мне нравится ___ .', hint: '填你喜欢的事物（如 музыка 音乐 / собаки 狗）', answerExample: 'музыка' },
+      { id: 'ru-a1-3', template: 'Это мой/моя ___ .', hint: '填一件物品（如 книга 书 / телефон 手机）', answerExample: 'книга' },
+      { id: 'ru-a1-4', template: 'На завтрак я ем ___ .', hint: '填早餐食物（如 хлеб 面包 / яйца 鸡蛋）', answerExample: 'хлеб' },
+      { id: 'ru-a1-5', template: 'Меня зовут ___ .', hint: '填你的名字', answerExample: 'Анна' },
+      { id: 'ru-a1-6', template: 'Я из ___ .', hint: '填你的国家（如 Китая 中国 / России 俄罗斯）', answerExample: 'Китая' },
+    ],
+    [CEFRLevel.A2]: [
+      { id: 'ru-a2-1', template: 'Вчера я ___ с ___ .', hint: '前填做的事（过去时），后填人（如 смотрел кино 看了电影 / другом 朋友）', answerExample: 'смотрел кино' },
+      { id: 'ru-a2-2', template: 'Мой/Моя любимый/любимая ___ — это ___, потому что ___ .', hint: '类别 / 事物 / 原因（如 еда 食物 / пицца / она вкусная 好吃）', answerExample: 'еда' },
+      { id: 'ru-a2-3', template: 'Обычно утром я ___, но сегодня ___ .', hint: '日常 / 今天不同（如 завтракаю в восемь 八点吃早餐 / поздно позавтракал 吃得晚）', answerExample: 'завтракаю в восемь' },
+      { id: 'ru-a2-4', template: 'Если у меня будет время, я ___ .', hint: '填计划（如 поеду к бабушке 会去看奶奶）', answerExample: 'поеду к бабушке' },
+      { id: 'ru-a2-5', template: 'Я думаю, что ___ — это ___ .', hint: '事物 / 评价（如 эта книга 这本书 / интересная 有趣）', answerExample: 'эта книга' },
+    ],
+  },
+  [Language.Greek]: {
+    [CEFRLevel.A1]: [
+      { id: 'el-a1-1', template: 'Είμαι ___ .', hint: '填你的职业（如 φοιτητής 学生 / δάσκαλος 老师）', answerExample: 'φοιτητής' },
+      { id: 'el-a1-2', template: 'Μου αρέσει ___ .', hint: '填你喜欢的事物（如 η μουσική 音乐 / τα σκυλιά 狗）', answerExample: 'η μουσική' },
+      { id: 'el-a1-3', template: 'Αυτό είναι το ___ μου .', hint: '填一件物品（如 βιβλίο 书 / τηλέφωνο 手机）', answerExample: 'βιβλίο' },
+      { id: 'el-a1-4', template: 'Τρώω ___ για πρόγευμα.', hint: '填早餐食物（如 ψωμί 面包 / αυγά 鸡蛋）', answerExample: 'ψωμί' },
+      { id: 'el-a1-5', template: 'Με λένε ___ .', hint: '填你的名字', answerExample: 'Μαρία' },
+      { id: 'el-a1-6', template: 'Είμαι από ___ .', hint: '填你的国家（如 την Κίνα 中国 / την Ελλάδα 希腊）', answerExample: 'την Κίνα' },
+    ],
+    [CEFRLevel.A2]: [
+      { id: 'el-a2-1', template: 'Χθες ___ με ___ .', hint: '前填做的事（过去时），后填人（如 πήγα σινεμά 去了电影院 / τον φίλο μου 我朋友）', answerExample: 'πήγα σινεμά' },
+      { id: 'el-a2-2', template: 'Το αγαπημένο μου ___ είναι ___ γιατί ___ .', hint: '类别 / 事物 / 原因（如 φαγητό 食物 / η πίτσα / είναι νόστιμη 好吃）', answerExample: 'φαγητό' },
+      { id: 'el-a2-3', template: 'Συνήθως ___ το πρωί, αλλά σήμερα ___ .', hint: '日常 / 今天不同（如 παίρνω πρωινό στις οκτώ 八点吃早餐 / πήρα πρωινό αργά 吃得晚）', answerExample: 'παίρνω πρωινό στις οκτώ' },
+      { id: 'el-a2-4', template: 'Αν έχω χρόνο, θα ___ .', hint: '填计划（如 επισκεφτώ τη γιαγιά μου 会去看奶奶）', answerExample: 'επισκεφτώ τη γιαγιά μου' },
+      { id: 'el-a2-5', template: 'Νομίζω ότι το ___ είναι ___ .', hint: '事物 / 评价（如 αυτό το βιβλίο 这本书 / ενδιαφέρον 有趣）', answerExample: 'αυτό το βιβλίο' },
+    ],
+  },
+  [Language.Arabic]: {
+    [CEFRLevel.A1]: [
+      { id: 'ar-a1-1', template: 'أنا ___ .', hint: '填你的职业（如 طالب 学生 / معلم 老师）', answerExample: 'طالب' },
+      { id: 'ar-a1-2', template: 'أحب ___ .', hint: '填你喜欢的事物（如 الموسيقى 音乐 / الكلاب 狗）', answerExample: 'الموسيقى' },
+      { id: 'ar-a1-3', template: 'هذا ___ .', hint: '填一件物品（如 كتابي 我的书 / هاتفي 我的手机）', answerExample: 'كتابي' },
+      { id: 'ar-a1-4', template: 'أتناول ___ على الفطور.', hint: '填早餐食物（如 الخبز 面包 / البيض 鸡蛋）', answerExample: 'الخبز' },
+      { id: 'ar-a1-5', template: 'اسمي ___ .', hint: '填你的名字', answerExample: 'فاطمة' },
+      { id: 'ar-a1-6', template: 'أنا من ___ .', hint: '填你的国家（如 الصين 中国 / مصر 埃及）', answerExample: 'الصين' },
+    ],
+    [CEFRLevel.A2]: [
+      { id: 'ar-a2-1', template: 'أمس ___ مع ___ .', hint: '前填做的事（过去时），后填人（如 شاهدت فيلمًا 看了电影 / صديقي 我朋友）', answerExample: 'شاهدت فيلمًا' },
+      { id: 'ar-a2-2', template: '___ المفضل لدي هو ___ لأن ___ .', hint: '类别 / 事物 / 原因（如 الطعام 食物 / البيتزا / إنه لذيذ 好吃）', answerExample: 'الطعام' },
+      { id: 'ar-a2-3', template: 'عادةً ___ في الصباح، لكن اليوم ___ .', hint: '日常 / 今天不同（如 آخذ الفطور في الثامنة 八点吃早餐 / أخذت الفطور متأخرًا 吃得晚）', answerExample: 'آخذ الفطور في الثامنة' },
+      { id: 'ar-a2-4', template: 'إذا كان لدي وقت، سأ___ .', hint: '填计划（如 أزور جدتي 会去看奶奶）', answerExample: 'أزور جدتي' },
+      { id: 'ar-a2-5', template: 'أعتقد أن ___ ___ .', hint: '事物 / 评价（如 هذا الكتاب 这本书 / ممتع 有趣）', answerExample: 'هذا الكتاب' },
+    ],
+  },
+  [Language.Chinese]: {
+    [CEFRLevel.A1]: [
+      { id: 'zh-a1-1', template: '我是___。', hint: '填你的职业（如 学生 / 老师）', answerExample: '学生' },
+      { id: 'zh-a1-2', template: '我喜欢___。', hint: '填你喜欢的事物（如 音乐 / 小狗）', answerExample: '音乐' },
+      { id: 'zh-a1-3', template: '这是我的___。', hint: '填一件物品（如 书 / 手机）', answerExample: '书' },
+      { id: 'zh-a1-4', template: '我早餐吃___。', hint: '填早餐食物（如 面包 / 鸡蛋）', answerExample: '面包' },
+      { id: 'zh-a1-5', template: '我叫___。', hint: '填你的名字', answerExample: '小明' },
+      { id: 'zh-a1-6', template: '我来自___。', hint: '填你的国家（如 中国 / 美国）', answerExample: '中国' },
+    ],
+    [CEFRLevel.A2]: [
+      { id: 'zh-a2-1', template: '昨天，我和___一起___。', hint: '前填人，后填做的事（如 朋友 / 看电影）', answerExample: '朋友' },
+      { id: 'zh-a2-2', template: '我最喜欢的___是___，因为___。', hint: '类别 / 事物 / 原因（如 食物 / 披萨 / 好吃）', answerExample: '食物' },
+      { id: 'zh-a2-3', template: '我通常早上___，但今天我___。', hint: '日常 / 今天不同（如 八点吃早餐 / 吃得晚）', answerExample: '八点吃早餐' },
+      { id: 'zh-a2-4', template: '如果有时间，我会___。', hint: '填计划（如 去看奶奶）', answerExample: '去看奶奶' },
+      { id: 'zh-a2-5', template: '我觉得___很___。', hint: '事物 / 评价（如 这本书 / 有趣）', answerExample: '这本书' },
     ],
   },
 };

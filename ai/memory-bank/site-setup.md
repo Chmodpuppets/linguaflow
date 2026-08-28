@@ -43,10 +43,11 @@ LinguaFlow 是一套以「输出驱动 (Mastery via Output)」为核心的多语
 
 ## 7. 待立项候选（⚠️ 提案，非已确认需求）
 以下来自 README「已知限制」与明显缺口，**尚未批准为范围**。任何一项启动前须先补全本文件第 2/3 节并建任务。
-- [ ] 公网 STT 稳定性：可选 CORS 代理开关（env 切换）。（tasklist Task 3）
+- [x] 公网 STT 稳定性：可选 CORS 代理开关 — **已否决 · 不做**：录音转写 API 路径已回退为本地回放，根据产品决策**不恢复**，Task 3 关闭。（tasklist Task 3）
 - [ ] 非中文 TTS 接入 Qwen CosyVoice / Qwen-Audio-TTS。（tasklist Task 4；注：`qwen3-tts-flash` 已单模型覆盖多语种，此需求已弱化，可评估是否仍需独立开关）
 - My Profile 整体数据导出 / 导入（账户级一键备份）—— **已立项 · 已完成**：localStorage 全量键 + 书架（IndexedDB 书籍正文）已落地（storageService.exportAllData/importAllData），歌曲音频二进制为已知范围外（体积大、可重新导入源文件）。（tasklist Task 2）
-- Playwright 截图回归脚手架 —— **已立项 · 进行中**：`qa/capture.mjs` + `qa-playwright-capture.sh`，点侧栏中文标签切换 7 个代表视图截图到 `public/qa-screenshots`（需 dev server 已起，且用 127.0.0.1 避开 localhost IPv6）。（tasklist Task 5）
+- Playwright 截图回归脚手架 —— **已立项 · 已完成**：`qa/capture.mjs` + `qa-playwright-capture.sh`，点侧栏中文标签切换 7 个代表视图截图到 `public/qa-screenshots`（已实跑 7/7 验证通过）。（tasklist Task 5）
+- 写作流水线（作文 + 引导写作）全语言支持 —— **已立项 · 进行中**：补齐 11 种语言的作文大纲标题本地化 + 引导写作 A1/A2 模板，开放给所有支持语言，取消 ja/en/ko 门控；考试语言门控保持 IELTS/TOEFL→EN、JLPT→JA、TOPIK→KO、DELE→ES、缺考回退 CEFR。
 - [ ] 跨设备同步（需重新评估"无后端"原则）。
 - [ ] UI 自身国际化（当前 UI 文案以中文为主）。
 - [ ] 更完整的 AI 等级测评（AssessmentView 扩展）。
@@ -60,4 +61,4 @@ LinguaFlow 是一套以「输出驱动 (Mastery via Output)」为核心的多语
 - 图标：lucide-react
 - 状态 / 存储：localStorage（`services/storageService.ts`）
 - AI：`services/aiService.ts`（统一封装）
-- 测试：可选 Playwright 截图回归（tasklist Task 5，未做）
+- 测试：Playwright 截图回归脚手架已落地（tasklist Task 5 已完成）

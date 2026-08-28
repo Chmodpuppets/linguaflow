@@ -9,7 +9,7 @@
 - 实际已交付特性（超出原基线，已入档 site-setup 第 2/7 节）：SongLab 歌曲跟打、个人错误模式引擎 + 每日产出飞轮、暗夜霓虹 UI 重设计（Wave 0–4）、XP 进度条 `getLevelInfo` 统一修复、Gemini 迁出（无 geminiService）、侧栏两层折叠、录音转写回退本地回放、Books 阅读器（EPUB/PDF + IndexedDB）、TypeLit 打字训练（Literata 衬线）、许可证切换 CC BY-NC 4.0、README 拆分 docs/ + 社群扫码、release.sh 发版脚本。
 - 代码实际模块数：**20 导航模块 / 11 语言**（`constants.tsx` NAV_ITEMS），与 `site-setup.md` 已同步。
 - 版本状态：**v0.1.0**（2026-08-26，Books + TypeLit 功能里程碑）、**v0.1.1**（2026-08-26，LICENSE + README 拆分 + release 脚本）均已发布，工作树与 origin/main 同步（ahead/behind 0）。
-- Task 2 已关闭（账户级备份：localStorage 全量 + 书架已在代码落地并通过 tsc/build 验证，歌曲音频为范围外）；Task 5 进行中（Playwright 截图回归脚手架已立项，脚本+README 落地中）；Task 3/4/6 仍为待立项候选（STT 代理需先重开 STT 调用、TTS 扩展因 qwen3 多语种已弱化、Task 6 为流程样例）。
+- Task 2 已关闭（账户级备份：localStorage 全量 + 书架已在代码落地并通过 tsc/build 验证，歌曲音频为范围外）；Task 5 已关闭（Playwright 截图回归 7/7 验证通过）；Task 3 已否决（不恢复录音转写）；Task 6 仍为待立项候选（流程样例）。当前 **Task 7 进行中：写作流水线（作文 + 引导写作）全语言支持**。
 
 ## 开发任务
 
@@ -44,14 +44,11 @@
 **文件**：components/ProfileView.tsx, services/storageService.ts（exportAllData / importAllData）
 **参考**：site-setup.md 第 7 节
 
-### [ ] Task 3: STT CORS 代理开关
-**描述**：在 `.env` 增加可选 `DASHSCOPE_PROXY_URL`，aiService 在有值时走代理转发 STT 请求。
-**验收标准**：
-- 留空时行为不变（直连）；
-- 填入时 STT 请求经代理且公网可用；
-- README 补充代理说明。
-**文件**：services/aiService.ts, .env.example, README.md
-**参考**：site-setup.md 第 7 节候选[1]；README Q2
+### [x] Task 3: STT CORS 代理开关（已否决 · 不做）
+**描述**：原计划在 `.env` 增加可选 `DASHSCOPE_PROXY_URL`，让 aiService 走代理转发 STT 请求。因录音转写 API 路径已回退为本地回放，产品决策**不恢复录音转写**，Task 3 关闭。
+**范围外说明**：本地录音回放保留；公网 CORS 限制仍记录为已知限制，但不再通过代理开关解决。
+**文件**：无需改动
+**参考**：site-setup.md 第 7 节候选[1]；README Q2（已知限制段保留 STT CORS 说明）
 
 ### [ ] Task 4: 非中文 TTS 扩展（CosyVoice 开关）
 **描述**：在 aiService 增加可选 Qwen CosyVoice 音色，非中文也可走千问声音，env 开关。
@@ -70,6 +67,16 @@
 **实现要点**：路由为状态机（无 URL 路径），故靠点击侧栏标签切换；未登录先驱动 LoginView 向导（填昵称→下一步×2→开始学习）；部分侧栏分组默认折叠，需先展开 `aria-expanded` 分组头再点内部视图；浏览器需 `--no-proxy-server` 直连本地 dev server（本环境 HTTP_PROXY 会拦截 127.0.0.1）。
 **文件**：qa/capture.mjs, qa-playwright-capture.sh, README.md, .gitignore（忽略 public/qa-screenshots）
 **参考**：PM-METHODOLOGY.md 质量门
+
+### [ ] Task 7: 写作流水线全语言支持（进行中）
+**描述**：让作文流水线（CompositionStudio）与引导写作（GuidedWriting）对所有 11 种支持语言可用：补齐作文大纲段标题的 11 语言本地化、为当前未支持的 8 种语言添加 A1/A2 引导填空模板、取消 `WritingLanguageGate` 的 ja/en/ko 门控；考试语言门控保持 EN→IELTS/TOEFL、JA→JLPT、KO→TOPIK、ES→DELE、缺考回退 CEFR。
+**验收标准**：
+- 切换任意支持语言后进入「作文流水线」不再显示"仅支持部分语言"门控；
+- 作文编辑器切换体裁时，大纲段标题用目标语言（而非中文兜底）显示；
+- 引导写作在 A1/A2 等级有可用的目标语句型填空模板；
+- `tsc --noEmit --skipLibCheck` 与 `vite build` 通过；Playwright 回归脚本 7 视图截图仍正常。
+**文件**：data/growthTree.ts, data/guidedWriting.ts, components/WritingLanguageGate.tsx
+**参考**：site-setup.md 第 7 节
 
 ### [ ] Task 6: 走一遍真实特性 spec→task 样例
 **描述**：从 site-setup 第 7 节选一项，完整走一遍：补规格 → 拆 3–5 个子任务 → 写验收。

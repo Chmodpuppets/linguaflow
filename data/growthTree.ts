@@ -28,52 +28,104 @@ export const REGISTER_BY_LEVEL: Record<CEFRLevel, WritingRegister> = {
 // 作文（长文）提纲骨架：按「体裁 genre + 等级 level + 语言 lang」生成不同的篇章结构。
 // 每种体裁 4 段，标题按语言本地化（双语）。主体段目标词数随等级递增。
 // 导出供作文编辑器在「切换体裁」时复用（重建骨架并尽量保留已写内容）。
+// 作文（长文）提纲骨架：按「体裁 genre + 等级 level + 语言 lang」生成不同的篇章结构。
+// 每种体裁 4 段，标题按语言本地化，并保留英语作为参考标签。主体段目标词数随等级递增。
+// 导出供作文编辑器在「切换体裁」时复用（重建骨架并尽量保留已写内容）。
+
+const COMPOSITION_SECTION_TITLES: Record<Language, Record<CompositionGenre, string[]>> = {
+  [Language.English]: {
+    argumentative: ['Introduction', 'Body 1', 'Body 2', 'Conclusion'],
+    narrative: ['Opening', 'Development', 'Climax', 'Ending'],
+    expository: ['Introduction', 'Feature 1', 'Feature 2', 'Summary'],
+    letter: ['Salutation', 'Body', 'Closing', 'Signature'],
+    story: ['Setting', 'Rising', 'Turn', 'Resolution'],
+  },
+  [Language.Spanish]: {
+    argumentative: ['Introducción', 'Cuerpo 1', 'Cuerpo 2', 'Conclusión'],
+    narrative: ['Inicio', 'Desarrollo', 'Clímax', 'Final'],
+    expository: ['Introducción', 'Característica 1', 'Característica 2', 'Resumen'],
+    letter: ['Saludo', 'Cuerpo', 'Despedida', 'Firma'],
+    story: ['Ambientación', 'Desarrollo', 'Giro', 'Resolución'],
+  },
+  [Language.French]: {
+    argumentative: ['Introduction', 'Partie 1', 'Partie 2', 'Conclusion'],
+    narrative: ['Début', 'Développement', 'Apogée', 'Fin'],
+    expository: ['Introduction', 'Aspect 1', 'Aspect 2', 'Résumé'],
+    letter: ['Salutation', 'Corps', 'Formule de politesse', 'Signature'],
+    story: ['Contexte', 'Montée', 'Tournant', 'Dénouement'],
+  },
+  [Language.German]: {
+    argumentative: ['Einleitung', 'Hauptteil 1', 'Hauptteil 2', 'Schluss'],
+    narrative: ['Anfang', 'Entwicklung', 'Höhepunkt', 'Ende'],
+    expository: ['Einleitung', 'Merkmal 1', 'Merkmal 2', 'Zusammenfassung'],
+    letter: ['Anrede', 'Hauptteil', 'Grußformel', 'Unterschrift'],
+    story: ['Setting', 'Steigerung', 'Wendung', 'Auflösung'],
+  },
+  [Language.Italian]: {
+    argumentative: ['Introduzione', 'Corpo 1', 'Corpo 2', 'Conclusione'],
+    narrative: ['Inizio', 'Sviluppo', 'Climax', 'Finale'],
+    expository: ['Introduzione', 'Caratteristica 1', 'Caratteristica 2', 'Riepilogo'],
+    letter: ['Intestazione', 'Corpo', 'Chiusura', 'Firma'],
+    story: ['Ambientazione', 'Sviluppo', 'Svolta', 'Risoluzione'],
+  },
+  [Language.Russian]: {
+    argumentative: ['Введение', 'Основная часть 1', 'Основная часть 2', 'Заключение'],
+    narrative: ['Вступление', 'Развитие', 'Кульминация', 'Концовка'],
+    expository: ['Введение', 'Черта 1', 'Черта 2', 'Итог'],
+    letter: ['Обращение', 'Основная часть', 'Заключительная фраза', 'Подпись'],
+    story: ['Завязка', 'Развитие', 'Переполюх', 'Развязка'],
+  },
+  [Language.Greek]: {
+    argumentative: ['Εισαγωγή', 'Σώμα 1', 'Σώμα 2', 'Συμπέρασμα'],
+    narrative: ['Έναρξη', 'Εξέλιξη', 'Κλιμάκωση', 'Τέλος'],
+    expository: ['Εισαγωγή', 'Χαρακτηριστικό 1', 'Χαρακτηριστικό 2', 'Περίληψη'],
+    letter: ['Χαιρετισμός', 'Σώμα', 'Κλείσιμο', 'Υπογραφή'],
+    story: ['Σκηνικό', 'Ένταση', 'Ανατροπή', 'Κατάληξη'],
+  },
+  [Language.Arabic]: {
+    argumentative: ['مقدمة', 'فقرة 1', 'فقرة 2', 'خاتمة'],
+    narrative: ['بداية', 'تطور', 'ذروة', 'نهاية'],
+    expository: ['مقدمة', 'سمة 1', 'سمة 2', 'ملخص'],
+    letter: ['تحية', 'متن', 'ختام', 'توقيع'],
+    story: ['إطار', 'تصاعد', 'تحول', 'حل'],
+  },
+  [Language.Japanese]: {
+    argumentative: ['導入', '本文1', '本文2', '結論'],
+    narrative: ['導入', '展開', 'クライマックス', '結末'],
+    expository: ['導入', '特徴1', '特徴2', 'まとめ'],
+    letter: ['拝啓', '本文', '結びの挨拶', '署名'],
+    story: ['設定', '導入', '転換', '結末'],
+  },
+  [Language.Korean]: {
+    argumentative: ['서론', '본문1', '본문2', '결론'],
+    narrative: ['시작', '전개', '절정', '결말'],
+    expository: ['서론', '특징1', '특징2', '요약'],
+    letter: ['머리말', '본문', '맺음인사', '서명'],
+    story: ['배경', '전개', '전환', '결말'],
+  },
+  [Language.Chinese]: {
+    argumentative: ['引言', '主体段1', '主体段2', '结论'],
+    narrative: ['开头', '经过', '高潮', '结尾'],
+    expository: ['引入', '特点1', '特点2', '总结'],
+    letter: ['称呼', '正文', '结尾敬语', '署名'],
+    story: ['背景', '起', '转', '合'],
+  },
+};
+
 export function buildCompositionSections(
   level: CEFRLevel,
   genre: CompositionGenre = 'argumentative',
   lang: Language = Language.English
 ): CompositionSection[] {
   const body = level === CEFRLevel.B1 ? 30 : level === CEFRLevel.B2 ? 50 : 70;
-  // 各段标题（英语 + 本地化前缀）
-  const titles: Record<CompositionGenre, { en: string; local: string }[]> = {
-    argumentative: [
-      { en: 'Introduction', local: lang === Language.Japanese ? '導入' : lang === Language.Korean ? '서론' : '引言' },
-      { en: 'Body 1 — 论点与论据', local: lang === Language.Japanese ? '本文1 — 主張と根拠' : lang === Language.Korean ? '본문1 — 주장과 근거' : '主体段1 — 论点与论据' },
-      { en: 'Body 2 — 论点与论据', local: lang === Language.Japanese ? '本文2 — 主張と根拠' : lang === Language.Korean ? '본문2 — 주장과 근거' : '主体段2 — 论点与论据' },
-      { en: 'Conclusion', local: lang === Language.Japanese ? '結論' : lang === Language.Korean ? '결론' : '结论' },
-    ],
-    narrative: [
-      { en: 'Opening — 时间/背景', local: lang === Language.Japanese ? '導入 — 背景' : lang === Language.Korean ? '서론 — 배경' : '开头 — 时间/背景' },
-      { en: 'Development — 事件发展', local: lang === Language.Japanese ? '展開 — 出来事' : lang === Language.Korean ? '전개 — 사건' : '经过 — 事件发展' },
-      { en: 'Climax — 转折/冲突', local: lang === Language.Japanese ? 'クライマックス — 転換' : lang === Language.Korean ? '절정 — 전환' : '高潮 — 转折/冲突' },
-      { en: 'Ending — 感受/启发', local: lang === Language.Japanese ? '結末 — 感想' : lang === Language.Korean ? '결말 — 소감' : '结尾 — 感受/启发' },
-    ],
-    expository: [
-      { en: 'Introduction — 说明对象', local: lang === Language.Japanese ? '導入 — 説明対象' : lang === Language.Korean ? '서론 — 설명 대상' : '引入 — 说明对象' },
-      { en: 'Feature 1', local: lang === Language.Japanese ? '特徴1' : lang === Language.Korean ? '특징1' : '特点1' },
-      { en: 'Feature 2', local: lang === Language.Japanese ? '特徴2' : lang === Language.Korean ? '특징2' : '特点2' },
-      { en: 'Summary', local: lang === Language.Japanese ? 'まとめ' : lang === Language.Korean ? '요약' : '总结' },
-    ],
-    letter: [
-      { en: 'Salutation', local: lang === Language.Japanese ? '拝啓' : lang === Language.Korean ? '머리말' : '称呼' },
-      { en: 'Body', local: lang === Language.Japanese ? '本文' : lang === Language.Korean ? '본문' : '正文' },
-      { en: 'Closing', local: lang === Language.Japanese ? '結びの挨拶' : lang === Language.Korean ? '맺음인사' : '结尾敬语' },
-      { en: 'Signature', local: lang === Language.Japanese ? '署名' : lang === Language.Korean ? '서명' : '署名' },
-    ],
-    story: [
-      { en: 'Setting — 背景', local: lang === Language.Japanese ? '設定 — 背景' : lang === Language.Korean ? '배경 — 설정' : '背景 — 设定' },
-      { en: 'Rising — 铺垫', local: lang === Language.Japanese ? '導入 — 伏線' : lang === Language.Korean ? '전개 — 복선' : '起 — 铺垫' },
-      { en: 'Turn — 转折', local: lang === Language.Japanese ? '転換 — 展開' : lang === Language.Korean ? '전환 — 전개' : '转 — 转折' },
-      { en: 'Resolution — 结局', local: lang === Language.Japanese ? '結末 — 解決' : lang === Language.Korean ? '결말 — 해결' : '合 — 结局' },
-    ],
-  };
-  const set = titles[genre] ?? titles.argumentative;
+  const locals = COMPOSITION_SECTION_TITLES[lang]?.[genre] ?? COMPOSITION_SECTION_TITLES[Language.English][genre];
+  const enRefs = COMPOSITION_SECTION_TITLES[Language.English][genre];
   // 各段目标词数（书信首尾较短）
   const words: number[] =
     genre === 'letter' ? [8, Math.round(body * 1.4), 8, 4] : [30, body, body, 30];
-  return set.map((t, i) => ({
+  return locals.map((local, i) => ({
     id: `${genre}-s${i}`,
-    title: `${t.local} ${t.en}`,
+    title: `${local} ${enRefs[i]}`,
     targetWords: words[i],
     content: '',
   }));
@@ -707,7 +759,9 @@ function buildSpineNodes(lang: Language, level: CEFRLevel, now: number): Writing
 }
 
 export function createDefaultGrowthTree(lang: Language, level: CEFRLevel): WritingNode[] {
-  const themes = TREE_THEMES[lang] ?? TREE_THEMES[Language.Japanese]!;
+  // 写作树主题：已完整本地化的语言（日/英/韩）直接取用；其余语言先回退到英语主题树
+  // （标题为中文、scaffold 为英语），保证所有支持语言都能进入流水线。
+  const themes = TREE_THEMES[lang] ?? TREE_THEMES[Language.English]!;
   const now = Date.now();
   const levelRank = CEFR_RANK[level] ?? 1;
   const nodes: WritingNode[] = [];
@@ -771,11 +825,13 @@ export function createDefaultGrowthTree(lang: Language, level: CEFRLevel): Writi
 
     // 作文节点（长文）：所有语言均挂作文（B1+ 解锁），按主题体裁生成提纲骨架。
     // 体裁来自 THEME_GENRE（按主题后缀匹配，语言无关）；默认考试按语言门控
-    // （EN→IELTS / JA→JLPT / KO→TOPIK），与 analyzeWriting 的考试评分体系一致。
+    // （EN→IELTS / ES→DELE / JA→JLPT / KO→TOPIK），其余语言缺考回退 CEFR，
+    // 与 analyzeWriting / EXAM_SCORECARD 的考试评分体系一致。
     const themeKey = th.id.split('-').slice(1).join('-'); // en-intro -> intro / theme-intro -> intro
     const genre = THEME_GENRE[themeKey] ?? 'argumentative';
     const defaultExam: TargetExam =
       lang === Language.English ? ('IELTS' as TargetExam)
+      : lang === Language.Spanish ? ('DELE' as TargetExam)
       : lang === Language.Japanese ? ('JLPT' as TargetExam)
       : lang === Language.Korean ? ('TOPIK' as TargetExam)
       : ('none' as TargetExam);

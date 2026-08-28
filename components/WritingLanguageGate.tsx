@@ -5,8 +5,8 @@ import { SUPPORTED_LANGUAGES } from '../constants';
 import { ensureLanguageProgress } from '../services/storageService';
 import { Globe, CheckCircle2, Clock, ArrowRight, PenLine } from 'lucide-react';
 
-// 写作功能目前支持的语言（写作树 + 引导练习 scaffold 模板）
-export const WRITING_SUPPORTED_LANGUAGES: Language[] = [Language.Japanese, Language.English, Language.Korean];
+// 写作功能支持的语言（写作树 + 引导练习 scaffold 模板）
+export const WRITING_SUPPORTED_LANGUAGES: Language[] = SUPPORTED_LANGUAGES.map((l) => l.id);
 
 interface WritingLanguageGateProps {
   user: UserProfile;
