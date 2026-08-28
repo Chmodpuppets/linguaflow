@@ -9,7 +9,7 @@
 - 实际已交付特性（超出原基线，已入档 site-setup 第 2/7 节）：SongLab 歌曲跟打、个人错误模式引擎 + 每日产出飞轮、暗夜霓虹 UI 重设计（Wave 0–4）、XP 进度条 `getLevelInfo` 统一修复、Gemini 迁出（无 geminiService）、侧栏两层折叠、录音转写回退本地回放、Books 阅读器（EPUB/PDF + IndexedDB）、TypeLit 打字训练（Literata 衬线）、许可证切换 CC BY-NC 4.0、README 拆分 docs/ + 社群扫码、release.sh 发版脚本。
 - 代码实际模块数：**20 导航模块 / 11 语言**（`constants.tsx` NAV_ITEMS），与 `site-setup.md` 已同步。
 - 版本状态：**v0.1.0**（2026-08-26，Books + TypeLit 功能里程碑）、**v0.1.1**（2026-08-26，LICENSE + README 拆分 + release 脚本）均已发布，工作树与 origin/main 同步（ahead/behind 0）。
-- Task 2 已关闭（账户级备份：localStorage 全量 + 书架已在代码落地并通过 tsc/build 验证，歌曲音频为范围外）；Task 3–6 仍为待立项候选（STT 代理未做、TTS 扩展未做、Playwright 未做、Task 6 未做）。
+- Task 2 已关闭（账户级备份：localStorage 全量 + 书架已在代码落地并通过 tsc/build 验证，歌曲音频为范围外）；Task 5 进行中（Playwright 截图回归脚手架已立项，脚本+README 落地中）；Task 3/4/6 仍为待立项候选（STT 代理需先重开 STT 调用、TTS 扩展因 qwen3 多语种已弱化、Task 6 为流程样例）。
 
 ## 开发任务
 
@@ -62,12 +62,13 @@
 **文件**：services/aiService.ts, .env.example
 **参考**：site-setup.md 第 7 节候选[2]；README Q1
 
-### [ ] Task 5: Playwright 截图回归脚手架
-**描述**：加 `qa-playwright-capture.sh`，对 http://localhost:3011 跑关键页面截图到 public/qa-screenshots。
+### [x] Task 5: Playwright 截图回归脚手架（已完成）
+**描述**：加 `qa/capture.mjs` + `qa-playwright-capture.sh`，点侧栏中文标签切换 7 个代表视图截图到 public/qa-screenshots。
 **验收标准**：
-- 脚本可运行并产出 7 模式各 1 张截图；
-- README 写明用法。
-**文件**：qa-playwright-capture.sh, README.md（用法段）
+- 脚本可运行并产出 7 视图各 1 张截图（今日 / 剧情对话 / 写作树 / 作文流水线 / 错误模式 / 词汇 / 歌曲跟打）—— **已实跑验证 7/7 通过**；
+- README 写明用法（含 localhost→IPv6 坑，默认用 127.0.0.1）。
+**实现要点**：路由为状态机（无 URL 路径），故靠点击侧栏标签切换；未登录先驱动 LoginView 向导（填昵称→下一步×2→开始学习）；部分侧栏分组默认折叠，需先展开 `aria-expanded` 分组头再点内部视图；浏览器需 `--no-proxy-server` 直连本地 dev server（本环境 HTTP_PROXY 会拦截 127.0.0.1）。
+**文件**：qa/capture.mjs, qa-playwright-capture.sh, README.md, .gitignore（忽略 public/qa-screenshots）
 **参考**：PM-METHODOLOGY.md 质量门
 
 ### [ ] Task 6: 走一遍真实特性 spec→task 样例

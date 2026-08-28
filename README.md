@@ -70,6 +70,21 @@ npm run dev               # 打开 http://localhost:3011
 
 ---
 
+## 质量保证 / 截图回归
+
+`qa-playwright-capture.sh` 会对关键视图自动截图，便于版本间视觉回归。
+
+```bash
+npm run dev                       # 终端 A：起 dev server（默认 127.0.0.1:3011）
+bash qa-playwright-capture.sh     # 终端 B：截图 7 个代表视图
+```
+
+- 截图输出到 `public/qa-screenshots/<view>.png`（今日 / 剧情对话 / 写作树 / 作文流水线 / 错误模式 / 词汇 / 歌曲跟打）。
+- ⚠️ **localhost 坑**：macOS 上 `localhost` 常解析为 IPv6 `::1`，而 vite 只监听 IPv4，脚本默认改用 `127.0.0.1`；自行访问请同样用 `http://127.0.0.1:3011`。
+- 首次运行会按需安装 Playwright + Chromium（需联网下载浏览器，失败时按提示手动 `npx playwright install chromium`）。
+
+---
+
 ## 💬 加入学习搭子社群
 
 > 一个人学语言，最大的敌人是 **孤独**。

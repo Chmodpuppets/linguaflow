@@ -45,7 +45,8 @@ LinguaFlow 是一套以「输出驱动 (Mastery via Output)」为核心的多语
 以下来自 README「已知限制」与明显缺口，**尚未批准为范围**。任何一项启动前须先补全本文件第 2/3 节并建任务。
 - [ ] 公网 STT 稳定性：可选 CORS 代理开关（env 切换）。（tasklist Task 3）
 - [ ] 非中文 TTS 接入 Qwen CosyVoice / Qwen-Audio-TTS。（tasklist Task 4；注：`qwen3-tts-flash` 已单模型覆盖多语种，此需求已弱化，可评估是否仍需独立开关）
-- My Profile 整体数据导出 / 导入（账户级一键备份）—— **已立项 · 进行中**：localStorage 全量键 + 书架（IndexedDB 书籍正文）已落地；歌曲音频二进制为已知范围外（体积大、可重新导入源文件）。（tasklist Task 2）
+- My Profile 整体数据导出 / 导入（账户级一键备份）—— **已立项 · 已完成**：localStorage 全量键 + 书架（IndexedDB 书籍正文）已落地（storageService.exportAllData/importAllData），歌曲音频二进制为已知范围外（体积大、可重新导入源文件）。（tasklist Task 2）
+- Playwright 截图回归脚手架 —— **已立项 · 进行中**：`qa/capture.mjs` + `qa-playwright-capture.sh`，点侧栏中文标签切换 7 个代表视图截图到 `public/qa-screenshots`（需 dev server 已起，且用 127.0.0.1 避开 localhost IPv6）。（tasklist Task 5）
 - [ ] 跨设备同步（需重新评估"无后端"原则）。
 - [ ] UI 自身国际化（当前 UI 文案以中文为主）。
 - [ ] 更完整的 AI 等级测评（AssessmentView 扩展）。
