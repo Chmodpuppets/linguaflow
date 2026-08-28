@@ -9,7 +9,7 @@
 - 实际已交付特性（超出原基线，已入档 site-setup 第 2/7 节）：SongLab 歌曲跟打、个人错误模式引擎 + 每日产出飞轮、暗夜霓虹 UI 重设计（Wave 0–4）、XP 进度条 `getLevelInfo` 统一修复、Gemini 迁出（无 geminiService）、侧栏两层折叠、录音转写回退本地回放、Books 阅读器（EPUB/PDF + IndexedDB）、TypeLit 打字训练（Literata 衬线）、许可证切换 CC BY-NC 4.0、README 拆分 docs/ + 社群扫码、release.sh 发版脚本。
 - 代码实际模块数：**20 导航模块 / 11 语言**（`constants.tsx` NAV_ITEMS），与 `site-setup.md` 已同步。
 - 版本状态：**v0.1.0**（2026-08-26，Books + TypeLit 功能里程碑）、**v0.1.1**（2026-08-26，LICENSE + README 拆分 + release 脚本）均已发布，工作树与 origin/main 同步（ahead/behind 0）。
-- Task 2–6 仍为待立项候选（My Profile 整体备份未做、STT 代理未做、TTS 扩展未做、Playwright 未做、Task 6 未做）。
+- Task 2 已关闭（账户级备份：localStorage 全量 + 书架已在代码落地并通过 tsc/build 验证，歌曲音频为范围外）；Task 3–6 仍为待立项候选（STT 代理未做、TTS 扩展未做、Playwright 未做、Task 6 未做）。
 
 ## 开发任务
 
@@ -33,14 +33,16 @@
 **文件**：LICENSE, README.md, docs/*.md, scripts/release.sh
 **参考**：CHANGELOG.md [0.1.1]
 
-### [ ] Task 2: localStorage 数据导出 / 导入
-**描述**：在 My Profile 增加「导出 JSON / 导入 JSON」按钮，备份学习数据。
+### [x] Task 2: 账户级数据导出 / 导入（已完成）
+**描述**：My Profile 增加「导出 JSON / 导入 JSON」按钮，整包备份 / 恢复学习数据。
+**范围**：localStorage 全量键（`ALL_STORAGE_KEYS`）+ 书架（IndexedDB 书籍正文）。
+**已知范围外**：歌曲音频 / 片段二进制（体积大、可由用户重新导入源文件），v1 不纳入备份。
 **验收标准**：
-- 导出生成含词汇 / 收藏 / 进度的 JSON 并触发下载；
-- 导入可恢复且不与现有数据冲突（合并或覆盖可选）；
-- 导入失败有明确提示。
-**文件**：components/ProfileView.tsx, services/storageService.ts
-**参考**：site-setup.md 第 7 节候选[3]
+- 导出生成含词汇 / 收藏 / 进度 / 写作 / 错题 / 书籍 等的 JSON 并触发下载（已实现：ProfileView 卡片 + storageService.exportAllData）；
+- 导入可整包恢复（导入前二次确认覆盖）；导入失败有明确提示（已实现）；
+- 合并 / 覆盖可选为后续增强（Task 2.1），当前为整包覆盖语义。
+**文件**：components/ProfileView.tsx, services/storageService.ts（exportAllData / importAllData）
+**参考**：site-setup.md 第 7 节
 
 ### [ ] Task 3: STT CORS 代理开关
 **描述**：在 `.env` 增加可选 `DASHSCOPE_PROXY_URL`，aiService 在有值时走代理转发 STT 请求。

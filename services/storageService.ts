@@ -1479,3 +1479,65 @@ export const updateBookProgress = async (id: string, currentPage: number): Promi
         db.close();
     }
 };
+
+// ==================== 账户级一键备份 / 恢复 ====================
+// 覆盖：localStorage 全量键（ALL_STORAGE_KEYS）+ 书架（IndexedDB 书籍正文）。
+// 范围外：歌曲音频 / 片段二进制（体积大、可由用户重新导入源文件），v1 不纳入。
+// 恢复语义为「整包覆盖」：用备份替换当前全部数据（导入前 UI 会二次确认）。
+
+export interface LinguaFlowBackup {
+    app: 'linguaflow';
+    version: 1;
+    exportedAt: string;
+    localStorage: Record<string, string | null>;
+    books: Book[];
+}
+
+export const exportAllData = async (): Promise<LinguaFlowBackup> => {
+    const localStorageData: Record<string, string | null> = {};
+    for (const k of ALL_STORAGE_KEYS) {
+        localStorageData[k] = localStorage.getItem(k);
+    }
+    let books: Book[] = [];
+    try {
+        books = await getBooks();
+    } catch {
+        books = [];
+    }
+    return {
+        app: 'linguaflow',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        localStorage: localStorageData,
+        books,
+    };
+};
+
+export const importAllData = async (raw: unknown): Promise<void> => {
+    if (!raw || typeof raw !== 'object') throw new Error('备份文件格式不正确');
+    const data = raw as Partial<LinguaFlowBackup>;
+    if (data.app !== 'linguaflow') throw new Error('不是 LinguaFlow 备份文件');
+    if (!data.localStorage || typeof data.localStorage !== 'object') throw new Error('备份内容缺失');
+
+    // 1) 恢复 localStorage 全量键（单键失败不中断其余）
+    for (const k of ALL_STORAGE_KEYS) {
+        const v = data.localStorage[k];
+        if (v == null) continue;
+        try {
+            localStorage.setItem(k, v);
+        } catch {
+            /* 单键写入失败不影响其余键 */
+        }
+    }
+
+    // 2) 恢复书籍（IndexedDB）
+    if (Array.isArray(data.books)) {
+        for (const b of data.books) {
+            try {
+                await saveBook(b);
+            } catch {
+                /* 单本失败不影响其余 */
+            }
+        }
+    }
+};

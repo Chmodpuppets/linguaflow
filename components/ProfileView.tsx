@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState, useRef } from 'react';
 import { UserProfile, ActivityLog, Language, LanguageProgress, CEFRLevel, MentorPersona, TargetExam } from '../types';
-import { getLogs, ensureLanguageProgress, saveUser, getAIConfig, saveAIConfig, clearAllLearningData, AIConfig, getLevelInfo, ALL_STORAGE_KEYS, TaskCategory, TaskTier, TASK_CATEGORY_LABELS, DEFAULT_TASK_ROUTES } from '../services/storageService';
+import { getLogs, ensureLanguageProgress, saveUser, getAIConfig, saveAIConfig, clearAllLearningData, AIConfig, getLevelInfo, TaskCategory, TaskTier, TASK_CATEGORY_LABELS, DEFAULT_TASK_ROUTES, exportAllData, importAllData } from '../services/storageService';
 import { testModelConnection, GLM_ENV_API_KEY, TTS_VOICES, previewVoice } from '../services/aiService';
 import { Trophy, Flame, Calendar, Clock, PenTool, Type, Zap, TrendingUp, TrendingDown, Activity, Check, Globe, Settings, GraduationCap, ChevronDown, User, LogOut, Download, Upload, Database, Crown, AlertTriangle, Volume2, Cpu } from 'lucide-react';
 import { SUPPORTED_LANGUAGES, MENTOR_PERSONAS, TOPIC_PACKAGES } from '../constants';
@@ -244,38 +244,39 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
     setNewWeakPoint('');
   };
 
-  // --- Local backup / restore (Phase 3 云同步占位) ---
+  // --- 账户级备份 / 恢复（Phase 3 云同步占位）---
   const fileRef = useRef<HTMLInputElement>(null);
-  // 直接复用 storageService 的权威 key 集合，确保导出/导入不遗漏任何模块数据
-  const BACKUP_KEYS = ALL_STORAGE_KEYS;
 
-  const exportBackup = () => {
-    const data: Record<string, string | null> = {};
-    BACKUP_KEYS.forEach(k => { data[k] = localStorage.getItem(k); });
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `linguaflow-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const exportBackup = async () => {
+    try {
+      const data = await exportAllData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `linguaflow-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      alert(`导出失败：${e?.message || e}`);
+    }
   };
 
   const importBackup = (file: File) => {
+    if (!window.confirm('导入备份将覆盖当前全部本地数据（含书籍），确定继续？')) return;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       try {
         const data = JSON.parse(String(reader.result));
-        BACKUP_KEYS.forEach(k => {
-          if (data[k] != null) localStorage.setItem(k, data[k]);
-        });
+        await importAllData(data);
         const reloaded = localStorage.getItem('linguaflow_user');
         if (reloaded) onUpdateUser(JSON.parse(reloaded));
         alert('备份已导入，数据已恢复。');
-      } catch {
-        alert('导入失败：文件格式不正确。');
+      } catch (e: any) {
+        alert(`导入失败：${e?.message || e}`);
       }
     };
+    reader.onerror = () => alert('读取文件失败。');
     reader.readAsText(file);
   };
 
@@ -707,7 +708,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                   <Database size={20} className="text-neon-2" /> 数据备份与同步
                 </h3>
                 <p className="text-xs text-muted mb-4 leading-relaxed">
-                  LinguaFlow 默认<b className="text-white">纯本地</b>存储，隐私不出本机。导出备份可在换设备时恢复；云端同步（多端实时同步、无限存储）是计划中的增值功能。
+                  LinguaFlow 默认<b className="text-white">纯本地</b>存储，隐私不出本机。导出备份包含全部学习数据与书架书籍，换设备时可完整恢复（歌曲音频体积大、需重新导入源文件，暂不纳入备份）；云端同步是计划中的增值功能。
                 </p>
                 <div className="flex flex-col gap-2">
                   <button
