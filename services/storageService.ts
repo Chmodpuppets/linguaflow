@@ -2,6 +2,7 @@
 import { UserProfile, ActivityLog, Language, CEFRLevel, UserContent, LanguageProgress, WritingNode, VocabularyItem, DailyQuest, QuestKind, MentorPersona, AIMemory, ScriptItem, ScriptCardProgress, ErrorCard, WritingScoreRecord, TypingContent, ErrorPattern, ErrorPatternType, ERROR_PATTERN_LABELS, FlywheelStep, DailyFlywheel, SongPack, Book } from '../types';
 import { createDefaultGrowthTree, CEFR_RANK } from '../data/growthTree';
 import { getScriptPackForLanguage } from '../data/scriptPacks';
+import { appendCustomDirections } from './customDirectionService';
 
 const STORAGE_KEY_USER = 'linguaflow_user';
 const STORAGE_KEY_LOGS = 'linguaflow_logs';
@@ -29,6 +30,7 @@ export const ALL_STORAGE_KEYS: string[] = [
   'linguaflow_inkquest_listening', 'linguaflow_typing_library', 'linguaflow_error_patterns',
   'linguaflow_daily_flywheel', 'linguaflow_custom_script', 'linguaflow_custom_writing',
   'linguaflow_rpg_session', 'linguaflow_rpg_custom', 'linguaflow_song_packs', 'linguaflow_books',
+  'linguaflow_custom_directions',
 ];
 
 // --- Runtime AI model configuration (switcher in Settings -> 模型设置) ---
@@ -939,7 +941,9 @@ export const ensureGrowthTree = (lang: Language, level: CEFRLevel): WritingNode[
     const rootLang = existing.find((n) => n.type === 'root')?.language;
     // 无有效树 或 语言不匹配（切换语言）→ 生成对应语言的新成长树（按等级解锁）
     if (existing.length === 0 || !isGrowthFormat || rootLang !== lang) {
-        const tree = createDefaultGrowthTree(lang, level);
+        let tree = createDefaultGrowthTree(lang, level);
+        // 自定义写作方向（用户私人枝干）：种子不在默认树里，每次重建后重挂（按语言隔离）
+        tree = appendCustomDirections(tree, lang, level);
         saveWritingTree(tree);
         return tree;
     }
@@ -968,8 +972,10 @@ export const ensureGrowthTree = (lang: Language, level: CEFRLevel): WritingNode[
             unlocked,
         };
     });
-    saveWritingTree(merged);
-    return merged;
+    // 自定义写作方向：默认树里没有这些节点，合并后重挂（树里已有的保留用户进度，只补缺失）
+    const withCustom = appendCustomDirections(merged, lang, level);
+    saveWritingTree(withCustom);
+    return withCustom;
 };
 
 // --- Vocabulary ---

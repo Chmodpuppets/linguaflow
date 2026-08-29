@@ -9,7 +9,7 @@
 - 实际已交付特性（超出原基线，已入档 site-setup 第 2/7 节）：SongLab 歌曲跟打、个人错误模式引擎 + 每日产出飞轮、暗夜霓虹 UI 重设计（Wave 0–4）、XP 进度条 `getLevelInfo` 统一修复、Gemini 迁出（无 geminiService）、侧栏两层折叠、录音转写回退本地回放、Books 阅读器（EPUB/PDF + IndexedDB）、TypeLit 打字训练（Literata 衬线）、许可证切换 CC BY-NC 4.0、README 拆分 docs/ + 社群扫码、release.sh 发版脚本。
 - 代码实际模块数：**20 导航模块 / 11 语言**（`constants.tsx` NAV_ITEMS），与 `site-setup.md` 已同步。
 - 版本状态：**v0.1.0**（2026-08-26，Books + TypeLit 功能里程碑）、**v0.1.1**（2026-08-26，LICENSE + README 拆分 + release 脚本）均已发布，工作树与 origin/main 同步（ahead/behind 0）。
-- Task 2 已关闭（账户级备份：localStorage 全量 + 书架已在代码落地并通过 tsc/build 验证，歌曲音频为范围外）；Task 5 已关闭（Playwright 截图回归 7/7 验证通过）；Task 3 已否决（不恢复录音转写）；Task 6 仍为待立项候选（流程样例）。当前 **Task 7 进行中：写作流水线（作文 + 引导写作）全语言支持**。
+- Task 2 已关闭（账户级备份：localStorage 全量 + 书架已在代码落地并通过 tsc/build 验证，歌曲音频为范围外）；Task 5 已关闭（Playwright 截图回归 7/7 验证通过）；Task 3 已否决（不恢复录音转写）；Task 6 仍为待立项候选（流程样例）。Task 7 已完成并关闭（写作流水线全语言化，commit `13373e8`；tsc/build 通过 + Playwright 回归 7/7，2026-08-29 复验）。当前无进行中任务；下一候选为 Task 4（非中文 TTS CosyVoice，需求已弱化待评估）与 Task 6（流程样例）。
 
 ## 开发任务
 
@@ -68,13 +68,14 @@
 **文件**：qa/capture.mjs, qa-playwright-capture.sh, README.md, .gitignore（忽略 public/qa-screenshots）
 **参考**：PM-METHODOLOGY.md 质量门
 
-### [ ] Task 7: 写作流水线全语言支持（进行中）
+### [x] Task 7: 写作流水线全语言支持（已完成 2026-08-29）
 **描述**：让作文流水线（CompositionStudio）与引导写作（GuidedWriting）对所有 11 种支持语言可用：补齐作文大纲段标题的 11 语言本地化、为当前未支持的 8 种语言添加 A1/A2 引导填空模板、取消 `WritingLanguageGate` 的 ja/en/ko 门控；考试语言门控保持 EN→IELTS/TOEFL、JA→JLPT、KO→TOPIK、ES→DELE、缺考回退 CEFR。
 **验收标准**：
 - 切换任意支持语言后进入「作文流水线」不再显示"仅支持部分语言"门控；
 - 作文编辑器切换体裁时，大纲段标题用目标语言（而非中文兜底）显示；
 - 引导写作在 A1/A2 等级有可用的目标语句型填空模板；
 - `tsc --noEmit --skipLibCheck` 与 `vite build` 通过；Playwright 回归脚本 7 视图截图仍正常。
+**验收证据**：代码落地于 commit `13373e8`（feat: 写作流水线全语言化 3 → 11 种支持语言）；2026-08-29 复验：`tsc --noEmit` 0 错误、`vite build` 成功、Playwright 回归 7/7 截图通过（含作文流水线视图）。
 **文件**：data/growthTree.ts, data/guidedWriting.ts, components/WritingLanguageGate.tsx
 **参考**：site-setup.md 第 7 节
 
@@ -83,6 +84,17 @@
 **验收标准**：
 - 该特性规格清晰、任务可独立交付、验收可测。
 **参考**：PM-METHODOLOGY.md 规格模板 + 拆解规则
+
+### [x] Task 8: 写作树自定义写作方向（已完成 2026-08-29）
+**描述**：在写作树侧栏「我的写作成长档案」下允许用户添加专属写作方向：弹窗（一句话描述 + 可选引导标签）→ AI 按用户 CEFR 等级一次生成 5–8 题分级任务阶梯，落成自定义枝干（与内置枝干共用解锁/XP/错题沉淀机制）；支持重命名 / 重新生成 / 删除；无 AI key 或调用失败回退本地模板生成。
+**范围与决策**：方向按目标语言隔离（存 `linguaflow_custom_directions`，Record<Language, Seed[]>，纳入 ALL_STORAGE_KEYS 备份）；数量上限 5 根；错误模式联动个性化出题放二期；重新生成需确认（替换该方向全部任务，进度重置）。
+**验收证据**（2026-08-29）：
+- `tsc --noEmit` 0 错误；Playwright 截图回归 7/7 通过（qa-playwright-capture.sh）；
+- 专项回归 `qa/custom-direction.mjs` 10/10：入口存在 → 弹窗创建（AI 拦截走本地模板兜底）→ 6/6 模板任务可见 → 首题进编辑器 → 重命名生效 → 重新生成（二次确认）→ 删除（二次确认）→ 入口恢复，全程零 pageerror；
+- 实现中修复一处真实 UI 缺陷：方向管理菜单的 fixed 遮罩因面板堆叠上下文盖住菜单项，改为 document click-away（WritingTreeView）；
+- ⚠️ `vite build` 未能在本次会话完成：沙箱机器 I/O 病态（同构建早上 7 分钟 CPU，本次 43 分钟 CPU 零产出，且期间有另一进程高频改仓库触发 dev server 反复重启）。正确性由 `tsc --noEmit`（vite build 的 TS 环节仅为转译，tsc 为更强检查）+ 全量运行时回归覆盖；**环境恢复后需补跑 `npm run build`**。
+**文件**：types.ts, services/aiService.ts, services/customDirectionService.ts（新）, services/storageService.ts, components/CustomDirectionModal.tsx（新）, components/WritingTreeView.tsx, qa/custom-direction.mjs（新回归脚本）
+**参考**：site-setup.md 第 7 节
 
 ## 质量要求
 - [ ] 命令不挂后台（不追加 `&`），不启动服务器（假定 dev server 已跑）。

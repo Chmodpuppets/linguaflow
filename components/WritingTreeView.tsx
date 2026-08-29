@@ -1,16 +1,19 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserProfile, WritingNode, CEFRLevel, Language, GuidedWritingFeedback, GuidedMode, ErrorPatternType, REGISTER_LABELS, CompositionGenre, GENRE_LABELS, PRACTICE_TYPE_LABELS, CYCLE_STAGE_LABELS, TargetExam } from '../types';
+import { UserProfile, WritingNode, CEFRLevel, Language, GuidedWritingFeedback, GuidedMode, ErrorPatternType, REGISTER_LABELS, CompositionGenre, GENRE_LABELS, PRACTICE_TYPE_LABELS, CYCLE_STAGE_LABELS, TargetExam, CustomDirectionSeed } from '../types';
 import { ensureGrowthTree, saveWritingTree, addActivity, addErrorCards } from '../services/storageService';
 import { analyzeGuidedWriting, generateSpeech } from '../services/aiService';
+import { getCustomDirections, updateCustomDirection, deleteCustomDirection, regenerateCustomDirection, buildCustomDirectionNodes, MAX_CUSTOM_DIRECTIONS } from '../services/customDirectionService';
 import { romajiToKana } from '../services/romajiKana';
 import { countWords } from '../services/textUtils';
 import {
   FolderTree, FileText, ChevronRight, ChevronDown, Lock, CheckCircle2,
-  Sparkles, Wand2, Volume2, ArrowRight, AlertCircle, PenLine, BookOpen
+  Sparkles, Wand2, Volume2, ArrowRight, AlertCircle, PenLine, BookOpen,
+  Plus, MoreHorizontal, Pencil, RefreshCw, Trash2
 } from 'lucide-react';
 import WritingLanguageGate from './WritingLanguageGate';
 import CompositionEditor from './CompositionEditor';
+import CustomDirectionModal from './CustomDirectionModal';
 import { ExamScoreCard } from './ExamScoreCard';
 
 interface WritingTreeViewProps {
@@ -26,6 +29,13 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
   const [feedback, setFeedback] = useState<GuidedWritingFeedback | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 自定义写作方向（用户私人枝干）
+  const [showDirModal, setShowDirModal] = useState(false);
+  const [dirMenuFor, setDirMenuFor] = useState<string | null>(null);
+  const [renameFor, setRenameFor] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [dirBusy, setDirBusy] = useState(false);
 
   useEffect(() => {
     setNodes(ensureGrowthTree(user.learningLanguage, userLevel));
@@ -59,6 +69,70 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
 
   const toggleExpand = (id: string) => {
     persist(nodes.map((n) => (n.id === id ? { ...n, isExpanded: !n.isExpanded } : n)));
+  };
+
+  // 自定义方向管理菜单：document 级 click-away 关闭。
+  // 不用 fixed 遮罩：侧栏面板（backdrop-blur/overflow）构成堆叠上下文，根层级遮罩会盖住菜单项。
+  useEffect(() => {
+    if (!dirMenuFor) return;
+    const close = () => setDirMenuFor(null);
+    const t = setTimeout(() => document.addEventListener('click', close), 0);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener('click', close);
+    };
+  }, [dirMenuFor]);
+
+  // --- 自定义写作方向 ---
+  const customThemes = nodes.filter((n) => n.type === 'theme' && n.tags?.includes('custom'));
+  const findSeed = (id: string) => getCustomDirections(user.learningLanguage).find((s) => s.id === id);
+
+  const handleDirectionCreated = (seed: CustomDirectionSeed) => {
+    setShowDirModal(false);
+    const fresh = ensureGrowthTree(user.learningLanguage, userLevel);
+    persist(fresh.map((n) => (n.id === seed.id ? { ...n, isExpanded: true } : n)));
+  };
+
+  const handleRenameDirection = (themeId: string) => {
+    const title = renameValue.trim();
+    const seed = findSeed(themeId);
+    if (!title || !seed) return;
+    updateCustomDirection(user.learningLanguage, { ...seed, title });
+    persist(nodes.map((n) => (n.id === themeId ? { ...n, title, updatedAt: Date.now() } : n)));
+    setRenameFor(null);
+  };
+
+  // 重新生成：替换该方向全部任务节点（进度重置，弹窗已二次确认），保留枝干展开态
+  const handleRegenerateDirection = async (themeId: string) => {
+    const seed = findSeed(themeId);
+    if (!seed || dirBusy) return;
+    if (!window.confirm(`重新生成「${seed.title}」？该方向下的所有任务会被替换，已写内容与进度会丢失。`)) return;
+    setDirMenuFor(null);
+    setDirBusy(true);
+    try {
+      const next = await regenerateCustomDirection(seed, userLevel, user.nativeLanguage);
+      const fresh = ensureGrowthTree(user.learningLanguage, userLevel);
+      const wasExpanded = fresh.find((n) => n.id === themeId)?.isExpanded ?? true;
+      const rebuilt = [
+        ...fresh.filter((n) => n.id !== themeId && n.parentId !== themeId),
+        ...buildCustomDirectionNodes(next, userLevel, Date.now()).map((n) => (n.id === themeId ? { ...n, isExpanded: wasExpanded } : n)),
+      ];
+      persist(rebuilt);
+      if (activeId && !rebuilt.some((n) => n.id === activeId)) setActiveId(null);
+    } finally {
+      setDirBusy(false);
+    }
+  };
+
+  const handleDeleteDirection = (themeId: string) => {
+    const seed = findSeed(themeId);
+    if (!seed) return;
+    if (!window.confirm(`删除方向「${seed.title}」？该方向下的全部任务与进度都会移除。`)) return;
+    setDirMenuFor(null);
+    deleteCustomDirection(user.learningLanguage, themeId);
+    const remaining = nodes.filter((n) => n.id !== themeId && n.parentId !== themeId);
+    persist(remaining);
+    if (activeId && !remaining.some((n) => n.id === activeId)) setActiveId(null);
   };
 
   const submit = async () => {
@@ -221,6 +295,8 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                 )}
                 {node.type === 'root' ? (
                   <PenLine size={16} className="text-purple-400 flex-shrink-0" />
+                ) : node.type === 'theme' && node.tags?.includes('custom') ? (
+                  <Sparkles size={16} className="text-fuchsia-400 flex-shrink-0" />
                 ) : node.type === 'theme' ? (
                   <FolderTree size={16} className="text-blue-400 flex-shrink-0" />
                 ) : node.type === 'composition' ? (
@@ -258,6 +334,54 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                 {node.type === 'composition' && node.examMode && node.defaultExam && node.defaultExam !== 'none' && (
                   <span className="text-[10px] text-amber-300/80 flex-shrink-0">{node.defaultExam}</span>
                 )}
+                {node.type === 'theme' && node.tags?.includes('custom') && (
+                  <div className="relative flex-shrink-0">
+                    <button
+                      aria-label="方向管理菜单"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDirMenuFor(dirMenuFor === node.id ? null : node.id);
+                      }}
+                      className="p-1 rounded hover:bg-white/10 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                    >
+                      <MoreHorizontal size={14} />
+                    </button>
+                    {dirMenuFor === node.id && (
+                      <div className="absolute right-0 top-6 z-30 w-32 bg-surface border border-line-strong rounded-lg py-1 text-xs shadow-xl">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDirMenuFor(null);
+                            setRenameValue(node.title);
+                            setRenameFor(node.id);
+                          }}
+                          className="w-full px-3 py-1.5 text-left text-muted hover:text-white hover:bg-white/10 flex items-center gap-1.5"
+                        >
+                          <Pencil size={12} /> 重命名
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRegenerateDirection(node.id);
+                          }}
+                          disabled={dirBusy}
+                          className="w-full px-3 py-1.5 text-left text-muted hover:text-white hover:bg-white/10 flex items-center gap-1.5 disabled:opacity-40"
+                        >
+                          <RefreshCw size={12} /> 重新生成
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteDirection(node.id);
+                          }}
+                          className="w-full px-3 py-1.5 text-left text-red-400 hover:bg-red-400/10 flex items-center gap-1.5"
+                        >
+                          <Trash2 size={12} /> 删除方向
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               {node.isExpanded && renderTree(node.id, depth + 1)}
             </div>
@@ -278,11 +402,28 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
         <div className="p-4 border-b border-white/[0.06] flex items-center gap-2 bg-surface/40">
           <PenLine size={18} className="text-violet-300 drop-shadow-[0_0_6px_rgba(139,92,246,0.7)]" />
           <span className="font-bold text-gray-300">写作成长树</span>
+          {dirBusy && (
+            <span className="flex items-center gap-1 text-[10px] text-neon">
+              <RefreshCw size={10} className="animate-spin" /> 生成中
+            </span>
+          )}
           <span className="ml-auto text-xs text-muted">
             {completedCount} / {totalCount} 完成
           </span>
         </div>
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-2">{renderTree(null)}</div>
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
+          {renderTree(null)}
+          {customThemes.length < MAX_CUSTOM_DIRECTIONS ? (
+            <button
+              onClick={() => setShowDirModal(true)}
+              className="mt-2 w-full py-2.5 rounded-lg border-2 border-dashed border-line-strong hover:border-fuchsia-400/60 text-xs text-muted hover:text-white flex items-center justify-center gap-1.5 transition"
+            >
+              <Plus size={14} /> 添加我的写作方向
+            </button>
+          ) : (
+            <p className="mt-2 text-center text-[10px] text-faint">自定义方向已达上限（{MAX_CUSTOM_DIRECTIONS} 个）</p>
+          )}
+        </div>
       </div>
 
       {/* 右：编辑器 */}
@@ -522,6 +663,46 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
           </div>
         )}
       </div>
+
+      {/* 自定义方向：创建弹窗 + 重命名弹窗（菜单关闭由 document click-away 处理） */}
+      {showDirModal && (
+        <CustomDirectionModal
+          lang={user.learningLanguage}
+          level={userLevel}
+          nativeLanguage={user.nativeLanguage}
+          currentCount={customThemes.length}
+          onClose={() => setShowDirModal(false)}
+          onCreated={handleDirectionCreated}
+        />
+      )}
+      {renameFor && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={() => setRenameFor(null)}>
+          <div className="glass-panel border border-neon/30 rounded-2xl p-5 w-full max-w-sm animate-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-bold text-white mb-3 flex items-center gap-2">
+              <Pencil size={16} className="text-neon-2" /> 重命名方向
+            </h3>
+            <input
+              autoFocus
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleRenameDirection(renameFor)}
+              maxLength={12}
+              placeholder="方向名"
+              className="w-full bg-surface-2/70 border border-line-strong rounded-xl px-3 py-2.5 text-white text-sm placeholder:text-faint outline-none focus:ring-2 focus:ring-neon transition mb-4"
+            />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setRenameFor(null)} className="px-4 py-2 text-sm text-muted hover:text-white transition">取消</button>
+              <button
+                onClick={() => handleRenameDirection(renameFor)}
+                disabled={!renameValue.trim()}
+                className="px-4 py-2 rounded-xl bg-neon text-white text-sm font-bold hover:bg-neon/80 transition disabled:opacity-40"
+              >
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
     </WritingLanguageGate>
   );

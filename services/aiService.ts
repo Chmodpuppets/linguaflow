@@ -1,5 +1,5 @@
 
-import { Language, CEFRLevel, AssessmentResult, TypingContent, WritingFeedback, WritingRevisionFeedback, GuidedWritingFeedback, GuidedMode, WritingNode, NodeType, ReadingReflection, RPGScenario, RPGTurnResult, UserProfile, ScenarioDef, TargetExam, WritingRegister, CompositionGenre, GENRE_LABELS, ReferenceEssay } from '../types';
+import { Language, CEFRLevel, AssessmentResult, TypingContent, WritingFeedback, WritingRevisionFeedback, GuidedWritingFeedback, GuidedMode, WritingNode, NodeType, ReadingReflection, RPGScenario, RPGTurnResult, UserProfile, ScenarioDef, TargetExam, WritingRegister, CompositionGenre, GENRE_LABELS, ReferenceEssay, WritingPracticeType, WritingCycleStage, CustomDirectionLeafSeed } from '../types';
 import { MENTOR_PERSONAS } from '../constants';
 import { getAIConfig, AIConfig, TaskCategory, TaskTier, DEFAULT_TASK_ROUTES } from './storageService';
 
@@ -136,6 +136,7 @@ const parseAIJSON = <T>(text: string | undefined, fallback: T): T => {
         return fallback;
     }
 };
+export { parseAIJSON };
 
 // --- Low-level chat completion with provider fallback ---
 interface ChatError extends Error { quota?: boolean; network?: boolean; }
@@ -1903,4 +1904,52 @@ export const continueRPGTurn = async (
             isScenarioComplete: false
         };
     }
+};
+
+// --- 写作树 · 自定义写作方向：一次生成专属任务阶梯（5–8 题，CEFR 阶梯递进） ---
+// 供 customDirectionService 调用；schema 校验失败 / 题量不足时抛错，由调用方回退本地模板。
+const DIR_PRACTICE: WritingPracticeType[] = ['observe', 'narrate', 'organize', 'opinion', 'reader', 'style', 'rewrite'];
+const DIR_CYCLE: WritingCycleStage[] = ['plan', 'draft', 'reread', 'rewrite', 'edit', 'share'];
+const DIR_REGISTER: WritingRegister[] = ['casual', 'neutral', 'polite', 'formal', 'business'];
+const DIR_CEFR_ORDER: CEFRLevel[] = [CEFRLevel.A1, CEFRLevel.A2, CEFRLevel.B1, CEFRLevel.B2, CEFRLevel.C1, CEFRLevel.C2];
+
+export interface CustomDirectionDraft {
+  title: string;
+  leaves: CustomDirectionLeafSeed[];
+}
+
+export const generateCustomDirectionLeaves = async (
+  desc: string,
+  lang: Language,
+  level: CEFRLevel,
+  nativeLanguage: Language
+): Promise<CustomDirectionDraft> => {
+  const baseRank = Math.max(1, DIR_CEFR_ORDER.indexOf(level) + 1);
+  const ladder = [Math.max(1, baseRank - 1), baseRank, baseRank, baseRank, Math.min(6, baseRank + 1), Math.min(6, baseRank + 1)];
+  const system =
+    `你是语言学习课程设计师，为「输出驱动」写作训练设计任务阶梯。` +
+    `请严格输出一个 JSON 对象（不要 markdown 代码块、不要解释）：` +
+    `{"title":"方向名（≤10字，中文）","tasks":[{"title":"任务题面（用${lang}，≤20词）","cefr":"A1|A2|B1|B2|C1|C2","hint":"母语（${nativeLanguage}→简体中文）情境提示，1-2句，告诉用户写什么、怎么下手","scaffold":"${lang}句型支架，含 ___ 空格，1-2句；没有合适的就给空字符串","practiceType":"observe|narrate|organize|opinion|reader|style|rewrite","cycleStage":"plan|draft|reread|rewrite|edit|share","register":"casual|neutral|polite|formal|business"}]}` +
+    ` 阶梯规则：恰好 6 题；cefr 依次约为 ${ladder.map((r) => DIR_CEFR_ORDER[r - 1]).join('→')}；practiceType/cycleStage 大致按 观察(observe/plan)→叙述(narrate/draft)×2→组织(organize/draft)→观点或读者(opinion|reader/edit)→重写打磨(rewrite/rewrite) 分布；register 低等级偏 casual/neutral，高等级偏 polite/formal。`;
+  const prompt = `用户的写作方向描述：${desc}\n目标语言：${lang}；用户当前等级：CEFR ${level}。请围绕这个方向设计 6 个递进写作任务，题目要具体、可写、和方向强相关，避免空泛。`;
+  const raw = await chatCompletionWithSystemForTask('articleGuide', system, prompt, 0.7);
+  const parsed = parseAIJSON<{ title?: string; tasks?: unknown[] }>(raw, {});
+  const tasks = Array.isArray(parsed.tasks) ? parsed.tasks : [];
+  const leaves: CustomDirectionLeafSeed[] = tasks
+    .map((t) => {
+      const o = (t ?? {}) as Record<string, unknown>;
+      const title = typeof o.title === 'string' ? o.title.trim() : '';
+      if (!title) return null;
+      const cefr = DIR_CEFR_ORDER.includes(o.cefr as CEFRLevel) ? (o.cefr as CEFRLevel) : level;
+      const hint = typeof o.hint === 'string' && o.hint.trim() ? o.hint.trim() : `围绕「${desc}」写一段${cefr}难度的短文。`;
+      const scaffold = typeof o.scaffold === 'string' ? o.scaffold.trim() : '';
+      const practiceType = DIR_PRACTICE.includes(o.practiceType as WritingPracticeType) ? (o.practiceType as WritingPracticeType) : 'narrate';
+      const cycleStage = DIR_CYCLE.includes(o.cycleStage as WritingCycleStage) ? (o.cycleStage as WritingCycleStage) : 'draft';
+      const register = DIR_REGISTER.includes(o.register as WritingRegister) ? (o.register as WritingRegister) : undefined;
+      return { title, cefr, hint, scaffold: scaffold || undefined, practiceType, cycleStage, register } as CustomDirectionLeafSeed;
+    })
+    .filter((x): x is CustomDirectionLeafSeed => x !== null)
+    .slice(0, 8);
+  if (leaves.length < 4) throw new Error('AI 生成的任务阶梯不完整');
+  return { title: (typeof parsed.title === 'string' && parsed.title.trim()) || desc.slice(0, 12), leaves };
 };

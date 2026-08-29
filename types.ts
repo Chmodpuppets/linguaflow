@@ -295,6 +295,29 @@ export const REGISTER_LABELS: Record<WritingRegister, string> = {
   business: '商务',
 };
 
+// --- 自定义写作方向（写作树「用户私人枝干」） ---
+// 只存种子（方向名 + 叶子阶梯），树节点由种子按需重建：
+// ensureGrowthTree 每次语言切换/合并都会以默认树为基准重建，种子可无损重挂。
+export interface CustomDirectionLeafSeed {
+  title: string;                        // 任务标题（目标语言或中文短句）
+  cefr: CEFRLevel;                      // 难度（阶梯递进）
+  hint: string;                         // 母语情境提示（简体中文）
+  scaffold?: string;                    // 目标语句型支架（含 ___；空 = 自由写）
+  practiceType: WritingPracticeType;
+  cycleStage: WritingCycleStage;
+  register?: WritingRegister;
+}
+
+export interface CustomDirectionSeed {
+  id: string;                           // custom_<ts>
+  title: string;                        // 方向名（如「健身打卡日记」）
+  desc: string;                         // 用户原话/描述（重新生成时复用）
+  interest?: string;                    // 兴趣标签（可选，喂给生成 prompt）
+  lang: Language;                       // 所属目标语言（方向跟语言走）
+  createdAt: number;
+  leaves: CustomDirectionLeafSeed[];
+}
+
 // 作文体裁 / 题材（genre）：同一主题可用不同体裁写，训练不同篇章结构
 export type CompositionGenre = 'argumentative' | 'narrative' | 'expository' | 'letter' | 'story';
 export const GENRE_LABELS: Record<CompositionGenre, string> = {

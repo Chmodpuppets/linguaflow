@@ -47,7 +47,8 @@ LinguaFlow 是一套以「输出驱动 (Mastery via Output)」为核心的多语
 - [ ] 非中文 TTS 接入 Qwen CosyVoice / Qwen-Audio-TTS。（tasklist Task 4；注：`qwen3-tts-flash` 已单模型覆盖多语种，此需求已弱化，可评估是否仍需独立开关）
 - My Profile 整体数据导出 / 导入（账户级一键备份）—— **已立项 · 已完成**：localStorage 全量键 + 书架（IndexedDB 书籍正文）已落地（storageService.exportAllData/importAllData），歌曲音频二进制为已知范围外（体积大、可重新导入源文件）。（tasklist Task 2）
 - Playwright 截图回归脚手架 —— **已立项 · 已完成**：`qa/capture.mjs` + `qa-playwright-capture.sh`，点侧栏中文标签切换 7 个代表视图截图到 `public/qa-screenshots`（已实跑 7/7 验证通过）。（tasklist Task 5）
-- 写作流水线（作文 + 引导写作）全语言支持 —— **已立项 · 进行中**：补齐 11 种语言的作文大纲标题本地化 + 引导写作 A1/A2 模板，开放给所有支持语言，取消 ja/en/ko 门控；考试语言门控保持 IELTS/TOEFL→EN、JLPT→JA、TOPIK→KO、DELE→ES、缺考回退 CEFR。
+- 写作流水线（作文 + 引导写作）全语言支持 —— **已立项 · 已完成**：补齐 11 种语言的作文大纲标题本地化 + 引导写作 A1/A2 模板，开放给所有支持语言，取消 ja/en/ko 门控；考试语言门控保持 IELTS/TOEFL→EN、JLPT→JA、TOPIK→KO、DELE→ES、缺考回退 CEFR。落地于 commit `13373e8`，`tsc --noEmit` + `vite build` 通过，Playwright 回归 7/7 截图验证。（tasklist Task 7）
+- 写作树自定义写作方向（用户私人枝干）—— **已立项 · 已完成（2026-08-29，vite build 待环境恢复后补跑）**：用户可添加专属写作方向（弹窗一句话/引导式描述 → AI 一次生成分级任务阶梯挂成自定义枝干，与内置枝干共用解锁/XP 机制）；支持重命名 / 重新生成 / 删除；无 AI key 时本地模板兜底。方向按目标语言隔离存储（`linguaflow_custom_directions`，纳入备份），上限 5 根；错误模式联动个性化出题放二期。回归脚本 `qa/custom-direction.mjs` 10/10。（tasklist Task 8）
 - [ ] 跨设备同步（需重新评估"无后端"原则）。
 - [ ] UI 自身国际化（当前 UI 文案以中文为主）。
 - [ ] 更完整的 AI 等级测评（AssessmentView 扩展）。
