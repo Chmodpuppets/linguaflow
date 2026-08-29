@@ -1,7 +1,7 @@
 import React from 'react';
 import { UserProfile, CEFRLevel, ExamScores, TargetExam, IeltsBandScores, ToeflScores, JlptScores, TopikScores, DeleScores } from '../types';
-import { getWritingHistoryByLang } from '../services/storageService';
-import { LineChart as LineChartIcon, TrendingUp, Activity, Award } from 'lucide-react';
+import { getWritingHistoryByLang, ensureGrowthTree } from '../services/storageService';
+import { LineChart as LineChartIcon, TrendingUp, Activity, Award, PenLine } from 'lucide-react';
 
 interface WritingProgressViewProps {
   user: UserProfile;
@@ -106,6 +106,20 @@ const WritingProgressView: React.FC<WritingProgressViewProps> = ({ user }) => {
   const targetExam = user.targetExam ?? 'none';
   const records = getWritingHistoryByLang(lang); // 已按时间正序
 
+  // 写作者养成主线（spine）8 分支进度：从写作树读取各分支 task 完成情况
+  const level = user.progress[lang]?.cefrLevel ?? CEFRLevel.A1;
+  const tree = ensureGrowthTree(lang, level);
+  const spineBranches = tree
+    .filter((n) => n.type === 'theme' && n.parentId === 'spine' && n.id !== 'spine-portfolio')
+    .map((b) => {
+      const leaves = tree.filter((n) => n.parentId === b.id && n.type === 'task');
+      const done = leaves.filter((n) => n.completed).length;
+      return { id: b.id, title: b.title, done, total: leaves.length };
+    })
+    .filter((b) => b.total > 0);
+  const spineDone = spineBranches.reduce((s, b) => s + b.done, 0);
+  const spineTotal = spineBranches.reduce((s, b) => s + b.total, 0);
+
   const count = records.length;
   const cefrValues = records.map((r) => cefrToNum(r.cefrEstimation));
 
@@ -165,6 +179,34 @@ const WritingProgressView: React.FC<WritingProgressViewProps> = ({ user }) => {
               accent={progress > 0 ? 'text-green-400' : progress < 0 ? 'text-red-400' : 'text-yellow-400'}
             />
           </div>
+
+          {/* 写作者养成主线（spine）8 分支进度 */}
+          {spineBranches.length > 0 && (
+            <div className="glass-panel p-6 rounded-xl border border-white/10">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-white flex items-center gap-2">
+                  <PenLine size={16} className="text-violet-300" /> 写作者养成主线
+                </h3>
+                <span className="text-xs text-muted">{spineDone} / {spineTotal} 完成</span>
+              </div>
+              <div className="space-y-3">
+                {spineBranches.map((b) => {
+                  const pct = b.total ? Math.round((b.done / b.total) * 100) : 0;
+                  return (
+                    <div key={b.id}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs text-gray-300">{b.title}</span>
+                        <span className="text-[10px] text-muted">{b.done}/{b.total}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+                        <div className="h-full rounded-full bg-gradient-to-r from-violet-500 to-cyan-400 transition-all" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* CEFR 等级趋势（通用，所有语言） */}
           <div className="glass-panel p-6 rounded-xl border border-white/10">

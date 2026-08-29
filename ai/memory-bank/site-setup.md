@@ -49,6 +49,8 @@ LinguaFlow 是一套以「输出驱动 (Mastery via Output)」为核心的多语
 - Playwright 截图回归脚手架 —— **已立项 · 已完成**：`qa/capture.mjs` + `qa-playwright-capture.sh`，点侧栏中文标签切换 7 个代表视图截图到 `public/qa-screenshots`（已实跑 7/7 验证通过）。（tasklist Task 5）
 - 写作流水线（作文 + 引导写作）全语言支持 —— **已立项 · 已完成**：补齐 11 种语言的作文大纲标题本地化 + 引导写作 A1/A2 模板，开放给所有支持语言，取消 ja/en/ko 门控；考试语言门控保持 IELTS/TOEFL→EN、JLPT→JA、TOPIK→KO、DELE→ES、缺考回退 CEFR。落地于 commit `13373e8`，`tsc --noEmit` + `vite build` 通过，Playwright 回归 7/7 截图验证。（tasklist Task 7）
 - 写作树自定义写作方向（用户私人枝干）—— **已立项 · 已完成（2026-08-29，vite build 待环境恢复后补跑）**：用户可添加专属写作方向（弹窗一句话/引导式描述 → AI 一次生成分级任务阶梯挂成自定义枝干，与内置枝干共用解锁/XP 机制）；支持重命名 / 重新生成 / 删除；无 AI key 时本地模板兜底。方向按目标语言隔离存储（`linguaflow_custom_directions`，纳入备份），上限 5 根；错误模式联动个性化出题放二期。回归脚本 `qa/custom-direction.mjs` 10/10。（tasklist Task 8）
+- 写作树 11 语言内容补齐（P0）—— **已完成（2026-08-29）**：消除"名义 11 语言、实质英语"缺口——为 ES/FR/DE/IT/RU/EL/AR/ZH 补齐横向主题树 8 主题（`data/treeThemes.ts`，title/hint 复用中文、A1/A2 提供目标语句型支架）+ 8 语言作文真实考题（`EXTRA_COMPOSITION_PROMPTS`）+ spine 支架按语言扩展（`SpineLeafSeed.scaffolds: Partial<Record<Language,string>>` 取代原 en/ja/ko 三字段）。写作树 11 语言用户不再回退英语内容。
+- 写作树交互增强（P2/P3）—— **已完成（2026-08-29）**：① 批改反馈面板新增「再写一版」按钮（保留任务、清空反馈回到作答态，补上 rewrite 类节点的重写闭环）；② 写作趋势页新增「写作者养成主线」8 分支进度可视化（读写作树 spine 数据）；③ 树导航新增搜索过滤（匹配 title/scaffoldHint + 祖先链）、「下一步」定位第一个未完成任务、全部展开/折叠；④ `renderTree` 由每节点全量 filter(O(n²)) 改为预构建 `childrenMap` 索引(O(n))。错题去重经查 `addErrorCards` 内部已实现（按 original+language 匹配则更新而非插入），无需另改。
 - [ ] 跨设备同步（需重新评估"无后端"原则）。
 - [ ] UI 自身国际化（当前 UI 文案以中文为主）。
 - [ ] 更完整的 AI 等级测评（AssessmentView 扩展）。

@@ -9,7 +9,7 @@ import { countWords } from '../services/textUtils';
 import {
   FolderTree, FileText, ChevronRight, ChevronDown, Lock, CheckCircle2,
   Sparkles, Wand2, Volume2, ArrowRight, AlertCircle, PenLine, BookOpen,
-  Plus, MoreHorizontal, Pencil, RefreshCw, Trash2
+  Plus, MoreHorizontal, Pencil, RefreshCw, Trash2, Search
 } from 'lucide-react';
 import WritingLanguageGate from './WritingLanguageGate';
 import CompositionEditor from './CompositionEditor';
@@ -29,6 +29,10 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
   const [feedback, setFeedback] = useState<GuidedWritingFeedback | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 树导航（P3）：搜索过滤 + 全部展开/折叠
+  const [query, setQuery] = useState('');
+  const [allExpanded, setAllExpanded] = useState(false);
 
   // 自定义写作方向（用户私人枝干）
   const [showDirModal, setShowDirModal] = useState(false);
@@ -263,13 +267,71 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
     if (text) generateSpeech(text, { lang: user.learningLanguage });
   };
 
+  // 重写：保留当前任务，清空反馈与输入回到作答态（rewrite 类节点基于反馈重写的关键入口）
+  const rewrite = () => {
+    setInput('');
+    setFeedback(null);
+    setError(null);
+  };
+
+  // 预构建 parentId → children 索引，避免 renderTree 里每个节点都全量 filter（O(n²) → O(n)）
+  const childrenMap = useMemo(() => {
+    const map: Record<string, WritingNode[]> = {};
+    for (const n of nodes) {
+      const key = n.parentId ?? '__root__';
+      (map[key] ||= []).push(n);
+    }
+    return map;
+  }, [nodes]);
+
+  // 搜索过滤：匹配 title/scaffoldHint 的节点 + 其祖先链（其余隐藏）
+  const visibleSet = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return null;
+    const matched = new Set<string>();
+    for (const n of nodes) {
+      const hit = n.title.toLowerCase().includes(q) || (n.scaffoldHint ?? '').toLowerCase().includes(q);
+      if (!hit) continue;
+      matched.add(n.id);
+      let cur = n.parentId;
+      while (cur) {
+        matched.add(cur);
+        cur = nodes.find((x) => x.id === cur)?.parentId ?? null;
+      }
+    }
+    return matched;
+  }, [query, nodes]);
+
+  // 定位到第一个「解锁且未完成」的 task/composition，并展开其祖先链
+  const goToNext = () => {
+    const first = nodes.find((n) => (n.type === 'task' || n.type === 'composition') && n.unlocked && !n.completed);
+    if (!first) return;
+    const ancestors = new Set<string>();
+    let cur = first.parentId;
+    while (cur) {
+      ancestors.add(cur);
+      cur = nodes.find((x) => x.id === cur)?.parentId ?? null;
+    }
+    persist(nodes.map((n) => (ancestors.has(n.id) ? { ...n, isExpanded: true } : n)));
+    setQuery('');
+    selectNode(first.id);
+  };
+
+  // 全部展开/折叠（仅分组节点）
+  const toggleAll = () => {
+    const next = !allExpanded;
+    setAllExpanded(next);
+    persist(nodes.map((n) => (n.type === 'theme' || n.type === 'root' ? { ...n, isExpanded: next } : n)));
+  };
+
   // 树渲染
-  const renderTree = (parentId: string | null, depth = 0) => {
-    const children = nodes.filter((n) => n.parentId === parentId);
-    if (children.length === 0) return null;
+  const renderTree = (parentId: string | null, depth = 0, visible?: Set<string> | null) => {
+    const children = childrenMap[parentId ?? '__root__'] ?? [];
+    const shown = visible ? children.filter((c) => visible.has(c.id)) : children;
+    if (shown.length === 0) return null;
     return (
       <div className={depth > 0 ? 'ml-3 border-l border-line-strong/50' : ''}>
-        {children.map((node) => {
+        {shown.map((node) => {
           const isTask = node.type === 'task';
           const isComp = node.type === 'composition';
           const isLeaf = isTask || isComp;
@@ -383,7 +445,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                   </div>
                 )}
               </div>
-              {node.isExpanded && renderTree(node.id, depth + 1)}
+              {node.isExpanded && renderTree(node.id, depth + 1, visible)}
             </div>
           );
         })}
@@ -411,8 +473,33 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
             {completedCount} / {totalCount} 完成
           </span>
         </div>
+        <div className="px-3 py-2 border-b border-white/[0.06] flex gap-1.5">
+          <div className="flex-1 relative">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="搜索任务…"
+              className="w-full bg-dark/40 border border-line-strong rounded-lg pl-7 pr-2 py-1.5 text-xs text-gray-200 placeholder:text-faint outline-none focus:ring-2 focus:ring-neon/40 transition"
+            />
+          </div>
+          <button
+            onClick={goToNext}
+            title="定位到下一个未完成任务"
+            className="px-2.5 rounded-lg border border-line-strong text-xs text-muted hover:text-white hover:border-neon/50 transition whitespace-nowrap"
+          >
+            下一步
+          </button>
+          <button
+            onClick={toggleAll}
+            title={allExpanded ? '折叠全部' : '展开全部'}
+            className="px-2.5 rounded-lg border border-line-strong text-xs text-muted hover:text-white hover:border-neon/50 transition whitespace-nowrap"
+          >
+            {allExpanded ? '折叠' : '展开'}
+          </button>
+        </div>
         <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
-          {renderTree(null)}
+          {renderTree(null, 0, visibleSet)}
           {customThemes.length < MAX_CUSTOM_DIRECTIONS ? (
             <button
               onClick={() => setShowDirModal(true)}
@@ -652,12 +739,20 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                   </div>
                 )}
 
-                <button
-                  onClick={() => completeTask(active.id)}
-                  className="w-full py-3 rounded-xl bg-gradient-to-r from-neon to-neon-2 text-white font-bold shadow-glow-sm hover:brightness-110 hover:shadow-glow-neon active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2"
-                >
-                  完成并解锁下一题 <ArrowRight size={18} />
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={rewrite}
+                    className="flex-1 py-3 rounded-xl bg-surface-3/70 border border-line-strong text-gray-200 font-bold hover:bg-white/10 transition-all duration-200 flex items-center justify-center gap-2"
+                  >
+                    <RefreshCw size={16} /> 再写一版
+                  </button>
+                  <button
+                    onClick={() => completeTask(active.id)}
+                    className="flex-1 py-3 rounded-xl bg-gradient-to-r from-neon to-neon-2 text-white font-bold shadow-glow-sm hover:brightness-110 hover:shadow-glow-neon active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2"
+                  >
+                    完成并解锁下一题 <ArrowRight size={18} />
+                  </button>
+                </div>
               </div>
             )}
           </div>

@@ -96,6 +96,21 @@
 **文件**：types.ts, services/aiService.ts, services/customDirectionService.ts（新）, services/storageService.ts, components/CustomDirectionModal.tsx（新）, components/WritingTreeView.tsx, qa/custom-direction.mjs（新回归脚本）
 **参考**：site-setup.md 第 7 节
 
+### [x] Task 9: 写作树 11 语言内容补齐 + 交互增强（P0/P2/P3，已完成 2026-08-29）
+**描述**：审计写作树后发现「11 语言门控已开、主干内容仅 3 语言」——ES/FR/DE/IT/RU/EL/AR/ZH 用户会看到英语主题/英语句型支架/英语作文考题。本任务补齐内容并修复评估中暴露的交互缺口。
+**内容补齐（P0）**：
+- 新建 `data/treeThemes.ts`：8 语言的横向主题树（8 主题 × 8 任务，title/hint 复用中文、A1/A2 提供目标语句型支架）+ `EXTRA_COMPOSITION_PROMPTS`（8 语言作文真实考题）；`growthTree.ts` 的 `TREE_THEMES`/`COMPOSITION_PROMPTS` 合并引入。
+- spine 支架重构：`SpineLeafSeed.enScaffold/jaScaffold/koScaffold` 三字段 → `scaffolds?: Partial<Record<Language,string>>`，4 个带支架 leaf 补全 11 语言，`makeLeaf` 改为 `lf.scaffolds?.[lang] ?? ''`。
+**交互增强（P2/P3）**：
+- 重写闭环：「再写一版」按钮（WritingTreeView feedback 面板，保留任务清空反馈回作答态）。
+- spine 进度：写作趋势页新增「写作者养成主线」8 分支进度条（WritingProgressView 读 ensureGrowthTree 的 spine 数据）。
+- 树导航：搜索过滤（匹配 title/scaffoldHint + 祖先链）、「下一步」定位第一个未完成任务、全部展开/折叠。
+- 性能：`renderTree` 每节点全量 filter(O(n²)) → `childrenMap` 预构建索引(O(n))。
+- 另发现「错题去重」评估误报：`addErrorCards` 内部已按 original+language 去重（重复则更新），无需改。
+**验收证据**：`tsc --noEmit --skipLibCheck` 0 错误；esbuild 转译 treeThemes/growthTree/WritingTreeView/WritingProgressView 全部通过。`vite build` 因沙箱内存病态未跑完（minify 阶段 swap 抖动），留待环境恢复补跑。
+**文件**：data/treeThemes.ts（新）, data/growthTree.ts, components/WritingTreeView.tsx, components/WritingProgressView.tsx
+**参考**：site-setup.md 第 7 节
+
 ## 质量要求
 - [ ] 命令不挂后台（不追加 `&`），不启动服务器（假定 dev server 已跑）。
 - [ ] 移动端响应式必做。
