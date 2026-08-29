@@ -26,9 +26,6 @@ export const REGISTER_BY_LEVEL: Record<CEFRLevel, WritingRegister> = {
 };
 
 // 作文（长文）提纲骨架：按「体裁 genre + 等级 level + 语言 lang」生成不同的篇章结构。
-// 每种体裁 4 段，标题按语言本地化（双语）。主体段目标词数随等级递增。
-// 导出供作文编辑器在「切换体裁」时复用（重建骨架并尽量保留已写内容）。
-// 作文（长文）提纲骨架：按「体裁 genre + 等级 level + 语言 lang」生成不同的篇章结构。
 // 每种体裁 4 段，标题按语言本地化，并保留英语作为参考标签。主体段目标词数随等级递增。
 // 导出供作文编辑器在「切换体裁」时复用（重建骨架并尽量保留已写内容）。
 
@@ -59,7 +56,7 @@ const COMPOSITION_SECTION_TITLES: Record<Language, Record<CompositionGenre, stri
     narrative: ['Anfang', 'Entwicklung', 'Höhepunkt', 'Ende'],
     expository: ['Einleitung', 'Merkmal 1', 'Merkmal 2', 'Zusammenfassung'],
     letter: ['Anrede', 'Hauptteil', 'Grußformel', 'Unterschrift'],
-    story: ['Setting', 'Steigerung', 'Wendung', 'Auflösung'],
+    story: ['Schauplatz', 'Steigerung', 'Wendung', 'Auflösung'],
   },
   [Language.Italian]: {
     argumentative: ['Introduzione', 'Corpo 1', 'Corpo 2', 'Conclusione'],
@@ -73,7 +70,7 @@ const COMPOSITION_SECTION_TITLES: Record<Language, Record<CompositionGenre, stri
     narrative: ['Вступление', 'Развитие', 'Кульминация', 'Концовка'],
     expository: ['Введение', 'Черта 1', 'Черта 2', 'Итог'],
     letter: ['Обращение', 'Основная часть', 'Заключительная фраза', 'Подпись'],
-    story: ['Завязка', 'Развитие', 'Переполюх', 'Развязка'],
+    story: ['Завязка', 'Развитие', 'Поворот', 'Развязка'],
   },
   [Language.Greek]: {
     argumentative: ['Εισαγωγή', 'Σώμα 1', 'Σώμα 2', 'Συμπέρασμα'],
@@ -117,7 +114,14 @@ export function buildCompositionSections(
   genre: CompositionGenre = 'argumentative',
   lang: Language = Language.English
 ): CompositionSection[] {
-  const body = level === CEFRLevel.B1 ? 30 : level === CEFRLevel.B2 ? 50 : 70;
+  // 主体段目标词数随等级递增（修复：原逻辑 A1/A2 落 else 拿到 70，反而高于 B1 的 30）
+  const body =
+    level === CEFRLevel.A1 ? 20
+    : level === CEFRLevel.A2 ? 25
+    : level === CEFRLevel.B1 ? 30
+    : level === CEFRLevel.B2 ? 50
+    : level === CEFRLevel.C1 ? 70
+    : 80;
   const locals = COMPOSITION_SECTION_TITLES[lang]?.[genre] ?? COMPOSITION_SECTION_TITLES[Language.English][genre];
   const enRefs = COMPOSITION_SECTION_TITLES[Language.English][genre];
   // 各段目标词数（书信首尾较短）
@@ -125,7 +129,7 @@ export function buildCompositionSections(
     genre === 'letter' ? [8, Math.round(body * 1.4), 8, 4] : [30, body, body, 30];
   return locals.map((local, i) => ({
     id: `${genre}-s${i}`,
-    title: `${local} ${enRefs[i]}`,
+    title: local === enRefs[i] ? local : `${local} ${enRefs[i]}`,
     targetWords: words[i],
     content: '',
   }));
