@@ -453,8 +453,20 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
     );
   };
 
-  const completedCount = nodes.filter((n) => n.type === 'task' && n.completed).length;
-  const totalCount = nodes.filter((n) => n.type === 'task').length;
+  const completedCount = nodes.filter((n) => (n.type === 'task' || n.type === 'composition') && n.completed).length;
+  const totalCount = nodes.filter((n) => n.type === 'task' || n.type === 'composition').length;
+
+  // 同题材交叉引用：spine leaf 的 x:<key> tag 指向横向主题树的对应主题（「同一题材在不同阶段重现」落地）
+  const activeXKey = active?.tags?.find((t) => t.startsWith('x:'))?.slice(2);
+  const siblingTheme = activeXKey
+    ? nodes.find((n) => n.type === 'theme' && !n.tags?.includes('spine') && !n.tags?.includes('custom') && n.id.endsWith(`-${activeXKey}`))
+    : null;
+  const goToSiblingTheme = (themeId: string) => {
+    setQuery('');
+    persist(nodes.map((n) => (n.id === themeId ? { ...n, isExpanded: true } : n)));
+    const firstTask = nodes.find((n) => n.parentId === themeId && n.type === 'task' && n.unlocked && !n.completed);
+    if (firstTask) selectNode(firstTask.id);
+  };
 
   return (
     <WritingLanguageGate user={user} onUpdateUser={onUpdateUser} featureName="写作树">
@@ -544,6 +556,15 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                 </div>
               )}
               <h3 className="text-xl font-bold text-white mt-1">{active.title}</h3>
+              {active.spine && siblingTheme && (
+                <button
+                  onClick={() => goToSiblingTheme(siblingTheme.id)}
+                  title="这个题材在横向主题树里也有对应练习"
+                  className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-teal-500/10 border border-teal-500/30 text-xs text-teal-300 hover:bg-teal-500/20 transition"
+                >
+                  <BookOpen size={12} /> 同题材 · 见「{siblingTheme.title}」
+                </button>
+              )}
               {active.register && (
                 <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-500/15 border border-purple-500/30 text-xs text-purple-200">
                   <span className="opacity-70">要求语气</span>
