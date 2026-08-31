@@ -1,5 +1,5 @@
-import React from 'react';
-import { UserProfile, CEFRLevel, ExamScores, TargetExam, IeltsBandScores, ToeflScores, JlptScores, TopikScores, DeleScores } from '../types';
+import React, { useState, useEffect } from 'react';
+import { UserProfile, CEFRLevel, WritingNode, ExamScores, TargetExam, IeltsBandScores, ToeflScores, JlptScores, TopikScores, DeleScores } from '../types';
 import { getWritingHistoryByLang, ensureGrowthTree } from '../services/storageService';
 import { LineChart as LineChartIcon, TrendingUp, Activity, Award, PenLine } from 'lucide-react';
 
@@ -106,9 +106,17 @@ const WritingProgressView: React.FC<WritingProgressViewProps> = ({ user }) => {
   const targetExam = user.targetExam ?? 'none';
   const records = getWritingHistoryByLang(lang); // 已按时间正序
 
-  // 写作者养成主线（spine）8 分支进度：从写作树读取各分支 task 完成情况
+  // 写作者养成主线（spine）8 分支进度：从写作树读取各分支 task 完成情况。
+  // ensureGrowthTree 已改为异步（内部动态 import 重题库），用 state + effect 载入。
   const level = user.progress[lang]?.cefrLevel ?? CEFRLevel.A1;
-  const tree = ensureGrowthTree(lang, level);
+  const [tree, setTree] = useState<WritingNode[]>([]);
+  useEffect(() => {
+    let alive = true;
+    ensureGrowthTree(lang, level).then((t) => {
+      if (alive) setTree(t);
+    });
+    return () => { alive = false; };
+  }, [lang, level]);
   const spineBranches = tree
     .filter((n) => n.type === 'theme' && n.parentId === 'spine' && n.id !== 'spine-portfolio')
     .map((b) => {

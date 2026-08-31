@@ -26,8 +26,13 @@ const CompositionStudioView: React.FC<Props> = ({ user, onUpdateUser }) => {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   useEffect(() => {
-    setNodes(ensureGrowthTree(lang, userLevel));
-    setActiveId(null);
+    let alive = true;
+    ensureGrowthTree(lang, userLevel).then((tree) => {
+      if (!alive) return;
+      setNodes(tree);
+      setActiveId(null);
+    });
+    return () => { alive = false; };
   }, [lang, userLevel]);
 
   const persist = (next: WritingNode[]) => {

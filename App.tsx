@@ -77,6 +77,16 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // 字体按需：inter 首屏必需（index.tsx 静态引入）；fira-code（代码/字形）+ literata（阅读衬线）
+  // 只在懒加载页面使用，改为「首屏之后空闲预加载」，避免登录/仪表盘首屏多下 ~220KB 字体。
+  useEffect(() => {
+    const t = setTimeout(() => {
+      import('@fontsource-variable/fira-code');
+      import('@fontsource-variable/literata');
+    }, 1500);
+    return () => clearTimeout(t);
+  }, []);
+
   // GitHub stars：侧栏卡片实时展示，缓存到 localStorage 每天刷新一次（公开 API，无需鉴权）
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);

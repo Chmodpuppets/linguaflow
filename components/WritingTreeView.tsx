@@ -42,7 +42,11 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
   const [dirBusy, setDirBusy] = useState(false);
 
   useEffect(() => {
-    setNodes(ensureGrowthTree(user.learningLanguage, userLevel));
+    let alive = true;
+    ensureGrowthTree(user.learningLanguage, userLevel).then((tree) => {
+      if (alive) setNodes(tree);
+    });
+    return () => { alive = false; };
   }, [user.learningLanguage, userLevel]);
 
   const active = nodes.find((n) => n.id === activeId) || null;
@@ -91,9 +95,9 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
   const customThemes = nodes.filter((n) => n.type === 'theme' && n.tags?.includes('custom'));
   const findSeed = (id: string) => getCustomDirections(user.learningLanguage).find((s) => s.id === id);
 
-  const handleDirectionCreated = (seed: CustomDirectionSeed) => {
+  const handleDirectionCreated = async (seed: CustomDirectionSeed) => {
     setShowDirModal(false);
-    const fresh = ensureGrowthTree(user.learningLanguage, userLevel);
+    const fresh = await ensureGrowthTree(user.learningLanguage, userLevel);
     persist(fresh.map((n) => (n.id === seed.id ? { ...n, isExpanded: true } : n)));
   };
 
@@ -115,7 +119,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
     setDirBusy(true);
     try {
       const next = await regenerateCustomDirection(seed, userLevel, user.nativeLanguage);
-      const fresh = ensureGrowthTree(user.learningLanguage, userLevel);
+      const fresh = await ensureGrowthTree(user.learningLanguage, userLevel);
       const wasExpanded = fresh.find((n) => n.id === themeId)?.isExpanded ?? true;
       const rebuilt = [
         ...fresh.filter((n) => n.id !== themeId && n.parentId !== themeId),

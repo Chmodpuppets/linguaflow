@@ -1,8 +1,6 @@
 
 import { UserProfile, ActivityLog, Language, CEFRLevel, UserContent, LanguageProgress, WritingNode, VocabularyItem, DailyQuest, QuestKind, MentorPersona, AIMemory, ScriptItem, ScriptCardProgress, ErrorCard, WritingScoreRecord, TypingContent, ErrorPattern, ErrorPatternType, ERROR_PATTERN_LABELS, FlywheelStep, DailyFlywheel, SongPack, Book } from '../types';
-import { createDefaultGrowthTree, CEFR_RANK } from '../data/growthTree';
 import { getScriptPackForLanguage } from '../data/scriptPacks';
-import { appendCustomDirections } from './customDirectionService';
 
 const STORAGE_KEY_USER = 'linguaflow_user';
 const STORAGE_KEY_LOGS = 'linguaflow_logs';
@@ -935,7 +933,13 @@ export const saveWritingTree = (nodes: WritingNode[]) => {
 // - 无树 / 旧格式 / 语言不符 → 生成新树（按等级解锁）。
 // - 树已存在 → 以「默认树为基准」合并：新增的主题/任务自动补进来（如题库扩充后），
 //   同时保留用户已写内容、完成状态，并按当前等级重新计算解锁（不收回已达成的进度）。
-export const ensureGrowthTree = (lang: Language, level: CEFRLevel): WritingNode[] => {
+// 注意：growthTree（含 8 语言题库 treeThemes，984 行）与 customDirectionService（含 aiService，1955 行）
+//   体积大，改为在此处按需动态 import，避免首屏登录/仪表盘就被迫转译整棵题库 + 全部 AI 逻辑。
+export const ensureGrowthTree = async (lang: Language, level: CEFRLevel): Promise<WritingNode[]> => {
+    const [{ createDefaultGrowthTree, CEFR_RANK }, { appendCustomDirections }] = await Promise.all([
+        import('../data/growthTree'),
+        import('./customDirectionService'),
+    ]);
     const existing = getWritingTree();
     const isGrowthFormat = existing.some((n) => n.type === 'task');
     const rootLang = existing.find((n) => n.type === 'root')?.language;
