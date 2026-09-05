@@ -15,7 +15,8 @@ LinguaFlow 是一套以「输出驱动 (Mastery via Output)」为核心的多语
   - 任务路由：fast 任务走 GLM（`GLM-4.7-Flash`）/ Qwen（`qwen3.7-flash-*`），reason 任务走 OpenRouter。**Gemini 已迁出**（无独立 geminiService，旧引用已清除）。
   - TTS：走 Qwen `qwen3-tts-flash`（单模型覆盖中/英/日/韩/俄等多语种）；失败时回退浏览器 Web Speech。英文单词另路由有道 dictvoice。
   - STT：DashScope Paraformer-v2（录音转写接 API 已回退，仅保留本地录音回放；公网 CORS 已知限制）
-- 模块（20 个）：今日 / 剧情对话 / 打字闯关 / **歌曲跟打 SongLab** / 写作树 / 作文流水线 / 写作工坊 / 引导写作 / 墨程 / 文字特训 / 记忆库 / 词汇 / 错题本 / **错误模式引擎** / 写作趋势 / 作品集 / 内容仓库 / 导入 / 学习搭子 / 我的资料 / 登录页。
+- 模块（20 个，与 `constants.tsx` 的 `NAV` 逐项一致）：今日 / 剧情对话 / 打字闯关 / **书架 Books** / 写作树 / 作文流水线 / 写作工坊 / 记忆库 / 词汇 / 错题本 / **错误模式引擎** / 作品集 / 写作趋势 / 文字特训 / 墨程 / 内容仓库 / 导入 / **歌曲跟打 SongLab** / 学习搭子 / 我的资料。
+  - 非导航项，勿计入模块数：`引导写作`（`GuidedWritingView`，「写作工坊」的子标签）、`登录页`（`LoginView`，未登录时全屏占位）、`水平测试`（`AppMode.Assessment`，首次引导流程）。
 - 支持 **11 种语言**任意组合母语 / 目标语（含表意文字语言自动附罗马音 / 拼音 / 注音）。
 - UI：暗夜霓虹重设计已完成（框架层 + 全组件 Wave 0–4，玻璃拟态 + 极光背景 + 流光动效，`prefers-reduced-motion` 自动降级）。
 - 进度系统：XP（每 500 升一级，统一 `getLevelInfo(xp)` 计算，已修复原 `xp%100` 漂移 bug）、CEFR 等级、连续打卡 Streak、打字 14 关解锁。
