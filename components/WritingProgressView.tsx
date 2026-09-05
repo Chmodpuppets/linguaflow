@@ -114,6 +114,8 @@ const WritingProgressView: React.FC<WritingProgressViewProps> = ({ user }) => {
     let alive = true;
     ensureGrowthTree(lang, level).then((t) => {
       if (alive) setTree(t);
+    }).catch((e) => {
+      console.error('[WritingProgress] 写作树加载失败', e);
     });
     return () => { alive = false; };
   }, [lang, level]);

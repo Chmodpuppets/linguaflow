@@ -31,6 +31,8 @@ const CompositionStudioView: React.FC<Props> = ({ user, onUpdateUser }) => {
       if (!alive) return;
       setNodes(tree);
       setActiveId(null);
+    }).catch((e) => {
+      console.error('[CompositionStudio] 写作树加载失败', e);
     });
     return () => { alive = false; };
   }, [lang, userLevel]);

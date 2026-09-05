@@ -45,6 +45,10 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
     let alive = true;
     ensureGrowthTree(user.learningLanguage, userLevel).then((tree) => {
       if (alive) setNodes(tree);
+    }).catch((e) => {
+      // ensureGrowthTree 内部动态 import 题库，chunk 加载失败时会 reject；
+      // 兜底保持空树而非静默 unhandled rejection，便于定位。
+      console.error('[WritingTree] 写作树加载失败', e);
     });
     return () => { alive = false; };
   }, [user.learningLanguage, userLevel]);
@@ -97,8 +101,12 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
 
   const handleDirectionCreated = async (seed: CustomDirectionSeed) => {
     setShowDirModal(false);
-    const fresh = await ensureGrowthTree(user.learningLanguage, userLevel);
-    persist(fresh.map((n) => (n.id === seed.id ? { ...n, isExpanded: true } : n)));
+    try {
+      const fresh = await ensureGrowthTree(user.learningLanguage, userLevel);
+      persist(fresh.map((n) => (n.id === seed.id ? { ...n, isExpanded: true } : n)));
+    } catch (e) {
+      console.error('[WritingTree] 新建方向后重建写作树失败', e);
+    }
   };
 
   const handleRenameDirection = (themeId: string) => {
