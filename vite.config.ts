@@ -7,7 +7,10 @@ export default defineConfig(({ mode }) => {
     return {
       server: {
         port: 3011,
-        host: '0.0.0.0',
+        // 双栈绑定：'0.0.0.0' 只监听 IPv4，而 macOS 把 localhost 优先解析成 ::1，
+        // 导致浏览器打开 http://localhost:3011/ 连不上（必须手打 127.0.0.1）。
+        // '::' 让 Node 同时接受 IPv6 与 IPv4-mapped 连接，localhost / 127.0.0.1 / LAN IP 都好使。
+        host: '::',
       },
       plugins: [react()],
       // 生产构建 vendor 拆分：react / 图标库单独成 chunk，利于浏览器长期缓存与并行加载。
