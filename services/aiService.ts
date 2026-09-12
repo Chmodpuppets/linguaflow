@@ -1459,8 +1459,16 @@ export const playCachedSpeech = async (
   cancelSpeech();
 
   // 查缓存（动态 import 避免循环依赖加载顺序问题；运行时就是同步拿函数）
-  const cacheMod = await import("./ttsCache");
-  const hit = cacheMod.getCachedTtsUrl(text, opts?.voice);
+  // 注意：缓存只是优化，动态 import 失败绝不能中断播放——否则本函数 Promise reject，
+  // 调用方的 onEnd 不触发（RPGView 等是 fire-and-forget + onEnd 复位），
+  // 播放按钮会永久卡在「播放中」。拿不到缓存模块就跳过，直接走下面的网络/兜底路径。
+  let cacheMod: typeof import('./ttsCache') | null = null;
+  try {
+    cacheMod = await import("./ttsCache");
+  } catch (e) {
+    console.warn("[TTS] 缓存模块加载失败，跳过硬缓存直接走网络", e);
+  }
+  const hit = cacheMod?.getCachedTtsUrl(text, opts?.voice);
   if (hit) {
     playQwenAudio(hit, opts);
     return;
@@ -1479,7 +1487,7 @@ export const playCachedSpeech = async (
         playWebSpeech(text, { ...opts, lang: contentLang });
         return;
       }
-      cacheMod.setCachedTtsUrl(text, opts?.voice, url);
+      cacheMod?.setCachedTtsUrl(text, opts?.voice, url);
       playQwenAudio(url, opts);
     })
     .catch((e) => {
