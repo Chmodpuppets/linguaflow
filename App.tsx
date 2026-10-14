@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
-import { Language, CEFRLevel, AppMode, UserProfile, Book } from './types';
+import { Language, CEFRLevel, AppMode, UserProfile, Book, DailyTaskModule } from './types';
 import { SUPPORTED_LANGUAGES, NAV_ITEMS } from './constants';
 import { getUser, saveUser, ensureLanguageProgress, logoutUser, checkStreakOnLoad, rolloverDailyQuests, getDueErrorCards, getLevelInfo } from './services/storageService';
 import { ChevronDown, Menu, Flame, Star, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
@@ -29,6 +29,7 @@ const ErrorPatternsView = lazy(() => import('./components/ErrorPatternsView'));
 const WritingProgressView = lazy(() => import('./components/WritingProgressView'));
 const InkQuestView = lazy(() => import('./components/InkQuestView'));
 const ContentRepoView = lazy(() => import('./components/ContentRepoView'));
+const ConversationView = lazy(() => import('./components/ConversationView'));
 
 // 懒加载过渡态：极简 spinner，避免切换页面时白屏闪烁
 const ViewFallback = () => (
@@ -39,7 +40,7 @@ const ViewFallback = () => (
 
 // 侧边栏导航分组（信息架构：降低 15 个一级入口的视觉过载）
 const NAV_GROUPS: { label: string; items: string[] }[] = [
-  { label: '学习', items: ['daily', 'typing', 'books', 'writing', 'rpg'] },
+  { label: '学习', items: ['conversation', 'daily', 'typing', 'books', 'writing', 'rpg'] },
   { label: '精进', items: ['writing_tree', 'composition_studio', 'ink_quest', 'script_trainer', 'vocabulary', 'errorbook', 'error_patterns'] },
   { label: '资源', items: ['library', 'content_repo', 'import', 'song_lab', 'trend', 'portfolio'] },
   { label: '社区', items: ['social', 'profile'] },
@@ -56,6 +57,7 @@ const App: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [typingInitialData, setTypingInitialData] = useState<{text: string; title: string; notes?: string} | null>(null);
   const [activeBook, setActiveBook] = useState<Book | null>(null);
+  const [taskContext, setTaskContext] = useState<DailyTaskModule | null>(null);
   const [stars, setStars] = useState<number>(FALLBACK_STARS);
   // 侧栏折叠：整栏收成图标轨 + 分组单独收起
   // 默认：侧栏展开，「精进」「资源」「社区」三组收起（手风琴），仅「学习」展开
@@ -160,11 +162,27 @@ const App: React.FC = () => {
         setTypingInitialData(null); // Clear custom data if leaving typing or switching explicitly
         setActiveBook(null);
     }
+    setTaskContext(null); // 普通导航清除「开始任务」的预置上下文
     if (window.__importProcessing && newMode !== AppMode.Import) {
       const ok = window.confirm('正在抓取/处理内容，切换页面将中断当前操作。确定要离开吗？');
       if (!ok) return;
     }
     setMode(newMode);
+    setIsMenuOpen(false);
+  };
+
+  // 对话台「开始」：按任务模块跳转并预置目标子视图（词汇/错题 → 复习模式）
+  const handleStartTask = (module: DailyTaskModule) => {
+    const modeMap: Record<DailyTaskModule, AppMode> = {
+      vocabulary: AppMode.Vocabulary,
+      typing: AppMode.Typing,
+      writing: AppMode.Writing,
+      errorbook: AppMode.ErrorBook,
+    };
+    setTypingInitialData(null);
+    setActiveBook(null);
+    setTaskContext(module);
+    setMode(modeMap[module]);
     setIsMenuOpen(false);
   };
 
@@ -249,6 +267,7 @@ const App: React.FC = () => {
             <VocabularyView 
                 user={user}
                 onUpdateUser={handleUserUpdate}
+                initialView={taskContext === 'vocabulary' ? 'review' : 'browse'}
             />
         );
       case AppMode.ErrorBook:
@@ -256,6 +275,7 @@ const App: React.FC = () => {
             <ErrorBookView
                 user={user}
                 onUpdateUser={handleUserUpdate}
+                initialView={taskContext === 'errorbook' ? 'review' : 'browse'}
             />
         );
       case AppMode.ErrorPatterns:
@@ -331,6 +351,8 @@ const App: React.FC = () => {
         );
       case AppMode.Profile:
         return <ProfileView user={user} onUpdateUser={handleUserUpdate} onLogout={handleLogout} />;
+      case AppMode.Conversation:
+        return <ConversationView user={user} onStartTask={handleStartTask} onUpdateUser={handleUserUpdate} />;
       default:
         return <TypingView user={user} onComplete={handleUserUpdate} />;
     }

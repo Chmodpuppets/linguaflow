@@ -23,7 +23,8 @@ import {
   Feather,
   Warehouse,
   Music,
-  LibraryBig
+  LibraryBig,
+  MessageCircle
 } from 'lucide-react';
 
 export const SUPPORTED_LANGUAGES = [
@@ -54,6 +55,7 @@ export const DRILL_TOPICS = [
 ];
 
 export const NAV_ITEMS = [
+  { id: 'conversation', label: '对话', icon: <MessageCircle size={20} /> },
   { id: 'daily', label: '今日', icon: <Home size={20} /> },
   { id: 'rpg', label: '剧情对话', icon: <Gamepad2 size={20} /> },
   { id: 'typing', label: '打字闯关', icon: <Type size={20} /> },

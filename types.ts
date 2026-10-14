@@ -122,7 +122,31 @@ export enum AppMode {
   InkQuest = 'ink_quest',
   ContentRepo = 'content_repo',
   SongLab = 'song_lab',
-  Books = 'books'
+  Books = 'books',
+  Conversation = 'conversation'
+}
+
+// 对话工作台：AI 产出的结构化结果卡片（通用协议；星级任务卡可扩展）
+export interface ChatCard {
+  id: string;
+  title: string;
+  items: string[];        // 卡片内的列表条目（要点 / 任务步骤）
+  actionLabel?: string;   // 动作按钮文案（如「开始练习」）
+  actionMode?: AppMode;   // 动作跳转目标模块（Task 10.4 接入）
+}
+
+// 星级任务：对话工作台产出的「练」的关卡化任务（4 个硬资产落点）
+export type DailyTaskModule = 'vocabulary' | 'typing' | 'writing' | 'errorbook';
+export type StarLevel = 1 | 2 | 3 | 4 | 5;
+
+export interface DailyTask {
+  id: string;
+  module: DailyTaskModule;
+  star: StarLevel;
+  durationMin: number;
+  xp: number;
+  title: string;
+  detail: string;
 }
 
 // --- Personalization (Phase 2/3) ---

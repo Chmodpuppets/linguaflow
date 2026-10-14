@@ -14,12 +14,13 @@ import { BookX, Search, Trash2, Repeat, Check, XCircle, Layers, AlertCircle } fr
 interface ErrorBookViewProps {
   user: UserProfile;
   onUpdateUser: (user: UserProfile) => void;
+  initialView?: 'browse' | 'review';
 }
 
-const ErrorBookView: React.FC<ErrorBookViewProps> = ({ user, onUpdateUser }) => {
+const ErrorBookView: React.FC<ErrorBookViewProps> = ({ user, onUpdateUser, initialView = 'browse' }) => {
   const [items, setItems] = useState<ErrorCard[]>([]);
   const [filter, setFilter] = useState('');
-  const [viewMode, setViewMode] = useState<'browse' | 'review'>('browse');
+  const [viewMode, setViewMode] = useState<'browse' | 'review'>(initialView);
   const [dueCount, setDueCount] = useState(0);
 
   // Review state

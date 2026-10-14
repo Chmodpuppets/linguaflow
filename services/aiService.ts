@@ -1,7 +1,8 @@
 
-import { Language, CEFRLevel, AssessmentResult, TypingContent, WritingFeedback, WritingRevisionFeedback, GuidedWritingFeedback, GuidedMode, WritingNode, NodeType, ReadingReflection, RPGScenario, RPGTurnResult, UserProfile, ScenarioDef, TargetExam, WritingRegister, CompositionGenre, GENRE_LABELS, ReferenceEssay, WritingPracticeType, WritingCycleStage, CustomDirectionLeafSeed } from '../types';
+import { Language, CEFRLevel, AssessmentResult, TypingContent, WritingFeedback, WritingRevisionFeedback, GuidedWritingFeedback, GuidedMode, WritingNode, NodeType, ReadingReflection, RPGScenario, RPGTurnResult, UserProfile, ScenarioDef, TargetExam, WritingRegister, CompositionGenre, GENRE_LABELS, ReferenceEssay, WritingPracticeType, WritingCycleStage, CustomDirectionLeafSeed, DailyTask } from '../types';
 import { MENTOR_PERSONAS } from '../constants';
 import { getAIConfig, AIConfig, TaskCategory, TaskTier, DEFAULT_TASK_ROUTES } from './storageService';
+import { pickLocalTasks } from '../data/dailyTasks';
 
 // --- Qwen (DashScope) + OpenRouter configuration ---
 // Primary LLM provider: Alibaba Cloud DashScope "Qwen" via its OpenAI-compatible
@@ -214,6 +215,172 @@ export const chatCompletionWithSystem = async (system: string, prompt: string, t
         }
     }
     throw lastErr;
+};
+
+// --- 流式 chat completion（SSE）---
+// 供对话工作台等需要"打字机"体验的场景使用。走 OpenAI 兼容的 `stream: true`，
+// 逐 token 回调 onDelta。失败策略与非流式一致：连接/限流失败才回落下一 provider；
+// 流中途中断（已吐部分 token）不回落，避免重复输出，交由调用方降级。
+const callProviderStream = async (
+  p: LLMProvider,
+  messages: { role: string; content: string }[],
+  temperature: number | undefined,
+  onDelta: (delta: string) => void
+): Promise<string> => {
+  let res: Response;
+  try {
+    res = await fetch(`${p.baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${p.apiKey}`,
+        "Content-Type": "application/json",
+        ...(p.name === "openrouter"
+          ? { "HTTP-Referer": "https://linguaflow.app", "X-Title": "LinguaFlow" }
+          : {}),
+      },
+      body: JSON.stringify({
+        model: p.model,
+        messages,
+        temperature: temperature ?? 0.7,
+        stream: true,
+      }),
+    });
+  } catch (e) {
+    const err = new Error(`Network error (${p.name})`) as ChatError;
+    err.network = true;
+    throw err;
+  }
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    if (isQuotaOrLimit(res.status, errText)) {
+      const err = new Error(`Quota/limit reached (${p.name} ${res.status})`) as ChatError;
+      err.quota = true;
+      throw err;
+    }
+    throw new Error(`LLM stream failed (${p.name} ${res.status}): ${errText}`);
+  }
+
+  if (!res.body) {
+    throw new Error(`Stream not supported (${p.name})`);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+  let full = "";
+
+  const consumeLine = (line: string) => {
+    if (!line.startsWith("data:")) return;
+    const payload = line.slice(5).trim();
+    if (!payload || payload === "[DONE]") return;
+    try {
+      const json = JSON.parse(payload) as { choices?: Array<{ delta?: { content?: string } }> };
+      const delta = json?.choices?.[0]?.delta?.content;
+      if (delta) {
+        full += delta;
+        onDelta(delta);
+      }
+    } catch {
+      // 忽略无法解析的 data 行（心跳 / 元数据）
+    }
+  };
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) buffer += decoder.decode(value, { stream: true });
+      let nl: number;
+      while ((nl = buffer.indexOf("\n")) !== -1) {
+        const line = buffer.slice(0, nl).trim();
+        buffer = buffer.slice(nl + 1);
+        if (line) consumeLine(line);
+      }
+    }
+  } catch (e) {
+    throw new Error(`Stream interrupted (${p.name}): ${(e as any)?.message || e}`);
+  }
+
+  // flush 最后一行（若流结束无换行）
+  if (buffer.trim()) consumeLine(buffer.trim());
+
+  return full;
+};
+
+export const streamChatCompletion = async (
+  system: string,
+  messages: { role: string; content: string }[],
+  onDelta: (delta: string) => void,
+  temperature?: number
+): Promise<string> => {
+  const fullMessages = [
+    { role: "system", content: system },
+    ...messages,
+  ];
+  let lastErr: unknown;
+  for (const p of buildProviders()) {
+    try {
+      return await callProviderStream(p, fullMessages, temperature, onDelta);
+    } catch (e: any) {
+      lastErr = e;
+      if (e?.quota || e?.network) continue;
+      throw e;
+    }
+  }
+  throw lastErr;
+};
+
+// --- 每日星级任务生成（对话工作台）---
+// 读用户 CEFR + 弱项 + 目标，让 AI 生成今日 3 个任务（1 轻 + 1 中 + 1 重）。
+// 无 key / 失败时回退本地任务池（按 CEFR 推荐星级区间）。
+const VALID_MODULES: DailyTask['module'][] = ['vocabulary', 'typing', 'writing', 'errorbook'];
+
+const sanitizeTasks = (arr: any[]): DailyTask[] => {
+  const out: DailyTask[] = [];
+  for (const raw of arr) {
+    const t = raw as Partial<DailyTask>;
+    if (!t || !VALID_MODULES.includes(t.module as DailyTask['module'])) continue;
+    const star = Math.round(Number(t.star));
+    if (star < 1 || star > 5) continue;
+    if (typeof t.title !== 'string' || !t.title.trim()) continue;
+    const durationMin = Math.max(3, Math.round(Number(t.durationMin) || 10));
+    out.push({
+      module: t.module as DailyTask['module'],
+      star: star as DailyTask['star'],
+      durationMin,
+      xp: Math.max(5, Math.round(Number(t.xp) || durationMin * 1.5)),
+      title: t.title.trim(),
+      detail: typeof t.detail === 'string' ? t.detail : '',
+      id: `ai-${t.module}-${star}-${Date.now()}-${out.length}`,
+    });
+  }
+  return out;
+};
+
+export const generateDailyTasks = async (user: UserProfile): Promise<DailyTask[]> => {
+  const lp = user.progress[user.learningLanguage];
+  const cefr: string = lp?.cefrLevel || 'A1';
+  const weak = user.aiMemory?.weakPoints || [];
+  const goals = user.aiMemory?.goals || [];
+
+  const system = `你是 LinguaFlow 的学习任务规划器。根据学生的 CEFR 等级、薄弱点与目标，生成今日 3 个练习任务：1 个轻量（5-10 分钟）、1 个中等（15-20 分钟）、1 个重度（25-45 分钟）。
+只输出 JSON 数组，不要任何解释或代码块标记，格式：
+[{"module":"vocabulary|typing|writing|errorbook","star":1,"durationMin":5,"xp":10,"title":"任务标题","detail":"一句话说明"}]
+规则：module 只能四选一（vocabulary/typing/writing/errorbook）；star 对应难度时长 1=5min、2=10min、3=15-20min、4=30min、5=45min+；xp 大致为 durationMin 的 1-2 倍；三个任务的 module 尽量不同。`;
+
+  const prompt = `学生正在学 ${user.learningLanguage}，当前 CEFR ${cefr}。薄弱点：${weak.length ? weak.join('、') : '暂无记录'}。目标：${goals.length ? goals.join('、') : '通用提升'}。请生成今日 3 个任务。`;
+
+  try {
+    const raw = await chatCompletionWithSystem(system, prompt, 0.3);
+    const parsed = parseAIJSON<DailyTask[]>(raw, []);
+    const valid = Array.isArray(parsed) ? sanitizeTasks(parsed) : [];
+    if (valid.length >= 3) return valid.slice(0, 3);
+    return pickLocalTasks(cefr);
+  } catch (e) {
+    console.error('[LinguaFlow] generateDailyTasks failed, fallback to local pool', e);
+    return pickLocalTasks(cefr);
+  }
 };
 
 // --- 按任务类别路由模型（fast=快模型 / reason=高推理 / auto=跟随全局）---

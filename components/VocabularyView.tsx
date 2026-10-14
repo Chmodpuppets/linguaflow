@@ -8,12 +8,13 @@ import { BookA, Plus, Search, Trash2, Sparkles, Volume2, Tag, Loader2, Save, X, 
 interface VocabularyViewProps {
   user: UserProfile;
   onUpdateUser: (user: UserProfile) => void;
+  initialView?: 'browse' | 'review';
 }
 
-const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser }) => {
+const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser, initialView = 'browse' }) => {
   const [items, setItems] = useState<VocabularyItem[]>([]);
   const [filter, setFilter] = useState('');
-  const [viewMode, setViewMode] = useState<'browse' | 'review'>('browse');
+  const [viewMode, setViewMode] = useState<'browse' | 'review'>(initialView);
   const [dueCount, setDueCount] = useState(0);
 
   // Review state

@@ -111,6 +111,62 @@
 **文件**：data/treeThemes.ts（新）, data/growthTree.ts, components/WritingTreeView.tsx, components/WritingProgressView.tsx
 **参考**：site-setup.md 第 7 节
 
+### [x] Task 10: 对话式工作台 + 游戏化星级任务系统（MVP）（已完成 2026-10-11）
+**描述**：把「20 模块平铺」升级为「对话驱动的游戏化学习台」。对话台（ConversationView）是每日向导——AI 判断用户当前该练什么，产出带星级的每日三任务卡片，点击跳转到现有模块（词汇/打字/写作/错题）。星级 = 难度/时长梯度（★1 5min 暖身 → ★5 整块大师），系统按用户 CEFR 推荐匹配星级区间。
+**范围与决策**：
+- 方向 B（对话为主、工具为辅）；20 模块不删除，作为任务落点。
+- 星级锚定：按难度/时长；CEFR 只用于「推荐匹配星级区间」，非硬门控。
+- MVP 成瘾机制：每日三任务（1 轻 + 1 中 + 1 重）+ 星级卡片 + streak 强化；三星通关 / 宝箱 / 成就卡放二期。
+- 技术前提：aiService 需新增 SSE 流式（当前仅非流式 `chatCompletionWithSystem`）。
+
+### [x] Task 10.1: aiService 新增 SSE 流式接口（已完成 2026-10-11）
+**描述**：`services/aiService.ts` 新增 `streamChatCompletion(system, messages, onDelta)`，走 OpenRouter `stream: true` + SSE 逐行解析（fetch + ReadableStream + getReader + TextDecoder），逐 token 回调；保留现有非流式接口不动。
+**实现要点**：新增 `callProviderStream`（单 provider 流式，复用 OpenRouter 的 HTTP-Referer/X-Title 头）+ `streamChatCompletion`（带 system 的多 provider 兜底）。失败策略：连接/限流失败回落下一 provider；流中途中断（已吐 token）不回落，避免重复输出。
+**验收证据**：`esbuild transformSync(ts)` 通过；`tsc --noEmit --skipLibCheck` 0 错误。运行时逐 token 回调待接入对话台（Task 10.2）后实测。
+**文件**：services/aiService.ts
+**参考**：site-setup.md 第 7 节「对话式工作台」
+
+### [x] Task 10.2: 对话工作台视图（ConversationView）（已完成 2026-10-11）
+**描述**：新组件 `components/ConversationView.tsx`：底部多行输入框 + 消息流（用户右 / AI 左气泡）+ 流式打字机渲染 + AI 消息可内联「结果卡片」协议（结构化数据 → 卡片渲染，非纯文本）。复用现有 MENTOR_PERSONAS 或新增「学习向导」人设（system prompt 定位为"判断你要练什么、带你去练"）。
+**验收标准**：
+- 输入 → 流式回复逐字渲染；
+- AI 返回结构化结果时渲染为卡片（星级/时长/XP/动作按钮）；
+- 深色霓虹主题一致；移动端响应式；
+- 无 AI key 时有本地兜底提示，不白屏。
+**文件**：components/ConversationView.tsx（新）, App.tsx, constants.tsx, types.ts
+**参考**：site-setup.md 第 7 节
+**验收证据**（2026-10-11）：`esbuild transformSync` 通过（ConversationView 232 行）；`tsc --noEmit --skipLibCheck` 0 错误。实现含欢迎区（学习向导开场 + 4 快捷提示 chips）、消息流（user 渐变紫气泡右 / AI 玻璃气泡左）、流式逐 delta 追加、三点跳动占位、无 key 兜底提示、卡片协议就位（ChatCard 类型 + CardBlock 渲染 + 消息 cards 字段，数据源 Task 10.3 接入）。运行时流式对话待浏览器实测（需配置 AI key）。
+
+### [x] Task 10.3: 星级任务模型 + 每日三任务生成（已完成 2026-10-11）
+**描述**：定义星级任务数据模型 `{ module, star(1–5), durationMin, xp, title, action }`；`aiService.ts` 新增 `generateDailyTasks(profile)`：读用户 CEFR + 弱项 + 时间，生成每日三任务（1 轻 + 1 中 + 1 重，对应 ★1–2 / ★3 / ★4–5），返回结构化卡片。无 key / 失败时回退本地任务池（按 CEFR 预设模板）。
+**验收标准**：
+- 生成 3 个任务、星级与用户 CEFR 匹配；
+- 4 个硬资产（词汇/打字/写作/错题）都能作为任务落点；
+- 本地兜底可用（离线也能出任务）。
+**文件**：services/aiService.ts, types.ts（或新 data/dailyTasks.ts）
+**参考**：site-setup.md 第 7 节「星级锚定」
+**验收证据**（2026-10-11）：`esbuild transformSync` 通过（4 文件）；`tsc --noEmit --skipLibCheck` 0 错误；dev server 新模块 `data/dailyTasks.ts` + 改动模块编译 200。实现：`types.ts` 加 `DailyTask`/`DailyTaskModule`/`StarLevel`；`data/dailyTasks.ts` 本地池（4 模块 × 5 星 = 20 条）+ `pickLocalTasks`（按 CEFR 星级区间选 1 轻 1 中 1 重）；`aiService.ts` 的 `generateDailyTasks`（AI 优先 + `sanitizeTasks` 清洗 + <3 条或失败回退本地）；`ConversationView` 首次进入展示 3 张星级任务卡。AI 生成待浏览器实测（需 key），本地兜底可离线验证。
+
+### [x] Task 10.4: 导航接入 + 卡片跳转闭环（已完成 2026-10-11）
+**描述**：对话台接入导航（NAV_ITEMS 新增「对话」项，图标 MessageCircle）；星级卡片「开始」按钮点击跳转到对应模块（词汇/打字闯关/写作/错题），携带任务上下文；完成任务后回对话台有完成反馈（+XP 计入现有 getLevelInfo）。
+**验收标准**：
+- 卡片点击跳转正确模块，且携带任务上下文（如预置目标词数/关卡/写作主题）；
+- 完成回对话台显示完成态 + XP 奖励；
+- 侧栏「对话」项可正常进入/退出，不破坏其余 20 模块。
+**文件**：components/ConversationView.tsx, constants.tsx, App.tsx, services/storageService.ts（如涉及任务状态持久化）
+**参考**：site-setup.md 第 7 节
+**验收证据**（2026-10-11）：`esbuild transformSync` 通过；`tsc --noEmit --skipLibCheck` 0 错误；dev server 编译 200。实现：`StarTaskCard` 加「开始」（`onNavigate(MODULE_TO_MODE[module])` 跳转词汇/打字/写作/错题）+「完成」（`addActivity` 加 XP + level 同步）；任务当天缓存（`linguaflow_daily_tasks`）+ 完成态持久化（`linguaflow_daily_tasks_done`），保证离开再回来完成态不丢。**遗留**：任务上下文预置（如 Typing 预填文本）未做，4 模块上下文机制差异大，留二期增强。
+
+### [x] Task 11: 对话工作台二期增强（游戏化深化）
+**描述**：Task 10 MVP 跑通后，按真实使用反馈择项启动。已做：
+- **streak 强化联动**（✅ 2026-10-11）：完成全部 3 个今日任务 → `commitDailyStreak` 续连胜（幂等，与产出飞轮共存，同一天只续一次）；今日任务区显示 X/3 进度 + 全完成火焰反馈。
+- **宝箱**（✅ 2026-10-11）：完成全部 3 任务可开启今日宝箱，随机 50–150 XP 额外奖励（`linguaflow_daily_chest`，当天仅一次，损失厌恶）。
+- **三星通关评价**（✅ 2026-10-11）：完成时自评质量 1–3 星，XP 按倍率加成（★×1 / ★★×1.5 / ★★★×2，`qualityXp` 取整）；完成态存质量（`linguaflow_daily_tasks_done` 的 `done` 映射，`loadDone` 兼容旧 `doneIds` 格式）；完成徽章显示通关星级 + 标签（已完成/认真完成/完美通关）。「全三星解锁大师」未做（需跨天聚合，留后续）。
+- **可分享成就卡**（✅ 2026-10-11）：`components/AchievementCard.tsx` 纯前端 canvas 生成 1080×1350 PNG（DPR 2x 高清），内容 = LinguaFlow logo + 连胜天数大字 + Lv·段位 + XP 进度条 + 语言·CEFR + 段位星（新手→大师 5 档点亮）+ 开源标语；系统字体栈（不依赖 Google Fonts）；下载 PNG + Web Share API 分享（不支持回退下载）。入口：对话台欢迎卡右上 + 输入区右下常驻。
+- **任务上下文预置**（✅ 2026-10-11）：点「开始」按模块预置目标子视图——词汇/错题直达复习模式（`initialView` prop）；打字（闯关）/写作（自由写）已是默认正确模式，无需预置。App.tsx 加 `taskContext` 状态 + `handleStartTask`（普通导航清除上下文）；ConversationView 的 `onNavigate` 改为 `onStartTask`，删除冗余 `MODULE_TO_MODE`（映射上移 App）。
+**Task 11 全部 5 项增强交付完毕。**
+**参考**：site-setup.md 第 7 节「二期增强」
+
 ## 质量要求
 - [ ] 命令不挂后台（不追加 `&`），不启动服务器（假定 dev server 已跑）。
 - [ ] 移动端响应式必做。
