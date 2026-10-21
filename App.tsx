@@ -30,6 +30,7 @@ const WritingProgressView = lazy(() => import('./components/WritingProgressView'
 const InkQuestView = lazy(() => import('./components/InkQuestView'));
 const ContentRepoView = lazy(() => import('./components/ContentRepoView'));
 const ConversationView = lazy(() => import('./components/ConversationView'));
+const StudyLibraryView = lazy(() => import('./components/StudyLibraryView'));
 
 // 懒加载过渡态：极简 spinner，避免切换页面时白屏闪烁
 const ViewFallback = () => (
@@ -40,7 +41,7 @@ const ViewFallback = () => (
 
 // 侧边栏导航分组（信息架构：降低 15 个一级入口的视觉过载）
 const NAV_GROUPS: { label: string; items: string[] }[] = [
-  { label: '学习', items: ['conversation', 'daily', 'typing', 'books', 'writing', 'rpg'] },
+  { label: '学习', items: ['conversation', 'daily', 'typing', 'books', 'study_library', 'writing', 'rpg'] },
   { label: '精进', items: ['writing_tree', 'composition_studio', 'ink_quest', 'script_trainer', 'vocabulary', 'errorbook', 'error_patterns'] },
   { label: '资源', items: ['library', 'content_repo', 'import', 'song_lab', 'trend', 'portfolio'] },
   { label: '社区', items: ['social', 'profile'] },
@@ -226,6 +227,13 @@ const App: React.FC = () => {
             <BooksView 
                 user={user}
                 onOpenBook={handleOpenBook}
+            />
+        );
+      case AppMode.StudyLibrary:
+        return (
+            <StudyLibraryView 
+                user={user}
+                onUpdateUser={handleUserUpdate}
             />
         );
       case AppMode.Writing:

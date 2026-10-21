@@ -167,6 +167,29 @@
 **Task 11 全部 5 项增强交付完毕。**
 **参考**：site-setup.md 第 7 节「二期增强」
 
+### [x] Task 12: 学习书库（Study Library）—— 结构化学习型书籍
+**描述**：把词汇书/语法书/短语书（如 Key Words for Fluency、English Grammar in Use、English Phrasal Verbs in Use）结构化装进 linguaflow，用一套框架学习任意「学习型书籍」。新增第 22 个导航模块「学习书库」，与「书架 Books」（阅读打字）并列、共用「书」的心智但内容模型不同。
+**状态**：✅ 已交付（2026-10-14，P1-P4 + XP + promote + 3 本内置书全部完成）。
+**数据模型**（独立于 Book / VocabularyItem，不共享）：
+- `StudyBook { id, title, author?, cover?, language: Language, type: 'vocabulary'|'grammar'|'phrases'|'mixed', level?, source: 'built-in'|'user-import'|'ai-generated'|'pasted-text', chapters[], currentChapterId?, totalItems, completedItems, masteredItems, createdAt, lastStudiedAt? }`
+- `StudyChapter { id, title, description?, items[], currentItemIndex?, completed? }`
+- `StudyItem { id, type: 'word'|'grammar'|'phrase'|'collocation', prompt, answer, examples[], notes?, tags?, partOfSpeech?, pronunciation?, pattern?, variations?, collocations?, box:1-5, dueDate, reviews, lapses, quality?: 'good'|'ok'|'poor', difficulty? }`（SRS 字段与 VocabularyItem 对齐）
+**分阶段**：
+- P1 数据+服务层（types.ts + storageService.ts + aiService.ts）
+- P2 UI 三视图（StudyLibraryView / StudyBookView / StudySessionView）
+- P3 内置书 `data/studyBooks/`（3 本：keyWordsForFluency.ts 21 主题 × 10 词 = 210 词；englishGrammarInUse.ts 10 单元 × 50 语法点；englishPhrasalVerbs.ts 10 单元 × 50 短语动词）
+- P4 导入流程（paste/PDF → 分批 AI 结构化 → 校对入库）
+**关键决策**：存储走 IndexedDB（复制 openBooksDB 模式建 openStudyBooksDB，非 localStorage）；内置书静态文件（零等待、无 AI key 可用）；Production 为「每章 1 次造句挑战」（非每词，控 AI 成本）3 档评分 good/ok/poor + 反作弊；StudyItem 独立 3 档 SRS + 可选 promote 到 VocabularyItem（携带 box/dueDate，复用 saveVocabularyItem 的 word+language dedup）。
+**验收标准**：
+- 内置书零等待、无 AI key 也能学；
+- 5 练习模式（Flashcard / Recognition / Recall / Cloze / Production）跑通；
+- Production 每章 1 次造句挑战，3 档评分 good/ok/poor + AI 一句反馈 + 反作弊（长度/抄例句/AI 兜底）；
+- StudyItem 独立 3 档 SRS + 可选 promote 到 VocabularyItem；
+- 存储走 IndexedDB，纳入账户级备份范围；
+- `tsc --noEmit --skipLibCheck` + `vite build` 通过。
+**文件**：types.ts, services/storageService.ts, services/aiService.ts, components/StudyLibraryView.tsx（新）, components/StudyBookView.tsx（新）, components/StudySessionView.tsx（新）, components/StudyBookImportDialog.tsx（新）, data/studyBooks/keyWordsForFluency.ts（新）, data/studyBooks/englishGrammarInUse.ts（新）, data/studyBooks/englishPhrasalVerbs.ts（新）, constants.tsx, App.tsx
+**参考**：site-setup.md 第 7 节「学习书库」
+
 ## 质量要求
 - [ ] 命令不挂后台（不追加 `&`），不启动服务器（假定 dev server 已跑）。
 - [ ] 移动端响应式必做。

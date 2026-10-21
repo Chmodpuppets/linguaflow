@@ -33,7 +33,10 @@ export default defineConfig(({ mode }) => {
         'process.env.QWEN_TTS_VOICE': JSON.stringify(env.QWEN_TTS_VOICE),
         'process.env.QWEN_STT_MODEL': JSON.stringify(env.QWEN_STT_MODEL),
         'process.env.API_KEY': JSON.stringify(env.OPENROUTER_API_KEY),
-        'process.env.OPENROUTER_MODEL': JSON.stringify(env.OPENROUTER_MODEL)
+        'process.env.OPENROUTER_MODEL': JSON.stringify(env.OPENROUTER_MODEL),
+        // 双发行版：`npm run build` = 开源版（无社区地址）；`npm run build:online` 读 .env.online 内置地址
+        'process.env.COMMUNITY_URL': JSON.stringify(env.COMMUNITY_URL || ''),
+        'process.env.APP_EDITION': JSON.stringify(env.COMMUNITY_URL ? 'online' : 'oss')
       },
       resolve: {
         alias: {

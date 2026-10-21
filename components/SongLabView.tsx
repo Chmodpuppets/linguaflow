@@ -1,4 +1,7 @@
 
+import { uuid } from '../utils/uuid';
+import { copyToClipboard } from '../utils/clipboard';
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { UserProfile, SongPack, SongLine, Language } from '../types';
 import {
@@ -288,11 +291,11 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
 
   // 一键复制「AI 歌词结构化」Prompt 到剪贴板
   const copyPrompt = async () => {
-    try {
-      await navigator.clipboard.writeText(AI_LYRICS_PROMPT);
+    const ok = await copyToClipboard(AI_LYRICS_PROMPT);
+    if (ok) {
       setCopiedPrompt(true);
       setTimeout(() => setCopiedPrompt(false), 2000);
-    } catch {
+    } else {
       setStatus({ type: 'warn', msg: '复制失败，请手动选择文本复制。' });
     }
   };
@@ -491,10 +494,10 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
       return;
     }
     setBusy(true);
-    const packId = crypto.randomUUID();
+    const packId = uuid();
     let audioId: string | undefined;
     if (audioFile) {
-      audioId = crypto.randomUUID();
+      audioId = uuid();
       try {
         await saveSongAudio(audioId, audioFile);
       } catch {

@@ -123,6 +123,7 @@ export enum AppMode {
   ContentRepo = 'content_repo',
   SongLab = 'song_lab',
   Books = 'books',
+  StudyLibrary = 'study_library',
   Conversation = 'conversation'
 }
 
@@ -402,6 +403,77 @@ export interface VocabularyItem {
   dueDate?: number;    // 下次复习时间戳
   reviews?: number;    // 已复习次数
   lapses?: number;     // 遗忘次数
+}
+
+// === 学习书库（Study Library）===
+// 结构化学习型书籍（词汇书/语法书/短语书），与阅读型 Book（连续文本分页）区分。
+// 存储：IndexedDB（openStudyBooksDB），非 localStorage（5MB 上限会撞）。
+// 数据模型：StudyBook → StudyChapter → StudyItem（三层），items 属书、不全局共享。
+
+export type StudyBookType = 'vocabulary' | 'grammar' | 'phrases' | 'mixed';
+export type StudyItemType = 'word' | 'grammar' | 'phrase' | 'collocation';
+export type StudyBookSource = 'built-in' | 'user-import' | 'ai-generated' | 'pasted-text';
+export type StudyItemQuality = 'good' | 'ok' | 'poor';
+
+export interface StudyItem {
+  id: string;
+  type: StudyItemType;
+
+  // 通用：所有类型都有
+  prompt: string;          // 题干（词 / 语法规则 / 短语）
+  answer: string;          // 答案（释义 / 解释 / 用法）
+  examples: string[];      // 例句（≥1）
+  notes?: string;          // 用户的私人笔记
+  tags?: string[];         // ['B1', 'IELTS', 'time']
+
+  // 类型字段
+  partOfSpeech?: string;   // word
+  pronunciation?: string;  // word（IPA）
+  pattern?: string;        // grammar（如 "Subject + have + past participle"）
+  variations?: string[];   // grammar（take/took/taken）
+  collocations?: string[]; // phrase
+
+  // SRS（与 VocabularyItem 同套约定：Leitner box 1..5）
+  box: 1 | 2 | 3 | 4 | 5;
+  dueDate: number;         // 下次复习时间戳
+  reviews: number;         // 已复习次数
+  lapses: number;          // 遗忘次数
+  quality?: StudyItemQuality; // 上次复习质量（debug / UI 用）
+
+  // AI 元（首次生成时给，后续可调）
+  difficulty?: 1 | 2 | 3 | 4 | 5;
+}
+
+export interface StudyChapter {
+  id: string;
+  title: string;
+  description?: string;
+  items: StudyItem[];
+  // 进度
+  currentItemIndex?: number;
+  completed?: boolean;
+}
+
+export interface StudyBook {
+  id: string;
+  title: string;
+  author?: string;
+  cover?: string;
+  language: Language;      // 目标语言（内容语言）
+  glossLanguage?: Language; // 释义语言（母语）；内置书固定中文，导入书跟随用户 nativeLanguage
+  type: StudyBookType;     // vocabulary / grammar / phrases / mixed
+  level?: CEFRLevel;
+  source: StudyBookSource;
+  chapters: StudyChapter[];
+
+  // 进度（denormalized，UI 免遍历）
+  currentChapterId?: string;
+  totalItems: number;
+  completedItems: number;  // box >= 2 至少复习过 1 次
+  masteredItems: number;   // box >= 4
+
+  createdAt: number;
+  lastStudiedAt?: number;
 }
 
 // 写作错题卡（自动从 AI 批改的 suggestions 沉淀，间隔复习强化弱项）

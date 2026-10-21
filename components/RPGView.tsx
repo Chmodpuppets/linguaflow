@@ -1,4 +1,6 @@
 
+import { uuid } from '../utils/uuid';
+
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, RPGScenario, RPGMessage, ScenarioDef, CEFRLevel } from '../types';
 import { RPG_PACKS } from '../data/rpgScenarios';
@@ -341,7 +343,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
 
     const saveWord = (word: string, meaning: string) => {
         saveVocabularyItem({
-            id: crypto.randomUUID(),
+            id: uuid(),
             word,
             definition: meaning,
             exampleSentence: "",

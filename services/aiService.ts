@@ -1,8 +1,11 @@
 
-import { Language, CEFRLevel, AssessmentResult, TypingContent, WritingFeedback, WritingRevisionFeedback, GuidedWritingFeedback, GuidedMode, WritingNode, NodeType, ReadingReflection, RPGScenario, RPGTurnResult, UserProfile, ScenarioDef, TargetExam, WritingRegister, CompositionGenre, GENRE_LABELS, ReferenceEssay, WritingPracticeType, WritingCycleStage, CustomDirectionLeafSeed, DailyTask } from '../types';
+import { uuid } from '../utils/uuid';
+
+import { Language, CEFRLevel, AssessmentResult, TypingContent, WritingFeedback, WritingRevisionFeedback, GuidedWritingFeedback, GuidedMode, WritingNode, NodeType, ReadingReflection, RPGScenario, RPGTurnResult, UserProfile, ScenarioDef, TargetExam, WritingRegister, CompositionGenre, GENRE_LABELS, ReferenceEssay, WritingPracticeType, WritingCycleStage, CustomDirectionLeafSeed, DailyTask, StudyBook, StudyChapter, StudyItem, StudyItemQuality, StudyBookType, StudyItemType } from '../types';
 import { MENTOR_PERSONAS } from '../constants';
-import { getAIConfig, AIConfig, TaskCategory, TaskTier, DEFAULT_TASK_ROUTES } from './storageService';
+import { getAIConfig, AIConfig, TaskCategory, TaskTier, DEFAULT_TASK_ROUTES, recomputeStudyBookStats } from './storageService';
 import { pickLocalTasks } from '../data/dailyTasks';
+import { logChat } from './chatLogService';
 
 // --- Qwen (DashScope) + OpenRouter configuration ---
 // Primary LLM provider: Alibaba Cloud DashScope "Qwen" via its OpenAI-compatible
@@ -146,6 +149,10 @@ const isQuotaOrLimit = (status: number, text: string): boolean =>
   status === 429 || status === 402 ||
   /quota|exceeded|insufficient|额度|余额|rate.?limit|limit reached/i.test(text);
 
+// 提取"用户提问"内容（用于合规日志：记录用户输入 + AI 返回）
+const userPromptText = (messages: { role: string; content: string }[]): string =>
+  messages.filter((m) => m.role === 'user').map((m) => m.content).join('\n');
+
 const callProvider = async (p: LLMProvider, messages: { role: string; content: string }[], temperature?: number): Promise<string> => {
     let res: Response;
     try {
@@ -181,7 +188,9 @@ const callProvider = async (p: LLMProvider, messages: { role: string; content: s
     }
 
     const data = await res.json();
-    return data?.choices?.[0]?.message?.content ?? "";
+    const content = data?.choices?.[0]?.message?.content ?? "";
+    logChat({ model: p.model, prompt: userPromptText(messages), response: content });
+    return content;
 };
 
 const chatCompletion = async (prompt: string, temperature?: number): Promise<string> => {
@@ -305,6 +314,7 @@ const callProviderStream = async (
   // flush 最后一行（若流结束无换行）
   if (buffer.trim()) consumeLine(buffer.trim());
 
+  logChat({ model: p.model, prompt: userPromptText(messages), response: full });
   return full;
 };
 
@@ -2127,4 +2137,220 @@ export const generateCustomDirectionLeaves = async (
     .slice(0, 8);
   if (leaves.length < 4) throw new Error('AI 生成的任务阶梯不完整');
   return { title: (typeof parsed.title === 'string' && parsed.title.trim()) || desc.slice(0, 12), leaves };
+};
+
+// ==================== 学习书库（Study Library）AI ====================
+// ① 用户导入文本 → 分批 AI 结构化 → StudyBook
+// ② Production 造句评分（3 档 + 反作弊 + 本地兜底）
+
+// Levenshtein 编辑距离（抄例句检测用；句子短，O(m*n) 足够）
+const levenshtein = (a: string, b: string): number => {
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  const dp: number[] = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    let prev = dp[0];
+    dp[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const tmp = dp[j];
+      dp[j] = Math.min(dp[j] + 1, dp[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+      prev = tmp;
+    }
+  }
+  return dp[n];
+};
+
+// 归一化相似度 0..1（1 = 完全相同）
+const textSimilarity = (a: string, b: string): number => {
+  const la = a.toLowerCase().trim();
+  const lb = b.toLowerCase().trim();
+  if (!la || !lb) return 0;
+  return 1 - levenshtein(la, lb) / Math.max(la.length, lb.length);
+};
+
+// 把 AI 返回的裸 item 补成完整 StudyItem（补 id + SRS 初始字段）
+const toStudyItem = (raw: unknown): StudyItem | null => {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const prompt = typeof o.prompt === 'string' ? o.prompt.trim() : '';
+  const answer = typeof o.answer === 'string' ? o.answer.trim() : '';
+  if (!prompt || !answer) return null;
+  const validTypes: StudyItemType[] = ['word', 'grammar', 'phrase', 'collocation'];
+  const type: StudyItemType = validTypes.includes(o.type as StudyItemType) ? (o.type as StudyItemType) : 'word';
+  const item: StudyItem = {
+    id: uuid(),
+    type,
+    prompt,
+    answer,
+    examples: Array.isArray(o.examples) ? o.examples.map((e) => String(e)).filter(Boolean).slice(0, 5) : [],
+    box: 1,
+    dueDate: Date.now(),
+    reviews: 0,
+    lapses: 0,
+  };
+  if (typeof o.partOfSpeech === 'string' && o.partOfSpeech.trim()) item.partOfSpeech = o.partOfSpeech.trim();
+  if (typeof o.pronunciation === 'string' && o.pronunciation.trim()) item.pronunciation = o.pronunciation.trim();
+  if (typeof o.pattern === 'string' && o.pattern.trim()) item.pattern = o.pattern.trim();
+  if (Array.isArray(o.variations)) item.variations = o.variations.map((e) => String(e)).filter(Boolean);
+  if (Array.isArray(o.collocations)) item.collocations = o.collocations.map((e) => String(e)).filter(Boolean);
+  if (Array.isArray(o.tags)) item.tags = o.tags.map((e) => String(e)).filter(Boolean);
+  return item;
+};
+
+// 释义语言 → 自然语言标签（AI 生成释义时提示用哪种语言写 answer）
+const GLOSS_LABELS: Record<string, string> = {
+  Chinese: '简体中文',
+  English: '英文',
+  Japanese: '日文',
+  Korean: '韩文',
+  Spanish: '西班牙文',
+  French: '法文',
+  German: '德文',
+  Italian: '意大利文',
+  Russian: '俄文',
+  Greek: '希腊文',
+  Arabic: '阿拉伯文',
+};
+const glossLabel = (lang: Language): string => GLOSS_LABELS[lang] ?? lang;
+
+// 单段文本 → AI 提取 items（一次调用）
+const extractStudyItemsFromChunk = async (
+  chunk: string,
+  language: Language,
+  type: StudyBookType,
+  nativeLanguage: Language,
+): Promise<StudyItem[]> => {
+  const system =
+    `你是语言学习内容结构化引擎。从给定文本中提取「值得学」的学习点，输出 JSON。` +
+    `学习点类型（type）：word=单词/词组、phrase=固定搭配/短语动词、grammar=语法规则/句型、collocation=常见搭配。` +
+    `目标语言：${language}；本书类型：${type}；释义语言（answer 用）：${glossLabel(nativeLanguage)}。` +
+    `严格输出 JSON 数组（不要 markdown、不要解释）：` +
+    `[{"type":"word|phrase|grammar|collocation","prompt":"学习点本体（用${language}）","answer":"释义/解释（用${glossLabel(nativeLanguage)}，简洁）","examples":["${language}例句",...1-2句],"partOfSpeech":"词性（word 用）","pattern":"句型结构（grammar 用）","collocations":["搭配",...]}]`;
+  const prompt = `请从以下文本中提取值得学习的 ${language} 学习点（${type} 类）。文本：\n\n${chunk}`;
+  const raw = await chatCompletionWithSystemForTask('studyBookGen', system, prompt, 0.4);
+  const parsed = parseAIJSON<unknown[]>(raw, []);
+  if (!Array.isArray(parsed)) return [];
+  return parsed.map(toStudyItem).filter((x): x is StudyItem => x !== null);
+};
+
+// 文本分块（按字符数，尽量在空行边界切、不切断段落）
+const chunkText = (text: string, size = 2000): string[] => {
+  const cleaned = text.replace(/\r\n/g, '\n').trim();
+  if (!cleaned) return [];
+  if (cleaned.length <= size) return [cleaned];
+  const chunks: string[] = [];
+  const paragraphs = cleaned.split(/\n\s*\n/);
+  let buf = '';
+  for (const p of paragraphs) {
+    if ((buf + '\n\n' + p).length > size && buf) {
+      chunks.push(buf.trim());
+      buf = p;
+    } else {
+      buf = buf ? buf + '\n\n' + p : p;
+    }
+  }
+  if (buf.trim()) chunks.push(buf.trim());
+  return chunks.length ? chunks : [cleaned];
+};
+
+/**
+ * 把用户粘贴/导入的文本结构化为一本学习书（StudyBook）。
+ * 分批（每段一次 AI 调用）避免单次输出超限；无 AI key / 失败时抛出，由调用方兜底。
+ */
+export const importTextToStudyBook = async (
+  text: string,
+  options: { title: string; language: Language; type: StudyBookType; author?: string; nativeLanguage?: Language },
+  onProgress?: (done: number, total: number) => void,
+): Promise<StudyBook> => {
+  const chunks = chunkText(text);
+  if (chunks.length === 0) throw new Error('没有可导入的文本内容');
+  const nativeLanguage = options.nativeLanguage ?? Language.Chinese;
+
+  const chapters: StudyChapter[] = [];
+  for (let i = 0; i < chunks.length; i++) {
+    const items = await extractStudyItemsFromChunk(chunks[i], options.language, options.type, nativeLanguage);
+    if (items.length > 0) {
+      chapters.push({
+        id: uuid(),
+        title: chunks.length > 1 ? `第 ${i + 1} 部分` : options.title,
+        items,
+      });
+    }
+    onProgress?.(i + 1, chunks.length);
+  }
+
+  if (chapters.length === 0) throw new Error('未能从文本中提取到学习点');
+
+  const book: StudyBook = {
+    id: uuid(),
+    title: options.title,
+    author: options.author,
+    language: options.language,
+    glossLanguage: nativeLanguage,
+    type: options.type,
+    source: 'pasted-text',
+    chapters,
+    totalItems: 0,
+    completedItems: 0,
+    masteredItems: 0,
+    createdAt: Date.now(),
+  };
+  return recomputeStudyBookStats(book);
+};
+
+/**
+ * Production 造句评分：3 档 good/ok/poor + 一句中文反馈。
+ * 反作弊：长度异常直接 poor；抄例句（相似度 ≥80%）降级 ok；AI 失败本地启发式兜底。
+ */
+export const evaluateProductionSentence = async (
+  item: StudyItem,
+  userSentence: string,
+  nativeLanguage: Language,
+): Promise<{ quality: StudyItemQuality; feedback: string }> => {
+  const trimmed = userSentence.trim();
+
+  // 反作弊 1：长度异常
+  if (trimmed.length < 5) {
+    return { quality: 'poor', feedback: '请写一个完整句子（至少 5 个字符）。' };
+  }
+  if (trimmed.length > 200) {
+    return { quality: 'poor', feedback: '句子太长了，请控制在 200 字符以内。' };
+  }
+
+  // 反作弊 2：抄例句（Levenshtein 相似度 ≥ 0.8）
+  for (const ex of item.examples) {
+    if (textSimilarity(trimmed, ex) >= 0.8) {
+      return { quality: 'ok', feedback: '试着造一个属于自己的句子，不要直接抄例句。' };
+    }
+  }
+
+  const system =
+    `你是语言老师，评价学生用目标词/短语/规则造的句子。只输出 JSON（不要 markdown、不要解释）：` +
+    `{"quality":"good|ok|poor","feedback":"一句简短中文反馈（≤20字）"}` +
+    ` 判定：good=用法正确且句子通顺且非照抄例句；poor=用错/句子不通/只有单词本身；ok=用了但有小毛病（形式错、搭配别扭）。`;
+  const prompt =
+    `目标学习点："${item.prompt}"（类型：${item.type}）\n` +
+    `参考释义：${item.answer}\n` +
+    `参考例句：\n${item.examples.map((e) => '- ' + e).join('\n')}\n\n` +
+    `学生造的句子："${trimmed}"`;
+
+  try {
+    const raw = await chatCompletionWithSystemForTask('productionEval', system, prompt, 0.3);
+    const parsed = parseAIJSON<{ quality?: string; feedback?: string }>(raw, {});
+    const q = parsed.quality;
+    const quality: StudyItemQuality = q === 'good' || q === 'ok' || q === 'poor' ? q : 'ok';
+    return {
+      quality,
+      feedback: parsed.feedback || (quality === 'good' ? '用得不错，继续保持。' : quality === 'poor' ? '这里用错了，再看下参考释义。' : '基本正确，注意小细节。'),
+    };
+  } catch (e) {
+    console.error('Production eval error:', e);
+    // 本地启发式兜底：目标词是否出现
+    const used = trimmed.toLowerCase().includes(item.prompt.toLowerCase());
+    return {
+      quality: used ? 'ok' : 'poor',
+      feedback: used ? '已使用目标学习点（本地判定，AI 暂不可用）。' : '未检测到目标学习点，请重试。',
+    };
+  }
 };

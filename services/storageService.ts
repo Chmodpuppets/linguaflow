@@ -1,5 +1,7 @@
 
-import { UserProfile, ActivityLog, Language, CEFRLevel, UserContent, LanguageProgress, WritingNode, VocabularyItem, DailyQuest, QuestKind, MentorPersona, AIMemory, ScriptItem, ScriptCardProgress, ErrorCard, WritingScoreRecord, TypingContent, ErrorPattern, ErrorPatternType, ERROR_PATTERN_LABELS, FlywheelStep, DailyFlywheel, SongPack, Book } from '../types';
+import { uuid } from '../utils/uuid';
+
+import { UserProfile, ActivityLog, Language, CEFRLevel, UserContent, LanguageProgress, WritingNode, VocabularyItem, DailyQuest, QuestKind, MentorPersona, AIMemory, ScriptItem, ScriptCardProgress, ErrorCard, WritingScoreRecord, TypingContent, ErrorPattern, ErrorPatternType, ERROR_PATTERN_LABELS, FlywheelStep, DailyFlywheel, SongPack, Book, StudyBook, StudyItem, StudyItemQuality } from '../types';
 import { getScriptPackForLanguage } from '../data/scriptPacks';
 
 const STORAGE_KEY_USER = 'linguaflow_user';
@@ -55,7 +57,9 @@ export type TaskCategory =
   | 'conversationDebrief' // 对话复盘（非实时）
   | 'srsSchedule'         // SRS 智能排程
   | 'goalSetting'         // 定目标
-  | 'agenticLoop';        // Agentic 学习闭环
+  | 'agenticLoop'         // Agentic 学习闭环
+  | 'studyBookGen'        // 学习书库：导入文本结构化 / AI 生成等价书
+  | 'productionEval';     // 学习书库：Production 造句评分
 
 export const TASK_CATEGORY_LABELS: Record<TaskCategory, string> = {
   typing: '打字辅助',
@@ -70,6 +74,8 @@ export const TASK_CATEGORY_LABELS: Record<TaskCategory, string> = {
   srsSchedule: 'SRS 智能排程',
   goalSetting: '定目标',
   agenticLoop: 'Agentic 学习闭环',
+  studyBookGen: '学习书库生成',
+  productionEval: '造句评分',
 };
 
 /** 默认路由：高频小活走 fast，深推理活走 reason。可在「个人中心 → 模型设置」逐项覆盖。 */
@@ -86,6 +92,8 @@ export const DEFAULT_TASK_ROUTES: Record<TaskCategory, TaskTier> = {
   srsSchedule: 'reason',
   goalSetting: 'reason',
   agenticLoop: 'reason',
+  studyBookGen: 'fast',
+  productionEval: 'fast',
 };
 
 export interface AIConfig {
@@ -700,7 +708,7 @@ export const generateDailyQuests = (lang: Language): DailyQuest[] => {
         ];
     const picks = [QUEST_TEMPLATES[0], QUEST_TEMPLATES[1], third];
     return picks.map((t) => ({
-        id: crypto.randomUUID(),
+        id: uuid(),
         label: t.label,
         target: t.target,
         current: 0,
@@ -770,6 +778,7 @@ export const checkStreakOnLoad = (user: UserProfile): UserProfile => {
 // --- Spaced Repetition (SRS) for Vocabulary (Phase 1) ---
 // Leitner box 1..5，熟词间隔更长；答错回到 box 1
 const SRS_INTERVALS_DAYS = [0, 1, 3, 7, 16, 35];
+export { SRS_INTERVALS_DAYS };
 
 export const reviewVocabulary = (item: VocabularyItem, known: boolean): VocabularyItem => {
     const box = item.box ?? 1;
@@ -876,7 +885,7 @@ export const addActivity = (
 
   // 2. Add Log
   const newLog: ActivityLog = {
-    id: crypto.randomUUID(),
+    id: uuid(),
     timestamp: Date.now(),
     date: today,
     type,
@@ -1091,7 +1100,7 @@ export const addErrorCards = (
             };
         } else {
             updated.unshift({
-                id: crypto.randomUUID(),
+                id: uuid(),
                 original,
                 correction,
                 reason: c.reason,
@@ -1490,6 +1499,234 @@ export const updateBookProgress = async (id: string, currentPage: number): Promi
     }
 };
 
+// ==================== 学习书库（Study Library） ====================
+// 结构化学习型书籍（词汇/语法/短语书），存 IndexedDB（复制 openBooksDB 模式），
+// 与阅读型 Book（pages 连续文本）区分。StudyBook → StudyChapter → StudyItem 三层。
+
+const STUDY_BOOKS_DB = 'linguaflow_study_books_db';
+const STUDY_BOOKS_STORE = 'study_books';
+
+const openStudyBooksDB = (): Promise<IDBDatabase> =>
+    new Promise((resolve, reject) => {
+        const req = indexedDB.open(STUDY_BOOKS_DB, 1);
+        req.onupgradeneeded = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains(STUDY_BOOKS_STORE)) {
+                const store = db.createObjectStore(STUDY_BOOKS_STORE, { keyPath: 'id' });
+                store.createIndex('language', 'language', { unique: false });
+                store.createIndex('createdAt', 'createdAt', { unique: false });
+            }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+
+const sortStudyBooks = (all: StudyBook[], lang?: Language): StudyBook[] => {
+    const filtered = lang ? all.filter((b) => b.language === lang) : all;
+    return filtered.sort((a, b) => (b.lastStudiedAt ?? b.createdAt) - (a.lastStudiedAt ?? a.createdAt));
+};
+
+export const getStudyBooks = async (lang?: Language): Promise<StudyBook[]> => {
+    const db = await openStudyBooksDB();
+    try {
+        const all = await new Promise<StudyBook[]>((resolve, reject) => {
+            const tx = db.transaction(STUDY_BOOKS_STORE, 'readonly');
+            const req = tx.objectStore(STUDY_BOOKS_STORE).getAll();
+            req.onsuccess = () => resolve((req.result as StudyBook[]) ?? []);
+            req.onerror = () => reject(req.error);
+        });
+        return sortStudyBooks(all, lang);
+    } catch {
+        return [];
+    } finally {
+        db.close();
+    }
+};
+
+export const saveStudyBook = async (book: StudyBook): Promise<StudyBook[]> => {
+    const db = await openStudyBooksDB();
+    try {
+        await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction(STUDY_BOOKS_STORE, 'readwrite');
+            tx.objectStore(STUDY_BOOKS_STORE).put(book);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+        return await getStudyBooks(book.language);
+    } catch {
+        return getStudyBooks(book.language);
+    } finally {
+        db.close();
+    }
+};
+
+export const deleteStudyBook = async (id: string, lang?: Language): Promise<StudyBook[]> => {
+    const db = await openStudyBooksDB();
+    try {
+        await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction(STUDY_BOOKS_STORE, 'readwrite');
+            tx.objectStore(STUDY_BOOKS_STORE).delete(id);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+        return await getStudyBooks(lang);
+    } catch {
+        return [];
+    } finally {
+        db.close();
+    }
+};
+
+// 重算 denormalized 统计（totalItems / completedItems / masteredItems）
+export const recomputeStudyBookStats = (book: StudyBook): StudyBook => {
+    let total = 0, completed = 0, mastered = 0;
+    for (const chapter of book.chapters) {
+        for (const item of chapter.items) {
+            total++;
+            if ((item.box ?? 1) >= 2) completed++;
+            if ((item.box ?? 1) >= 4) mastered++;
+        }
+    }
+    return { ...book, totalItems: total, completedItems: completed, masteredItems: mastered };
+};
+
+// --- StudyItem SRS（3 档，独立于 VocabularyItem 的 2 档）---
+// good → box++（cap 5）；ok → box 不动；poor → box = 1。
+// 复用 SRS_INTERVALS_DAYS 调度（与 vocab 同源）。
+export const reviewStudyItem = (item: StudyItem, quality: StudyItemQuality): StudyItem => {
+    const box = item.box ?? 1;
+    const nextBox = quality === 'good' ? Math.min(5, box + 1)
+                  : quality === 'poor' ? 1
+                  : box;
+    const days = SRS_INTERVALS_DAYS[nextBox] ?? 35;
+    return {
+        ...item,
+        box: nextBox as 1 | 2 | 3 | 4 | 5,
+        dueDate: Date.now() + days * 24 * 3600 * 1000,
+        reviews: (item.reviews ?? 0) + 1,
+        lapses: quality === 'poor' ? (item.lapses ?? 0) + 1 : (item.lapses ?? 0),
+        quality,
+    };
+};
+
+// 到期 items（可选 bookId 过滤），返回带 bookId/chapterId 便于 UI 定位。
+export const getDueStudyItems = async (bookId?: string): Promise<Array<{ item: StudyItem; bookId: string; chapterId: string }>> => {
+    const books = await getStudyBooks();
+    const now = Date.now();
+    const due: Array<{ item: StudyItem; bookId: string; chapterId: string }> = [];
+    for (const book of books) {
+        if (bookId && book.id !== bookId) continue;
+        for (const chapter of book.chapters) {
+            for (const item of chapter.items) {
+                if ((item.dueDate ?? 0) <= now) {
+                    due.push({ item, bookId: book.id, chapterId: chapter.id });
+                }
+            }
+        }
+    }
+    due.sort((a, b) => (a.item.dueDate ?? 0) - (b.item.dueDate ?? 0));
+    return due;
+};
+
+// 提升 StudyItem 到全局词汇库（VocabularyItem）。仅 word / phrase 可提升。
+// 纯转换：不写库；调用方负责 dedup 判断 + saveVocabularyItem。
+export const promoteStudyItemToVocabulary = (item: StudyItem, language: Language): VocabularyItem => {
+    if (item.type !== 'word' && item.type !== 'phrase') {
+        throw new Error('只有词或短语可加入词汇库');
+    }
+    return {
+        id: uuid(),
+        word: item.prompt,
+        definition: item.answer,
+        exampleSentence: item.examples[0] ?? '',
+        partOfSpeech: item.partOfSpeech ?? '',
+        language,
+        createdAt: Date.now(),
+        box: item.box,
+        dueDate: item.dueDate,
+        reviews: item.reviews,
+        lapses: item.lapses,
+    };
+};
+
+// 内置书清单（动态 import 各自数据，懒加载避免首屏变大）。
+// { id, targetLanguage, totalItems, build } 四元组：
+// - targetLanguage = 内容语言（书用哪种语言写），seed 时只给 matching learningLanguage 的书；
+// - totalItems 用作内容版本信号（条目数变化 = 内容更新）。
+const BUILTIN_STUDY_BOOKS: Array<{
+    id: string;
+    targetLanguage: Language;
+    totalItems: () => Promise<number>;
+    build: (lang: Language) => Promise<StudyBook>;
+}> = [
+    {
+        id: 'builtin-keywords-for-fluency',
+        targetLanguage: Language.English,
+        totalItems: async () => (await import('../data/studyBooks/keyWordsForFluency')).KEYWORDS_TOTAL_ITEMS,
+        build: async (lang) => (await import('../data/studyBooks/keyWordsForFluency')).buildKeyWordsForFluencyBook(lang),
+    },
+    {
+        id: 'builtin-english-grammar-in-use',
+        targetLanguage: Language.English,
+        totalItems: async () => (await import('../data/studyBooks/englishGrammarInUse')).GRAMMAR_TOTAL_ITEMS,
+        build: async (lang) => (await import('../data/studyBooks/englishGrammarInUse')).buildEnglishGrammarInUseBook(lang),
+    },
+    {
+        id: 'builtin-english-phrasal-verbs',
+        targetLanguage: Language.English,
+        totalItems: async () => (await import('../data/studyBooks/englishPhrasalVerbs')).PHRASAL_TOTAL_ITEMS,
+        build: async (lang) => (await import('../data/studyBooks/englishPhrasalVerbs')).buildEnglishPhrasalVerbsBook(lang),
+    },
+    {
+        id: 'builtin-jlpt-n5n4-vocabulary',
+        targetLanguage: Language.Japanese,
+        totalItems: async () => (await import('../data/studyBooks/jlptVocabulary')).JLPT_VOCAB_TOTAL_ITEMS,
+        build: async (lang) => (await import('../data/studyBooks/jlptVocabulary')).buildJlptVocabularyBook(lang),
+    },
+    {
+        id: 'builtin-jlpt-n5n4-grammar',
+        targetLanguage: Language.Japanese,
+        totalItems: async () => (await import('../data/studyBooks/jlptGrammar')).JLPT_GRAMMAR_TOTAL_ITEMS,
+        build: async (lang) => (await import('../data/studyBooks/jlptGrammar')).buildJlptGrammarBook(lang),
+    },
+    {
+        id: 'builtin-topik-basic-vocabulary',
+        targetLanguage: Language.Korean,
+        totalItems: async () => (await import('../data/studyBooks/topikVocabulary')).TOPIK_VOCAB_TOTAL_ITEMS,
+        build: async (lang) => (await import('../data/studyBooks/topikVocabulary')).buildTopikVocabularyBook(lang),
+    },
+    {
+        id: 'builtin-topik-basic-grammar',
+        targetLanguage: Language.Korean,
+        totalItems: async () => (await import('../data/studyBooks/topikGrammar')).TOPIK_GRAMMAR_TOTAL_ITEMS,
+        build: async (lang) => (await import('../data/studyBooks/topikGrammar')).buildTopikGrammarBook(lang),
+    },
+];
+
+// 首次加载自动 seed 内置学习书。动态 import 内置书数据（懒加载，避免首屏变大）；
+// 无 AI key / 网络均不依赖，纯本地。seed 失败不阻塞（用户仍可手动导入）。
+// 内置书内容更新时（条目数变化）自动删除旧版重建，避免旧数据卡在 IndexedDB 不更新。
+// 按内容语言分组：只 seed 与 learningLanguage 匹配的书（学日语只见日语书）。
+export const ensureBuiltInStudyBooks = async (language: Language): Promise<void> => {
+    try {
+        const existing = await getStudyBooks();
+        for (const def of BUILTIN_STUDY_BOOKS) {
+            if (def.targetLanguage !== language) continue;
+            try {
+                const total = await def.totalItems();
+                const builtIn = existing.find((b) => b.id === def.id);
+                if (builtIn && builtIn.totalItems === total) continue;
+                if (builtIn) await deleteStudyBook(builtIn.id);
+                await saveStudyBook(await def.build(language));
+            } catch {
+                /* 单本 seed 失败不阻塞其它 */
+            }
+        }
+    } catch {
+        /* seed 失败不阻塞 */
+    }
+};
+
 // ==================== 账户级一键备份 / 恢复 ====================
 // 覆盖：localStorage 全量键（ALL_STORAGE_KEYS）+ 书架（IndexedDB 书籍正文）。
 // 范围外：歌曲音频 / 片段二进制（体积大、可由用户重新导入源文件），v1 不纳入。
@@ -1501,6 +1738,7 @@ export interface LinguaFlowBackup {
     exportedAt: string;
     localStorage: Record<string, string | null>;
     books: Book[];
+    studyBooks: StudyBook[];
 }
 
 export const exportAllData = async (): Promise<LinguaFlowBackup> => {
@@ -1514,12 +1752,19 @@ export const exportAllData = async (): Promise<LinguaFlowBackup> => {
     } catch {
         books = [];
     }
+    let studyBooks: StudyBook[] = [];
+    try {
+        studyBooks = await getStudyBooks();
+    } catch {
+        studyBooks = [];
+    }
     return {
         app: 'linguaflow',
         version: 1,
         exportedAt: new Date().toISOString(),
         localStorage: localStorageData,
         books,
+        studyBooks,
     };
 };
 
@@ -1545,6 +1790,17 @@ export const importAllData = async (raw: unknown): Promise<void> => {
         for (const b of data.books) {
             try {
                 await saveBook(b);
+            } catch {
+                /* 单本失败不影响其余 */
+            }
+        }
+    }
+
+    // 3) 恢复学习书库（IndexedDB）
+    if (Array.isArray(data.studyBooks)) {
+        for (const b of data.studyBooks) {
+            try {
+                await saveStudyBook(b);
             } catch {
                 /* 单本失败不影响其余 */
             }

@@ -1,4 +1,6 @@
 
+import { uuid } from '../utils/uuid';
+
 import React, { useState, useEffect } from 'react';
 import { UserProfile, VocabularyItem } from '../types';
 import { getVocabulary, saveVocabularyItem, deleteVocabularyItem, addActivity, getDueVocabulary, updateVocabularyItem, reviewVocabulary, progressQuests } from '../services/storageService';
@@ -84,7 +86,7 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser, ini
     if (!newWord.trim()) return;
 
     const newItem: VocabularyItem = {
-      id: crypto.randomUUID(),
+      id: uuid(),
       word: newWord,
       definition,
       exampleSentence: example,

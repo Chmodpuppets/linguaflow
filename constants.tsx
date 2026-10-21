@@ -24,7 +24,8 @@ import {
   Warehouse,
   Music,
   LibraryBig,
-  MessageCircle
+  MessageCircle,
+  BookOpen
 } from 'lucide-react';
 
 export const SUPPORTED_LANGUAGES = [
@@ -60,6 +61,7 @@ export const NAV_ITEMS = [
   { id: 'rpg', label: '剧情对话', icon: <Gamepad2 size={20} /> },
   { id: 'typing', label: '打字闯关', icon: <Type size={20} /> },
   { id: 'books', label: '书架', icon: <LibraryBig size={20} /> },
+  { id: 'study_library', label: '学习书库', icon: <BookOpen size={20} /> },
   { id: 'writing_tree', label: '写作树', icon: <Network size={20} /> },
   { id: 'composition_studio', label: '作文流水线', icon: <Layers size={20} /> },
   { id: 'writing', label: '写作工坊', icon: <PenTool size={20} /> },

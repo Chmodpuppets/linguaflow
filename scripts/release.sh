@@ -138,6 +138,12 @@ with open('CHANGELOG.md', 'w') as f:
 print("package.json + CHANGELOG.md updated")
 PY
 
+# ---------- build both editions + package artifacts ----------
+if [ -x "$ROOT/scripts/build-release.sh" ]; then
+  echo "building release artifacts (oss + online)…"
+  "$ROOT/scripts/build-release.sh"
+fi
+
 # ---------- commit + tag + push ----------
 git add package.json CHANGELOG.md
 git commit -m "chore: release v$NEW"
@@ -183,6 +189,18 @@ echo "GitHub API HTTP $HTTP"
 if [ "$HTTP" = "201" ]; then
   URL="$(grep -o '"html_url": *"[^"]*"' /tmp/lf_release_resp.json | head -1 | sed 's/"html_url": *"//;s/"$//')"
   echo "RELEASE CREATED: $URL"
+  # 上传双发行版产物（release/*.tar.gz）
+  RELEASE_ID="$(grep -o '"id": *[0-9]*' /tmp/lf_release_resp.json | head -1 | grep -o '[0-9]*')"
+  for f in release/linguaflow-*.tar.gz; do
+    [ -f "$f" ] || continue
+    name="$(basename "$f")"
+    http="$(curl -s -o /tmp/lf_asset_resp.json -w "%{http_code}" -X POST \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/octet-stream" \
+      --data-binary "@$f" \
+      "https://uploads.github.com/repos/$OWNER/$REPO/releases/$RELEASE_ID/assets?name=$name")"
+    echo "  upload $name → HTTP $http"
+  done
 else
   echo "RELEASE FAILED:" >&2
   head -c 600 /tmp/lf_release_resp.json >&2

@@ -1,0 +1,23 @@
+[Unit]
+Description=LinguaFlow sync server (学习搭子一起连胜)
+After=network.target
+
+[Service]
+Type=simple
+# 部署目录（按需改，须与 .env / 代码位置一致）
+WorkingDirectory=/opt/linguaflow-server
+# 运行用户（建议非 root；若改，需确保该用户对 data/ 有写权限）
+User=linguaflow
+Group=linguaflow
+Environment=NODE_ENV=production
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=/opt/linguaflow-server/.env
+# 注意：install.sh 会用实际探测到的 node 路径覆盖本行（官方预编译包装在 /usr/local/bin）
+ExecStart=/usr/local/bin/node --import tsx /opt/linguaflow-server/src/index.ts
+Restart=on-failure
+RestartSec=3
+# 便宜小内存机器可限内存，防 OOM 影响同机其他服务
+# MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target

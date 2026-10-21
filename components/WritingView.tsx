@@ -1,4 +1,6 @@
 
+import { uuid } from '../utils/uuid';
+
 import React, { useState } from 'react';
 import { UserProfile, WritingFeedback, WritingRevisionFeedback, CEFRLevel, ExamScores, TargetExam, IeltsBandScores, JlptScores, TopikScores, DeleScores, ToeflScores, REGISTER_LABELS } from '../types';
 import { analyzeWriting, analyzeWritingRevision } from '../services/aiService';
@@ -214,7 +216,7 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
 
       // 沉淀写作评分历史（趋势曲线数据源）：每次首稿/二稿的结构化评分落库
       addWritingScore({
-          id: crypto.randomUUID(),
+          id: uuid(),
           timestamp: Date.now(),
           date: new Date().toISOString().split('T')[0],
           language: user.learningLanguage,

@@ -1,0 +1,8 @@
+[Unit]
+Description=LinguaFlow sync server — 每日备份
+After=linguaflow-sync.service
+
+[Service]
+Type=oneshot
+Environment=DATA_DIR=/opt/linguaflow-server/data
+ExecStart=/bin/bash /opt/linguaflow-server/scripts/backup.sh

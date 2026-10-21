@@ -1,4 +1,6 @@
 
+import { uuid } from '../utils/uuid';
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { UserProfile, Book } from '../types';
 import { getBooks, saveBook, deleteBook, paginateText } from '../services/storageService';
@@ -41,7 +43,7 @@ const BooksView: React.FC<BooksViewProps> = ({ user, onOpenBook }) => {
       return;
     }
     const book: Book = {
-      id: crypto.randomUUID(),
+      id: uuid(),
       title: title.trim() || '未命名书籍',
       author: author.trim() || undefined,
       cover,

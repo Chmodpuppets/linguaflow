@@ -1,0 +1,9 @@
+[Unit]
+Description=LinguaFlow — 每日模拟打卡（给演示账号 +1 streak）
+After=linguaflow-sync.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/linguaflow-server
+# 改成你要自动加 streak 的账号（昵称或好友码都行）
+ExecStart=/usr/local/bin/node /opt/linguaflow-server/scripts/streak-tick.mjs --user=Mike

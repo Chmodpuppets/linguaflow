@@ -1,4 +1,6 @@
 
+import { uuid } from '../utils/uuid';
+
 import React, { useState, useEffect } from 'react';
 import { UserProfile, UserContent, ReadingReflection } from '../types';
 import { getLibrary, saveLibraryItem, deleteLibraryItem } from '../services/storageService';
@@ -95,7 +97,7 @@ const LibraryView: React.FC<LibraryViewProps> = ({ user, onPractice }) => {
     }
 
     const newItem: UserContent = {
-      id: selectedItem?.id || crypto.randomUUID(),
+      id: selectedItem?.id || uuid(),
       title,
       content,
       notes,

@@ -4,6 +4,7 @@ import { streamChatCompletion, buildTutorSystemPrompt, generateDailyTasks } from
 import { addActivity, commitDailyStreak, getLevelInfo } from '../services/storageService';
 import { Send, Sparkles, ArrowRight, CheckCircle2, Flame, Gift, Share2 } from 'lucide-react';
 import { GlassCard, NeonButton, NeonBadge } from './ui';
+import { Markdown } from './ui/Markdown';
 import AchievementCard from './AchievementCard';
 
 interface ChatMessage {
@@ -202,6 +203,16 @@ const ConversationView: React.FC<ConversationViewProps> = ({ user, onStartTask, 
         return next;
       });
     } finally {
+      // 流式结束仍无内容（空响应）→ 兜底文案，避免用户消息孤零零挂着
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last && last.role === 'assistant' && !last.content) {
+          const next = [...prev];
+          next[next.length - 1] = { ...last, content: '（AI 没有返回内容，请重试或换个问法。）' };
+          return next;
+        }
+        return prev;
+      });
       setStreaming(false);
     }
   };
@@ -309,9 +320,13 @@ const ConversationView: React.FC<ConversationViewProps> = ({ user, onStartTask, 
 
       {/* 消息流 */}
       <div className="space-y-4">
-        {messages.map((m, i) => (
-          <MessageBubble key={i} msg={m} />
-        ))}
+        {messages.map((m, i) =>
+          // 流式占位消息（content 为空的 assistant）由下方打字指示器呈现，
+          // 不重复渲染成空气泡，避免出现「头像+空泡」和「头像+…」两行
+          m.role === 'assistant' && m.content === '' ? null : (
+            <MessageBubble key={i} msg={m} />
+          )
+        )}
 
         {streaming && messages[messages.length - 1]?.content === '' && (
           <div className="flex gap-3">
@@ -381,8 +396,8 @@ const MessageBubble: React.FC<{ msg: ChatMessage }> = ({ msg }) => {
     <div className="flex gap-3">
       <AIAvatar />
       <div className="max-w-[85%] space-y-3">
-        <div className="rounded-2xl rounded-tl-sm border border-white/[0.07] bg-surface-2/70 px-4 py-3 text-sm text-body leading-relaxed whitespace-pre-wrap">
-          {msg.content}
+        <div className="rounded-2xl rounded-tl-sm border border-white/[0.07] bg-surface-2/70 px-4 py-3 text-sm text-body leading-relaxed">
+          <Markdown>{msg.content}</Markdown>
         </div>
         {msg.cards && msg.cards.length > 0 && (
           <div className="space-y-2">

@@ -1,4 +1,6 @@
 
+import { uuid } from '../utils/uuid';
+
 import React, { useEffect, useRef, useState } from 'react';
 import { UserProfile, UserContent, VocabularyItem, Language } from '../types';
 import { saveLibraryItem, saveVocabularyItem } from '../services/storageService';
@@ -117,7 +119,7 @@ const ImportView: React.FC<ImportViewProps> = ({ user }) => {
       return;
     }
     const item: UserContent = {
-      id: crypto.randomUUID(),
+      id: uuid(),
       title: title.trim() || text.slice(0, 30) + '…',
       content: text.trim(),
       notes: `从导入内容创建 · ${new Date().toLocaleDateString()}`,
@@ -163,7 +165,7 @@ const ImportView: React.FC<ImportViewProps> = ({ user }) => {
           /* 离线时保留占位 */
         }
         const item: VocabularyItem = {
-          id: crypto.randomUUID(),
+          id: uuid(),
           word: w,
           definition: details.definition,
           exampleSentence: details.example,
@@ -181,7 +183,7 @@ const ImportView: React.FC<ImportViewProps> = ({ user }) => {
       for (let i = 0; i < selected.length; i++) {
         const s = selected[i];
         const item: VocabularyItem = {
-          id: crypto.randomUUID(),
+          id: uuid(),
           word: s.word,
           definition: s.definition || '（未获取到释义）',
           exampleSentence: s.example,

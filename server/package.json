@@ -1,0 +1,21 @@
+{
+  "name": "linguaflow-sync-server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "LinguaFlow 可选云同步轻后端（无 AI）：仅被动存用户手动上传的同步快照。",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.7",
+    "better-sqlite3": "^11.8.1",
+    "hono": "^4.6.14",
+    "tsx": "^4.19.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.14.0"
+  }
+}

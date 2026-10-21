@@ -33,7 +33,10 @@ const VIEWS = [
 
 fs.mkdirSync(OUT_DIR, { recursive: true });
 
-const browser = await chromium.launch({ args: ['--no-proxy-server'] });
+const browser = await chromium.launch({
+  channel: 'chrome', // 复用系统 Chrome，避免 playwright 内置 chromium 下载超时
+  args: ['--no-proxy-server'],
+});
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 
 // 未登录则驱动 LoginView 向导进入主布局（级别/导师有默认值，无需额外选择）

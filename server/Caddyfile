@@ -1,0 +1,8 @@
+# LinguaFlow 同步服务器 — Caddy 反向代理 + 自动 HTTPS
+# 把 sync.example.com 换成你的域名；Caddy 会自动申请/续签证书。
+# 若不想备案、用纯 IP 访问，删掉这个站点块，改为直接访问 :8787（无 HTTPS，不推荐）。
+
+sync.example.com {
+    reverse_proxy 127.0.0.1:8787
+    encode gzip
+}

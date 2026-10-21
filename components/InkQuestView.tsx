@@ -1,3 +1,5 @@
+import { uuid } from '../utils/uuid';
+
 import React, { useState, useMemo, useRef } from 'react';
 import { UserProfile, CEFRLevel, Language, ErrorPatternType } from '../types';
 import {
@@ -369,7 +371,7 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
   const handleSave = () => {
     if (!activeCard || !feedback) return;
     const card: InkQuestCard = {
-      id: crypto.randomUUID(),
+      id: uuid(),
       date: new Date().toISOString().split('T')[0],
       language: lang,
       seasonId: season.id,
@@ -407,7 +409,7 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
       }
       setDictationSentence(s);
       const item: InkQuestListeningItem = {
-        id: crypto.randomUUID(),
+        id: uuid(),
         date: new Date().toISOString().split('T')[0],
         language: lang,
         seasonId: season.id,
