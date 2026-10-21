@@ -112,16 +112,25 @@ async function api<T = unknown>(path: string, opts: RequestInit = {}): Promise<T
 }
 
 // --- 身份 ---
-export const register = async (username: string, language: string): Promise<MyProfile> => {
+export const register = async (username: string, password: string, language: string): Promise<MyProfile> => {
   const data = await api<{ token: string } & MyProfile>('/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ username, language }),
+    body: JSON.stringify({ username, password, language }),
   });
   localStorage.setItem(KEY_TOKEN, data.token);
   return data;
 };
 
-// 换服务器 / 注销：清除本机身份与同步记录（不碰学习数据）
+export const login = async (username: string, password: string): Promise<MyProfile> => {
+  const data = await api<{ token: string } & MyProfile>('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ username, password }),
+  });
+  localStorage.setItem(KEY_TOKEN, data.token);
+  return data;
+};
+
+// 换服务器 / 退出登录：清除本机身份与同步记录（不碰学习数据）
 export const resetCloudIdentity = (): void => {
   localStorage.removeItem(KEY_TOKEN);
   localStorage.removeItem(KEY_LAST);
@@ -184,4 +193,76 @@ export const syncFromCloud = async (): Promise<number> => {
   const at = meta.updatedAt ?? Date.now();
   localStorage.setItem(KEY_LAST, String(at));
   return at;
+};
+
+// ==================== 自动同步（线上版：登录自动拉取 + 学习后自动推送）====================
+// 开源版（无服务器/未登录）自动 no-op，零开销。
+
+const hashString = (s: string): string => {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return String(h >>> 0);
+};
+
+let lastPushedHash = '';
+let autoSyncStarted = false;
+
+const currentHash = async (): Promise<string> => {
+  try {
+    const data = await exportAllData();
+    return hashString(JSON.stringify(data));
+  } catch {
+    return '';
+  }
+};
+
+// 登录/注册后调用：服务器有数据则拉取恢复（跨设备）；无数据则把本地推上去（首次上传）。
+// 返回是否「拉取并恢复」了服务器数据（调用方据此决定要不要刷新页面）。
+export const syncOnLogin = async (): Promise<boolean> => {
+  try {
+    await syncFromCloud();
+    lastPushedHash = await currentHash();
+    return true;
+  } catch (e) {
+    // 仅当「服务器无数据」时把本地推上去；网络等其它错误不动，避免覆盖服务器
+    if (e instanceof Error && /no data/i.test(e.message)) {
+      try {
+        await syncToCloud();
+      } catch {
+        /* ignore */
+      }
+    }
+    lastPushedHash = await currentHash();
+    return false;
+  }
+};
+
+// 数据变更后自动推送（幂等：仅当内容哈希变化才推）
+export const pushIfDirty = async (): Promise<void> => {
+  if (!isRegistered()) return; // 未登录不推送
+  try {
+    const hash = await currentHash();
+    if (hash && hash !== lastPushedHash) {
+      lastPushedHash = hash;
+      await syncToCloud();
+    }
+  } catch {
+    /* 静默：同步失败不影响使用 */
+  }
+};
+
+// 应用启动时调用一次：为（可能稍后才登录的）用户开启自动同步
+export const startAutoSync = (): void => {
+  if (autoSyncStarted) return;
+  autoSyncStarted = true;
+  setInterval(() => {
+    void pushIfDirty();
+  }, 30000);
+  const flush = () => {
+    void pushIfDirty();
+  };
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flush();
+  });
+  window.addEventListener('pagehide', flush);
 };

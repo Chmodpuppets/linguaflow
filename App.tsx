@@ -3,6 +3,8 @@ import React, { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'rea
 import { Language, CEFRLevel, AppMode, UserProfile, Book, DailyTaskModule } from './types';
 import { SUPPORTED_LANGUAGES, NAV_ITEMS } from './constants';
 import { getUser, saveUser, ensureLanguageProgress, logoutUser, checkStreakOnLoad, rolloverDailyQuests, getDueErrorCards, getLevelInfo } from './services/storageService';
+import { startAutoSync, getAppEdition, isRegistered } from './services/communityService';
+import AuthGate from './components/AuthGate';
 import { ChevronDown, Menu, Flame, Star, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import brandLogo from './assets/brand/linguaflow-logo.png';
 import brandIcon from './assets/brand/linguaflow-icon.png';
@@ -78,6 +80,11 @@ const App: React.FC = () => {
       const refreshed = rolloverDailyQuests(checkStreakOnLoad(loadedUser));
       setUser(refreshed);
     }
+  }, []);
+
+  // 自动同步：线上版已登录用户「学习后自动推送云端」（开源版/未登录自动 no-op）
+  useEffect(() => {
+    startAutoSync();
   }, []);
 
   // 字体按需：inter 首屏必需（index.tsx 静态引入）；fira-code（代码/字形）+ literata（阅读衬线）
@@ -193,6 +200,16 @@ const App: React.FC = () => {
     () => (user ? getDueErrorCards().filter((c) => c.language === user.learningLanguage).length : 0),
     [user]
   );
+
+  // 线上版：应用级登录门——未登录先见登录/注册，登录后才进 app（开源版不设门，数据纯本地）
+  if (getAppEdition() === 'online' && !isRegistered()) {
+    return (
+      <AuthGate
+        defaultUsername={user?.username || ''}
+        learningLanguage={user?.learningLanguage || 'en'}
+      />
+    );
+  }
 
   if (!user) {
     return (

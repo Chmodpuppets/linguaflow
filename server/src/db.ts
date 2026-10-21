@@ -18,7 +18,8 @@ db.exec(`
     last_active_day TEXT,
     token TEXT UNIQUE NOT NULL,
     created_at INTEGER NOT NULL,
-    is_seed INTEGER NOT NULL DEFAULT 0
+    is_seed INTEGER NOT NULL DEFAULT 0,
+    password_hash TEXT
   );
   CREATE TABLE IF NOT EXISTS friendships (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,12 +62,16 @@ export interface UserRow {
   token: string;
   created_at: number;
   is_seed: number;
+  password_hash: string | null;
 }
 
-// 轻量迁移：给已存在的旧库补 is_seed 列（新库由上面的 CREATE TABLE 直接带上）
+// 轻量迁移：给已存在的旧库补列（新库由上面的 CREATE TABLE 直接带上）
 const cols = db.prepare('PRAGMA table_info(users)').all() as { name: string }[];
 if (!cols.some((c) => c.name === 'is_seed')) {
   db.exec('ALTER TABLE users ADD COLUMN is_seed INTEGER NOT NULL DEFAULT 0');
+}
+if (!cols.some((c) => c.name === 'password_hash')) {
+  db.exec('ALTER TABLE users ADD COLUMN password_hash TEXT');
 }
 
 export interface LeaderboardRow {
@@ -82,15 +87,18 @@ export const listLeaderboard = (limit: number): LeaderboardRow[] => {
     .all(limit) as LeaderboardRow[];
 };
 
-export const createUser = (username: string, language: string, friendCode: string, token: string): UserRow => {
+export const createUser = (username: string, language: string, friendCode: string, token: string, passwordHash: string | null): UserRow => {
   const info = db
-    .prepare('INSERT INTO users (username, friend_code, language, streak, token, created_at) VALUES (?, ?, ?, 0, ?, ?)')
-    .run(username, friendCode, language, token, Date.now());
+    .prepare('INSERT INTO users (username, friend_code, language, streak, token, created_at, password_hash) VALUES (?, ?, ?, 0, ?, ?, ?)')
+    .run(username, friendCode, language, token, Date.now(), passwordHash);
   return getUserById(Number(info.lastInsertRowid))!;
 };
 
 export const getUserById = (id: number): UserRow | undefined =>
   db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow | undefined;
+
+export const getUserByUsername = (username: string): UserRow | undefined =>
+  db.prepare('SELECT * FROM users WHERE username = ?').get(username) as UserRow | undefined;
 
 export const getUserByToken = (token: string): UserRow | undefined =>
   db.prepare('SELECT * FROM users WHERE token = ?').get(token) as UserRow | undefined;

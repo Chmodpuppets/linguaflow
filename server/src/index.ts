@@ -1,13 +1,15 @@
 import { Hono } from 'hono';
 import type { Context, Next } from 'hono';
 import { serve } from '@hono/node-server';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
+import { promisify } from 'node:util';
 import {
   createUser,
   countUsers,
   getUserById,
   getUserByToken,
   getUserByFriendCode,
+  getUserByUsername,
   updateStatus,
   listFriends,
   addFriendship,
@@ -72,6 +74,39 @@ const rateLimitedLog = (key: string): boolean => {
   }
   rec.count += 1;
   return rec.count > LOG_RATE_LIMIT;
+};
+
+// —— 密码哈希（scrypt，零依赖、无原生编译）——
+const scrypt = promisify(scryptCb);
+
+const hashPassword = async (pw: string): Promise<string> => {
+  const salt = randomBytes(16).toString('hex');
+  const hash = (await scrypt(pw, salt, 64)) as Buffer;
+  return `${salt}:${hash.toString('hex')}`;
+};
+
+const verifyPassword = async (pw: string, stored: string): Promise<boolean> => {
+  const i = stored.indexOf(':');
+  if (i < 0) return false;
+  const salt = stored.slice(0, i);
+  const expected = Buffer.from(stored.slice(i + 1), 'hex');
+  const hash = (await scrypt(pw, salt, 64)) as Buffer;
+  return hash.length === expected.length && timingSafeEqual(hash, expected);
+};
+
+// 登录限流（防暴力破解，比注册更严格）
+const LOGIN_RATE_LIMIT = Number(process.env.LOGIN_RATE_LIMIT || 10);
+const loginHits = new Map<string, { count: number; resetAt: number }>();
+
+const rateLimitedLogin = (key: string): boolean => {
+  const now = Date.now();
+  const rec = loginHits.get(key);
+  if (!rec || rec.resetAt < now) {
+    loginHits.set(key, { count: 1, resetAt: now + RATE_WINDOW_MS });
+    return false;
+  }
+  rec.count += 1;
+  return rec.count > LOGIN_RATE_LIMIT;
 };
 
 // 好友码：6 位，剔除易混淆字符（0/O/1/I）
@@ -169,13 +204,31 @@ app.post('/auth/register', async (c) => {
   }
   const body = await c.req.json().catch(() => null);
   const username = String(body?.username || '').trim().slice(0, 24);
+  const password = String(body?.password || '');
   const language = String(body?.language || '').trim().slice(0, 8) || null;
-  if (!username) return c.json({ error: 'username required' }, 400);
+  if (!username) return c.json({ error: '用户名不能为空' }, 400);
+  if (password.length < 6) return c.json({ error: '密码至少 6 位' }, 400);
+  if (getUserByUsername(username)) return c.json({ error: '用户名已存在' }, 409);
   let friendCode = genFriendCode();
   while (getUserByFriendCode(friendCode)) friendCode = genFriendCode();
   const token = genToken();
-  const user = createUser(username, language || '', friendCode, token);
+  const user = createUser(username, language || '', friendCode, token, await hashPassword(password));
   return c.json({ token, ...pub(user) });
+});
+
+// 登录：用户名 + 密码 → token
+app.post('/auth/login', async (c) => {
+  if (rateLimitedLogin(clientIp(c))) {
+    return c.json({ error: '尝试过于频繁，请稍后再试' }, 429);
+  }
+  const body = await c.req.json().catch(() => null);
+  const username = String(body?.username || '').trim();
+  const password = String(body?.password || '');
+  const user = username ? getUserByUsername(username) : undefined;
+  if (!user || !user.password_hash || !(await verifyPassword(password, user.password_hash))) {
+    return c.json({ error: '用户名或密码错误' }, 401);
+  }
+  return c.json({ token: user.token, ...pub(user) });
 });
 
 app.get('/me', auth, (c) => c.json(pub(c.get('user') as UserRow)));

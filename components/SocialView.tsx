@@ -12,6 +12,7 @@ import {
   isRegistered,
   getLastSyncAt,
   register,
+  login,
   resetCloudIdentity,
   pushMyStatus,
   listFriends,
@@ -23,6 +24,7 @@ import {
   computeCommonStreak,
   syncToCloud,
   syncFromCloud,
+  syncOnLogin,
   todayString,
   listLeaderboard,
   getAppEdition,
@@ -63,6 +65,8 @@ const SocialView: React.FC<SocialViewProps> = ({ user }) => {
   const [nudges, setNudges] = useState<Nudge[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [nickname, setNickname] = useState('');
+  const [password, setPassword] = useState('');
+  const [authMode, setAuthMode] = useState<'register' | 'login'>('register');
   const [friendCodeInput, setFriendCodeInput] = useState('');
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
@@ -159,12 +163,41 @@ const SocialView: React.FC<SocialViewProps> = ({ user }) => {
     setBusy(true);
     setMsg(null);
     try {
-      const me = await register(nickname.trim() || '学习者', user.learningLanguage);
+      const me = await register(nickname.trim(), password, user.learningLanguage);
       setRegistered(true);
       setMyProfile(me);
-      await refreshSocial();
+      const pulled = await syncOnLogin();
+      if (pulled) {
+        setMsg({ kind: 'ok', text: '已恢复云端数据，即将刷新…' });
+        setTimeout(() => window.location.reload(), 900);
+      } else {
+        await refreshSocial();
+        setMsg({ kind: 'ok', text: '注册成功，本地数据已同步到云端' });
+      }
     } catch (e) {
       setMsg({ kind: 'err', text: e instanceof Error ? e.message : '注册失败' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doLogin = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const me = await login(nickname.trim(), password);
+      setRegistered(true);
+      setMyProfile(me);
+      const pulled = await syncOnLogin();
+      if (pulled) {
+        setMsg({ kind: 'ok', text: '已恢复云端数据，即将刷新…' });
+        setTimeout(() => window.location.reload(), 900);
+      } else {
+        await refreshSocial();
+        setMsg({ kind: 'ok', text: '登录成功，数据已同步到云端' });
+      }
+    } catch (e) {
+      setMsg({ kind: 'err', text: e instanceof Error ? e.message : '登录失败' });
     } finally {
       setBusy(false);
     }
@@ -293,35 +326,56 @@ const SocialView: React.FC<SocialViewProps> = ({ user }) => {
         <div className="rounded-2xl border border-white/10 glass-panel p-5">
           <div className="flex items-center gap-2 mb-2">
             <UserPlus size={18} className="text-neon-2" />
-            <span className="text-sm font-bold text-white">取个昵称，加入搭子圈</span>
+            <span className="text-sm font-bold text-white">{authMode === 'register' ? '注册账号' : '登录'}</span>
           </div>
           <p className="text-xs text-muted mb-3">
-            昵称会显示给好友看（用于加好友和一起连胜）。零密码、零注册负担，一个昵称即可开始。
+            用户名 + 密码（无需邮箱）。注册后你的学习数据存到云端，换设备登录即可取回。
           </p>
-          <div className="flex gap-2">
+          <div className="space-y-2">
             <input
               type="text"
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
-              placeholder="你的昵称"
+              placeholder="用户名"
               maxLength={24}
-              className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted/50 focus:outline-none focus:border-neon/50"
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted/50 focus:outline-none focus:border-neon/50"
             />
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder={authMode === 'register' ? '密码（至少 6 位）' : '密码'}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  if (authMode === 'register') doRegister();
+                  else doLogin();
+                }
+              }}
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted/50 focus:outline-none focus:border-neon/50"
+            />
+          </div>
+          <button
+            onClick={authMode === 'register' ? doRegister : doLogin}
+            disabled={busy || !nickname.trim() || password.length < 6}
+            className="mt-3 w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-neon text-white text-xs font-bold disabled:opacity-40 shadow-glow-sm"
+          >
+            {busy ? <Loader2 size={14} className="animate-spin" /> : authMode === 'register' ? '注册' : '登录'}
+          </button>
+          <div className="flex items-center justify-between mt-3 text-[11px]">
             <button
-              onClick={doRegister}
-              disabled={busy || !nickname.trim()}
-              className="px-4 py-2 rounded-lg bg-neon text-white text-xs font-bold disabled:opacity-40 shadow-glow-sm"
+              onClick={() => { setAuthMode(authMode === 'register' ? 'login' : 'register'); setMsg(null); }}
+              className="text-neon hover:underline"
             >
-              {busy ? <Loader2 size={14} className="animate-spin" /> : '开始'}
+              {authMode === 'register' ? '已有账号？登录' : '没有账号？注册'}
             </button>
+            <span className="text-muted">
+              服务器：<code className="bg-white/5 rounded px-1">{serverUrl}</code>
+              <button onClick={changeServer} className="ml-1 hover:text-white"><Settings2 size={12} /> 更换</button>
+            </span>
           </div>
           {msg && (
             <p className={`text-xs mt-2 ${msg.kind === 'ok' ? 'text-green-300' : 'text-red-300'}`}>{msg.text}</p>
           )}
-          <div className="flex gap-2 mt-3 text-[11px] text-muted">
-            <span>服务器：<code className="bg-white/5 rounded px-1">{serverUrl}</code></span>
-            <button onClick={changeServer} className="flex items-center gap-1 hover:text-white"><Settings2 size={12} /> 更换</button>
-          </div>
         </div>
       ) : (
         <div className="space-y-5">
@@ -590,8 +644,26 @@ const SocialView: React.FC<SocialViewProps> = ({ user }) => {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 text-xs text-green-400/80 border-t border-line pt-3">
-        <CheckCircle2 size={14} /> 服务器不接 AI、不自动上传——只在你打开本页或手动备份时同步。
+      <div className="flex items-center justify-between gap-3 text-xs border-t border-line pt-3">
+        <span className="flex items-center gap-2 text-green-400/80">
+          <CheckCircle2 size={14} />
+          {registered
+            ? '已登录，学习数据自动同步到云端（关闭页面时也会保存）'
+            : '数据只在你打开本页或手动备份时同步。'}
+        </span>
+        {registered && (
+          <button
+            onClick={() => {
+              if (window.confirm('退出登录？本地数据保留，云端数据不受影响。')) {
+                resetCloudIdentity();
+                window.location.reload();
+              }
+            }}
+            className="text-muted hover:text-white shrink-0"
+          >
+            退出登录
+          </button>
+        )}
       </div>
 
       {showScanner && <QrScannerModal onClose={() => setShowScanner(false)} onScan={handleScan} />}
