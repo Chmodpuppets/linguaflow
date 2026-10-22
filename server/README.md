@@ -109,11 +109,38 @@ sudo crontab -e
 - 国内服务器 + 域名 = 需 ICP 备案；不想备案选**香港轻量**或纯 IP 访问。
 - Docker 可选：见 `Dockerfile`。
 
+## 备案通过后：切到域名 + HTTPS 生产
+
+备案通过、域名就绪后，把临时 IP 直连换成正式 HTTPS。三步：
+
+```bash
+# 1. 前端：写线上版 API 地址为你的域名，重新构建
+echo "COMMUNITY_URL=https://api.example.com" > .env.online
+npm run build:online
+bash scripts/deploy-online.sh          # 传 dist-online → 服务器 /opt/linguaflow-web
+
+# 2. 服务器：写生产 Caddyfile（前端 + api 分站，自动签 HTTPS）
+#    先替换域名，再下发
+sed 's/example.com/你的域名/g' server/deploy/Caddyfile.production \
+  | ssh root@<IP> 'cat > /etc/caddy/Caddyfile'
+systemctl reload caddy   # 在服务器上执行
+
+# 3. 服务器：API 收口回环 + 收紧 CORS
+#    /opt/linguaflow-server/.env 改：
+#      HOST=127.0.0.1
+#      CORS_ORIGIN=https://你的域名
+systemctl restart linguaflow-sync
+```
+
+**DNS**：`@` 和 `api` 两条 A 记录都指向服务器公网 IP。Caddy 会自动申请并续签 HTTPS 证书。
+
 ## 前端接入
 
-前端 `services/communityService.ts` 走 feature flag：用户未配置服务器地址 = 纯本地模式（功能不降级）；配置后「学习搭子」页出现「取昵称 → 领好友码 → 加好友 → 一起连胜」的完整闭环。
+线上版（`npm run build:online`）内置社区地址，用户**注册/登录（用户名+密码）**后自动同步学习数据到服务器（登录自动拉取、学习后自动推送）；开源版（`npm run build`）无账号、纯本地，「学习搭子」页可自配服务器地址自托管。
 
-## 安全说明（MVP）
+## 安全说明
 
-- token 是唯一凭证（零密码），**换设备/换浏览器需重新注册**；二期支持绑账号跨设备找回。
-- MVP 明文走 HTTPS；二期加端到端加密（口令派生 key，服务器只存密文）。
+- 账号 = 用户名 + 密码，密码用 `node:crypto` scrypt 哈希（零依赖）；token 由登录/注册签发，支持**跨设备登录**（自动拉取云数据）。
+- 登录限流 10 次/小时/IP 防爆破；注册限流 + 总量上限防滥用。
+- 合规对话日志（用户提问 + AI 返回）留存 ≥180 天，`X-Admin-Key` 鉴权可回溯查询。
+- 生产建议 `HOST=127.0.0.1`（只走 Caddy 反代），`CORS_ORIGIN` 收紧为前端域名。

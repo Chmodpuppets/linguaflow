@@ -1,0 +1,30 @@
+# LinguaFlow 线上版 — 生产 Caddyfile（前端静态托管 + API 反代，自动 HTTPS）
+# 备案通过、域名就绪后使用。把 example.com 换成你的域名。
+#
+# DNS 需要两条 A 记录都指向本机公网 IP：
+#   @   → 47.107.187.5   （前端 https://example.com）
+#   api → 47.107.187.5   （API   https://api.example.com）
+#
+# 切生产时同步要改的两处：
+#   1. 前端 .env.online 的 COMMUNITY_URL → https://api.example.com（重新 build:online）
+#   2. 服务器 /opt/linguaflow-server/.env 的 HOST=127.0.0.1（收口回环，只走 Caddy 反代）
+#      + CORS_ORIGIN=https://example.com
+
+# www 统一跳转到裸域
+www.example.com {
+    redir https://example.com{uri} permanent
+}
+
+# 前端：静态托管（SPA）
+example.com {
+    root * /opt/linguaflow-web
+    encode gzip
+    try_files {path} /index.html
+    file_server
+}
+
+# API：反代到本机 Node（127.0.0.1:8787，不对外直连）
+api.example.com {
+    reverse_proxy 127.0.0.1:8787
+    encode gzip
+}
