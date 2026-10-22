@@ -236,6 +236,30 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser, ini
                 </div>
               )}
             </div>
+          ) : reviewDone === 0 && items.length === 0 ? (
+            <div className="glass-panel rounded-2xl p-10 text-center">
+              <BookA size={40} className="text-neon-2 mx-auto mb-4" />
+              <div className="text-xl font-bold text-white mb-1">词库还是空的</div>
+              <p className="text-muted text-sm mb-6">先添加几个单词，才能开始间隔复习和拼写练习。</p>
+              <button
+                onClick={() => { setViewMode('browse'); setIsAdding(true); }}
+                className="px-6 py-3 rounded-xl bg-neon text-white font-bold hover:bg-neon/80 shadow-glow-neon"
+              >
+                去添加单词
+              </button>
+            </div>
+          ) : reviewDone === 0 ? (
+            <div className="glass-panel rounded-2xl p-10 text-center">
+              <Repeat size={40} className="text-neon-2 mx-auto mb-4" />
+              <div className="text-xl font-bold text-white mb-1">今天没有到期需要复习的单词</div>
+              <p className="text-muted text-sm mb-6">词库共 {items.length} 个词。可以先去添加新词，或稍后再来复习。</p>
+              <button
+                onClick={() => setViewMode('browse')}
+                className="px-6 py-3 rounded-xl bg-neon text-white font-bold hover:bg-neon/80 shadow-glow-neon"
+              >
+                返回词库
+              </button>
+            </div>
           ) : (
             <div className="glass-panel rounded-2xl p-10 text-center">
               <Repeat size={40} className="text-green-400 mx-auto mb-4" />
