@@ -50,6 +50,24 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_chat_logs_created_at ON chat_logs(created_at);
   CREATE INDEX IF NOT EXISTS idx_chat_logs_user ON chat_logs(user);
+  CREATE TABLE IF NOT EXISTS error_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at INTEGER NOT NULL,
+    message TEXT NOT NULL DEFAULT '',
+    stack TEXT NOT NULL DEFAULT '',
+    source TEXT NOT NULL DEFAULT '',
+    url TEXT NOT NULL DEFAULT '',
+    user_agent TEXT NOT NULL DEFAULT '',
+    user TEXT NOT NULL DEFAULT ''
+  );
+  CREATE TABLE IF NOT EXISTS feedback (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at INTEGER NOT NULL,
+    user TEXT NOT NULL DEFAULT '',
+    kind TEXT NOT NULL DEFAULT '',
+    content TEXT NOT NULL DEFAULT '',
+    contact TEXT NOT NULL DEFAULT ''
+  );
 `);
 
 export interface UserRow {
@@ -230,4 +248,66 @@ export const queryChatLogs = (q: { start: number; end: number; user: string; key
 export const purgeChatLogs = (before: number): number => {
   const r = db.prepare('DELETE FROM chat_logs WHERE created_at < ?').run(before);
   return r.changes;
+};
+
+// --- 前端错误监控 ---
+export interface ErrorLogRow {
+  id: number;
+  created_at: number;
+  message: string;
+  stack: string;
+  source: string;
+  url: string;
+  user_agent: string;
+  user: string;
+}
+
+export const insertErrorLog = (e: { message: string; stack: string; source: string; url: string; userAgent: string; user: string }): void => {
+  db.prepare(
+    'INSERT INTO error_logs (created_at, message, stack, source, url, user_agent, user) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).run(Date.now(), e.message, e.stack, e.source, e.url, e.userAgent, e.user);
+};
+
+export const listErrorLogs = (limit: number): ErrorLogRow[] => {
+  return db.prepare('SELECT * FROM error_logs ORDER BY id DESC LIMIT ?').all(limit) as ErrorLogRow[];
+};
+
+// --- 意见反馈 ---
+export interface FeedbackRow {
+  id: number;
+  created_at: number;
+  user: string;
+  kind: string;
+  content: string;
+  contact: string;
+}
+
+export const insertFeedback = (e: { user: string; kind: string; content: string; contact: string }): void => {
+  db.prepare('INSERT INTO feedback (created_at, user, kind, content, contact) VALUES (?, ?, ?, ?, ?)')
+    .run(Date.now(), e.user, e.kind, e.content, e.contact);
+};
+
+export const listFeedback = (limit: number): FeedbackRow[] => {
+  return db.prepare('SELECT * FROM feedback ORDER BY id DESC LIMIT ?').all(limit) as FeedbackRow[];
+};
+
+// --- 账号管理 ---
+export const updatePassword = (userId: number, passwordHash: string): void => {
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, userId);
+};
+
+// 注销：删用户 + 好友关系 + 提醒 + 同步数据（合规对话日志不删，由 anonymizeChatLogs 脱敏）
+export const deleteUser = (userId: number): void => {
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM friendships WHERE user_a = ? OR user_b = ?').run(userId, userId);
+    db.prepare('DELETE FROM nudges WHERE from_user = ? OR to_user = ?').run(userId, userId);
+    db.prepare('DELETE FROM sync_data WHERE user_id = ?').run(userId);
+    db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+  });
+  tx();
+};
+
+// 合规日志脱敏：注销后把用户标识替换为占位符，日志内容保留（备案要求留存 ≥6 个月）
+export const anonymizeChatLogs = (username: string): void => {
+  db.prepare("UPDATE chat_logs SET user = '[已注销]' WHERE user = ?").run(username);
 };

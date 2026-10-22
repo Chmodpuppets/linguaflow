@@ -136,6 +136,22 @@ export const resetCloudIdentity = (): void => {
   localStorage.removeItem(KEY_LAST);
 };
 
+// 修改密码
+export const changePassword = async (oldPassword: string, newPassword: string): Promise<void> => {
+  await api('/me/password', { method: 'POST', body: JSON.stringify({ oldPassword, newPassword }) });
+};
+
+// 注销账号：服务器删除账号 + 脱敏日志；本地清除身份
+export const deleteAccount = async (): Promise<void> => {
+  await api('/me', { method: 'DELETE' });
+  resetCloudIdentity();
+};
+
+// 意见反馈
+export const submitFeedback = async (kind: string, content: string, contact: string): Promise<void> => {
+  await api('/feedback', { method: 'POST', body: JSON.stringify({ kind, content, contact }) });
+};
+
 // --- 我的状态同步（打开页面时 push）---
 export const pushMyStatus = async (streak: number, language: string): Promise<MyProfile> => {
   return api<MyProfile>('/me', {

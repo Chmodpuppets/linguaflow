@@ -23,6 +23,13 @@ import {
   insertChatLog,
   queryChatLogs,
   purgeChatLogs,
+  insertErrorLog,
+  listErrorLogs,
+  insertFeedback,
+  listFeedback,
+  updatePassword,
+  deleteUser,
+  anonymizeChatLogs,
   type UserRow,
 } from './db';
 
@@ -187,6 +194,31 @@ app.get('/log/chat', (c) => {
   return c.json({ total: rows.length, rows });
 });
 
+// 前端错误监控上报（无鉴权，限流）：window.onerror / unhandledrejection 自动上报
+app.post('/log/error', async (c) => {
+  if (rateLimitedLog(clientIp(c))) return c.json({ error: 'too many requests' }, 429);
+  const body = await c.req.json().catch(() => null);
+  const message = String(body?.message || '').slice(0, 1000);
+  const stack = String(body?.stack || '').slice(0, 4000);
+  if (!message) return c.json({ ok: true });
+  insertErrorLog({
+    message,
+    stack,
+    source: String(body?.source || '').slice(0, 200),
+    url: String(body?.url || '').slice(0, 500),
+    userAgent: (c.req.header('user-agent') || '').slice(0, 200),
+    user: String(body?.user || 'anonymous').slice(0, 64),
+  });
+  return c.json({ ok: true });
+});
+
+// 错误日志查询（管理员）
+app.get('/log/error', (c) => {
+  if (!ADMIN_KEY || (c.req.header('X-Admin-Key') || '') !== ADMIN_KEY) return c.json({ error: 'forbidden' }, 403);
+  const limit = Math.min(Number(c.req.query('limit') || 100), 1000);
+  return c.json(listErrorLogs(limit));
+});
+
 // 连胜排行榜（公开，无需鉴权）：按 streak 降序
 app.get('/leaderboard', (c) => {
   const raw = Number(c.req.query('limit') || '20');
@@ -232,6 +264,50 @@ app.post('/auth/login', async (c) => {
 });
 
 app.get('/me', auth, (c) => c.json(pub(c.get('user') as UserRow)));
+
+// 修改密码
+app.post('/me/password', auth, async (c) => {
+  const user = c.get('user') as UserRow;
+  const body = await c.req.json().catch(() => null);
+  const oldPw = String(body?.oldPassword || '');
+  const newPw = String(body?.newPassword || '');
+  if (newPw.length < 6) return c.json({ error: '新密码至少 6 位' }, 400);
+  if (!user.password_hash || !(await verifyPassword(oldPw, user.password_hash))) {
+    return c.json({ error: '原密码错误' }, 401);
+  }
+  updatePassword(user.id, await hashPassword(newPw));
+  return c.json({ ok: true });
+});
+
+// 注销账号：删账号 + 脱敏合规日志（日志内容留存 ≥6 个月）
+app.delete('/me', auth, (c) => {
+  const user = c.get('user') as UserRow;
+  deleteUser(user.id);
+  anonymizeChatLogs(user.username);
+  return c.json({ ok: true });
+});
+
+// 意见反馈（登录用户）
+app.post('/feedback', auth, async (c) => {
+  const user = c.get('user') as UserRow;
+  const body = await c.req.json().catch(() => null);
+  const content = String(body?.content || '').trim().slice(0, 2000);
+  if (!content) return c.json({ error: '内容不能为空' }, 400);
+  insertFeedback({
+    user: user.username,
+    kind: String(body?.kind || 'suggestion').slice(0, 32),
+    content,
+    contact: String(body?.contact || '').slice(0, 200),
+  });
+  return c.json({ ok: true });
+});
+
+// 反馈查询（管理员）
+app.get('/feedback', (c) => {
+  if (!ADMIN_KEY || (c.req.header('X-Admin-Key') || '') !== ADMIN_KEY) return c.json({ error: 'forbidden' }, 403);
+  const limit = Math.min(Number(c.req.query('limit') || 100), 1000);
+  return c.json(listFeedback(limit));
+});
 
 // 同步我的状态（streak / 语言 / 今日活跃）——打开页面时调用，非实时
 app.put('/me', auth, async (c) => {

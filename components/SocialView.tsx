@@ -14,6 +14,9 @@ import {
   register,
   login,
   resetCloudIdentity,
+  changePassword,
+  deleteAccount,
+  submitFeedback,
   pushMyStatus,
   listFriends,
   addFriend,
@@ -67,6 +70,11 @@ const SocialView: React.FC<SocialViewProps> = ({ user }) => {
   const [nickname, setNickname] = useState('');
   const [password, setPassword] = useState('');
   const [authMode, setAuthMode] = useState<'register' | 'login'>('register');
+  const [pwOld, setPwOld] = useState('');
+  const [pwNew, setPwNew] = useState('');
+  const [fbKind, setFbKind] = useState<'bug' | 'suggestion' | 'content'>('suggestion');
+  const [fbContent, setFbContent] = useState('');
+  const [fbContact, setFbContact] = useState('');
   const [friendCodeInput, setFriendCodeInput] = useState('');
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
@@ -263,6 +271,57 @@ const SocialView: React.FC<SocialViewProps> = ({ user }) => {
     } catch (e) {
       setMsg({ kind: 'err', text: e instanceof Error ? e.message : '备份失败' });
     } finally {
+      setBusy(false);
+    }
+  };
+
+  const doChangePassword = async () => {
+    if (pwNew.length < 6) {
+      setMsg({ kind: 'err', text: '新密码至少 6 位' });
+      return;
+    }
+    setBusy(true);
+    setMsg(null);
+    try {
+      await changePassword(pwOld, pwNew);
+      setMsg({ kind: 'ok', text: '密码已修改' });
+      setPwOld('');
+      setPwNew('');
+    } catch (e) {
+      setMsg({ kind: 'err', text: e instanceof Error ? e.message : '修改失败' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doSubmitFeedback = async () => {
+    if (!fbContent.trim()) {
+      setMsg({ kind: 'err', text: '请填写反馈内容' });
+      return;
+    }
+    setBusy(true);
+    setMsg(null);
+    try {
+      await submitFeedback(fbKind, fbContent.trim(), fbContact.trim());
+      setMsg({ kind: 'ok', text: '感谢反馈，已收到' });
+      setFbContent('');
+      setFbContact('');
+    } catch (e) {
+      setMsg({ kind: 'err', text: e instanceof Error ? e.message : '提交失败' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doDeleteAccount = async () => {
+    if (!window.confirm('确定注销账号？账号与云端数据将被删除（本地数据保留），此操作不可撤销。')) return;
+    if (!window.confirm('再次确认：注销后无法恢复。')) return;
+    setBusy(true);
+    try {
+      await deleteAccount();
+      window.location.reload();
+    } catch (e) {
+      setMsg({ kind: 'err', text: e instanceof Error ? e.message : '注销失败' });
       setBusy(false);
     }
   };
@@ -643,6 +702,91 @@ const SocialView: React.FC<SocialViewProps> = ({ user }) => {
           </div>
         </div>
       </div>
+
+          {/* 账号与反馈 */}
+          <details className="rounded-xl border border-white/10 glass-panel p-4">
+            <summary className="flex items-center gap-2 cursor-pointer text-sm font-bold text-white">
+              <Settings2 size={16} className="text-neon-2" /> 账号与反馈
+            </summary>
+            <div className="mt-3 space-y-4">
+              <div>
+                <div className="text-xs font-bold text-white mb-1.5">修改密码</div>
+                <div className="space-y-1.5">
+                  <input
+                    type="password"
+                    value={pwOld}
+                    onChange={(e) => setPwOld(e.target.value)}
+                    placeholder="原密码"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted/50 focus:outline-none focus:border-neon/50"
+                  />
+                  <input
+                    type="password"
+                    value={pwNew}
+                    onChange={(e) => setPwNew(e.target.value)}
+                    placeholder="新密码（至少 6 位）"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted/50 focus:outline-none focus:border-neon/50"
+                  />
+                  <button
+                    onClick={() => void doChangePassword()}
+                    disabled={busy || !pwOld || pwNew.length < 6}
+                    className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white text-xs font-bold disabled:opacity-40"
+                  >
+                    修改
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <div className="text-xs font-bold text-white mb-1.5">意见反馈</div>
+                <div className="flex gap-1.5 mb-1.5">
+                  {(['bug', 'suggestion', 'content'] as const).map((k) => (
+                    <button
+                      key={k}
+                      onClick={() => setFbKind(k)}
+                      className={`px-2.5 py-1 rounded text-[11px] font-bold ${fbKind === k ? 'bg-neon text-white' : 'bg-white/5 text-muted hover:text-white'}`}
+                    >
+                      {k === 'bug' ? 'Bug' : k === 'suggestion' ? '建议' : '内容错误'}
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  value={fbContent}
+                  onChange={(e) => setFbContent(e.target.value)}
+                  placeholder="描述你遇到的问题或建议…"
+                  rows={3}
+                  maxLength={2000}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted/50 focus:outline-none focus:border-neon/50 resize-none"
+                />
+                <input
+                  type="text"
+                  value={fbContact}
+                  onChange={(e) => setFbContact(e.target.value)}
+                  placeholder="联系方式（选填，便于回复）"
+                  maxLength={200}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted/50 focus:outline-none focus:border-neon/50 mt-1.5"
+                />
+                <button
+                  onClick={() => void doSubmitFeedback()}
+                  disabled={busy || !fbContent.trim()}
+                  className="mt-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white text-xs font-bold disabled:opacity-40"
+                >
+                  提交反馈
+                </button>
+              </div>
+
+              <div className="border-t border-line pt-3">
+                <div className="text-xs font-bold text-red-400 mb-1">注销账号</div>
+                <p className="text-[11px] text-muted mb-1.5">删除账号与云端数据（本地数据保留），不可恢复。</p>
+                <button
+                  onClick={() => void doDeleteAccount()}
+                  disabled={busy}
+                  className="px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 text-xs font-bold disabled:opacity-40"
+                >
+                  注销账号
+                </button>
+              </div>
+            </div>
+          </details>
 
       <div className="flex items-center justify-between gap-3 text-xs border-t border-line pt-3">
         <span className="flex items-center gap-2 text-green-400/80">
