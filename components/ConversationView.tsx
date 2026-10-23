@@ -196,7 +196,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ user, onStartTask, 
         if (last && last.role === 'assistant' && !last.content) {
           next[next.length - 1] = {
             ...last,
-            content: '抱歉，AI 暂时不可用。请先到「我的资料 → 设置」配置模型与 API Key，或稍后重试。',
+            content: '抱歉，AI 暂时不可用。本站不内置 API Key —— 请先到「我的资料 → 模型设置」填写你自己的密钥，或稍后重试。',
           };
         }
         return next;

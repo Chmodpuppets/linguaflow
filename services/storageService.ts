@@ -96,18 +96,30 @@ export const DEFAULT_TASK_ROUTES: Record<TaskCategory, TaskTier> = {
   productionEval: 'fast',
 };
 
+export interface AIProviderConfig {
+  baseUrl: string;
+  model: string;
+  apiKey: string;
+}
+
 export interface AIConfig {
   active: AIProviderId;
-  glm: { baseUrl: string; model: string; apiKey: string };
-  custom: { baseUrl: string; model: string; apiKey: string };
+  qwen: AIProviderConfig;
+  openrouter: AIProviderConfig;
+  glm: AIProviderConfig;
+  custom: AIProviderConfig;
   /** Qwen TTS 音色 id（qwen3-tts-flash 的 voice 参数），见 aiService.TTS_VOICES */
   ttsVoice: string;
   /** 按任务类别分配模型层级（fast/reason/auto）；缺省项回落 DEFAULT_TASK_ROUTES。 */
   taskRoutes?: Partial<Record<TaskCategory, TaskTier>>;
 }
 
+// 重要：线上版/开源版**不内置任何真实 API Key**（生产构建会把 .env 密钥清空，
+// 见 vite.config.ts）。所有 Key 都必须由用户在「模型设置」里自行填写后才能使用 AI。
 export const defaultAIConfig = (): AIConfig => ({
-  active: 'openrouter', // 默认走 OpenRouter（模型见 .env 的 OPENROUTER_MODEL，当前 stealth/ox-alpha）
+  active: 'glm',
+  qwen: { baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen3.7-flash-2026-07-15', apiKey: '' },
+  openrouter: { baseUrl: 'https://openrouter.ai/api/v1', model: 'z-ai/glm-5.3-flash', apiKey: '' },
   glm: { baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'GLM-4.7-Flash', apiKey: '' },
   custom: { baseUrl: '', model: '', apiKey: '' },
   ttsVoice: 'Cherry',
@@ -121,6 +133,8 @@ export const getAIConfig = (): AIConfig => {
     const d = defaultAIConfig();
     return {
       active: (p.active as AIProviderId) || d.active,
+      qwen: { ...d.qwen, ...(p.qwen || {}) },
+      openrouter: { ...d.openrouter, ...(p.openrouter || {}) },
       glm: { ...d.glm, ...(p.glm || {}) },
       custom: { ...d.custom, ...(p.custom || {}) },
       ttsVoice: p.ttsVoice || d.ttsVoice,

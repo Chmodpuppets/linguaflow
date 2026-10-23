@@ -72,7 +72,6 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
 
   const updateActiveProvider = (patch: Partial<{ baseUrl: string; model: string; apiKey: string }>) => {
     const key = modelCfg.active;
-    if (key !== 'glm' && key !== 'custom') return;
     setModelCfg({ ...modelCfg, [key]: { ...modelCfg[key], ...patch } });
   };
   const handleSaveModel = () => {
@@ -780,38 +779,53 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout 
                   ))}
                 </div>
 
-                {(modelCfg.active === 'glm' || modelCfg.active === 'custom') && (
-                  <div className="space-y-3 mb-4">
-                    <div>
-                      <label className="text-xs font-bold text-muted mb-1 block">API 地址（Base URL）</label>
-                      <input
-                        value={modelCfg[modelCfg.active as 'glm' | 'custom'].baseUrl}
-                        onChange={(e) => updateActiveProvider({ baseUrl: e.target.value })}
-                        placeholder="https://open.bigmodel.cn/api/paas/v4"
-                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-neon"
-                      />
+                {(() => {
+                  const cfgNow = modelCfg[modelCfg.active];
+                  const hints: Record<string, { base: string; model: string }> = {
+                    qwen: { base: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen3.7-flash-2026-07-15' },
+                    openrouter: { base: 'https://openrouter.ai/api/v1', model: 'z-ai/glm-5.3-flash' },
+                    glm: { base: 'https://open.bigmodel.cn/api/paas/v4', model: 'GLM-4.7-Flash' },
+                    custom: { base: 'https://your-endpoint/v1', model: 'your-model' },
+                  };
+                  const h = hints[modelCfg.active];
+                  return (
+                    <div className="space-y-3 mb-4">
+                      <div>
+                        <label className="text-xs font-bold text-muted mb-1 block">API 地址（Base URL）</label>
+                        <input
+                          value={cfgNow.baseUrl}
+                          onChange={(e) => updateActiveProvider({ baseUrl: e.target.value })}
+                          placeholder={h.base}
+                          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-neon"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-muted mb-1 block">模型名称</label>
+                        <input
+                          value={cfgNow.model}
+                          onChange={(e) => updateActiveProvider({ model: e.target.value })}
+                          placeholder={h.model}
+                          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-neon"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-muted mb-1 block">API 密钥</label>
+                        <input
+                          type="password"
+                          value={cfgNow.apiKey}
+                          onChange={(e) => updateActiveProvider({ apiKey: e.target.value })}
+                          placeholder="必填：粘贴你自己的 API Key"
+                          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-neon"
+                        />
+                        {!cfgNow.apiKey.trim() && (
+                          <p className="text-[11px] text-amber-300 mt-1.5">
+                            未填写 Key —— AI 功能不可用。本站不内置任何 API Key，需使用你自己的密钥。
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <label className="text-xs font-bold text-muted mb-1 block">模型名称</label>
-                      <input
-                        value={modelCfg[modelCfg.active as 'glm' | 'custom'].model}
-                        onChange={(e) => updateActiveProvider({ model: e.target.value })}
-                        placeholder="GLM-4.7-Flash"
-                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-neon"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold text-muted mb-1 block">API 密钥</label>
-                      <input
-                        type="password"
-                        value={modelCfg[modelCfg.active as 'glm' | 'custom'].apiKey}
-                        onChange={(e) => updateActiveProvider({ apiKey: e.target.value })}
-                        placeholder={modelCfg.active === 'glm' && GLM_ENV_API_KEY ? '已配置 .env 中的 GLM_API_KEY（可留空）' : '留空则使用 .env 密钥'}
-                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-neon"
-                      />
-                    </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {(modelCfg.active === 'qwen' || modelCfg.active === 'openrouter') && (
                   <p className="text-xs text-muted mb-4">该模型的密钥来自 <code className="text-gray-300">.env</code>，在此不可编辑。</p>

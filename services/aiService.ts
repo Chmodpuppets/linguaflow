@@ -32,9 +32,9 @@ const OPENROUTER_API_KEY = process.env.API_KEY || "";
 const OPENROUTER_LLM_MODEL = process.env.OPENROUTER_MODEL || "stealth/ox-alpha";
 
 // Zhipu GLM provider (switchable in Settings -> 模型设置). Base/model/key can be
-// overridden at runtime via the UI; the key falls back to .env when left blank.
-// Uses import.meta.env (VITE_ prefixed) so the value is injected in BOTH dev and build.
-const GLM_API_KEY = import.meta.env.VITE_GLM_API_KEY || "";
+// overridden at runtime via the UI; 生产构建不内置 Key（见 vite.config.ts），
+// 用户必须在「模型设置」里填写自己的 Key。
+const GLM_API_KEY = process.env.GLM_API_KEY || "";
 export const GLM_ENV_API_KEY = GLM_API_KEY;
 const GLM_BASE_URL = import.meta.env.VITE_GLM_BASE_URL || "https://open.bigmodel.cn/api/paas/v4";
 const GLM_MODEL = import.meta.env.VITE_GLM_MODEL || "GLM-4.7-Flash";
@@ -74,36 +74,63 @@ interface LLMProvider {
 // (Settings -> 模型设置) plus the env-based Qwen/OpenRouter providers.
 // The user's selected provider is tried first; if it has no key configured,
 // we gracefully fall back to the first available provider (rather than erroring).
+const NO_KEY_MSG = '尚未配置 API Key：请到「我的资料 → 模型设置」填写你自己的密钥后再使用 AI。';
+
 const buildProviders = (override?: AIConfig): LLMProvider[] => {
   const cfg = override || getAIConfig();
 
-  // Env-based providers (key present => available).
+  // 运行时配置的 provider（用户在「模型设置」里自填 baseUrl/model/key）
+  const mk = (
+    name: string,
+    c: { baseUrl?: string; model?: string; apiKey?: string },
+    defBase: string,
+    defModel: string
+  ): LLMProvider | null => {
+    const key = (c.apiKey || '').trim();
+    if (!key) return null;
+    return { name, baseUrl: (c.baseUrl || defBase).trim(), apiKey: key, model: (c.model || defModel).trim() };
+  };
+
+  const qwenProvider = mk('qwen', cfg.qwen, QWEN_BASE_URL, QWEN_LLM_MODEL);
+  const openrouterProvider = mk('openrouter', cfg.openrouter, OPENROUTER_BASE_URL, OPENROUTER_LLM_MODEL);
+  // GLM：运行时 Key 优先，其次 dev 环境变量兜底（生产构建已被清空）
+  const glmProvider = mk(
+    'glm',
+    { baseUrl: cfg.glm.baseUrl, model: cfg.glm.model, apiKey: cfg.glm.apiKey || GLM_API_KEY },
+    GLM_BASE_URL,
+    GLM_MODEL
+  );
+  const customProvider = mk('custom', cfg.custom, '', '');
+
+  // 仅 dev / 自托管 .env 提供 Key 时才会出现的兜底 provider
   const envProviders: LLMProvider[] = [];
-  if (QWEN_API_KEY) envProviders.push({ name: "qwen", baseUrl: QWEN_BASE_URL, apiKey: QWEN_API_KEY, model: QWEN_LLM_MODEL });
-  if (OPENROUTER_API_KEY) envProviders.push({ name: "openrouter", baseUrl: OPENROUTER_BASE_URL, apiKey: OPENROUTER_API_KEY, model: OPENROUTER_LLM_MODEL });
+  if (QWEN_API_KEY && !qwenProvider) {
+    envProviders.push({ name: 'qwen', baseUrl: QWEN_BASE_URL, apiKey: QWEN_API_KEY, model: QWEN_LLM_MODEL });
+  }
+  if (OPENROUTER_API_KEY && !openrouterProvider) {
+    envProviders.push({ name: 'openrouter', baseUrl: OPENROUTER_BASE_URL, apiKey: OPENROUTER_API_KEY, model: OPENROUTER_LLM_MODEL });
+  }
 
-  // Runtime-config providers (Settings -> 模型设置).
-  const glmKey = cfg.glm.apiKey || GLM_API_KEY;
-  const glmProvider: LLMProvider | null = glmKey
-    ? { name: "glm", baseUrl: cfg.glm.baseUrl || GLM_BASE_URL, apiKey: glmKey, model: cfg.glm.model || GLM_MODEL }
-    : null;
-  const customProvider: LLMProvider | null = cfg.custom.apiKey
-    ? { name: "custom", baseUrl: cfg.custom.baseUrl, apiKey: cfg.custom.apiKey, model: cfg.custom.model }
-    : null;
+  const byId: Record<string, LLMProvider | null> = {
+    qwen: qwenProvider,
+    openrouter: openrouterProvider,
+    glm: glmProvider,
+    custom: customProvider,
+  };
+  const active = byId[cfg.active] ?? null;
 
-  // Resolve the user's chosen active provider; null if its key is missing.
-  let active: LLMProvider | null = null;
-  if (cfg.active === "glm") active = glmProvider;
-  else if (cfg.active === "custom") active = customProvider;
-  else if (cfg.active === "qwen") active = envProviders.find((p) => p.name === "qwen") ?? null;
-  else if (cfg.active === "openrouter") active = envProviders.find((p) => p.name === "openrouter") ?? null;
+  // 所有真正可用的 provider（去重：同名优先运行时配置）
+  const all = [glmProvider, customProvider, qwenProvider, openrouterProvider, ...envProviders].filter(Boolean) as LLMProvider[];
 
-  // All providers that actually have a key, in a stable order.
-  const all = [glmProvider, customProvider, ...envProviders].filter(Boolean) as LLMProvider[];
+  // Active 优先；若它没配 Key，则回落到任意一个可用的
+  return active ? [active, ...all.filter((p) => p.name !== active.name)] : all;
+};
 
-  // Active first; if it's unavailable (no key), fall back to the first working provider.
-  const ordered = active ? [active, ...all.filter((p) => p.name !== active!.name)] : all;
-  return ordered;
+// 无任何可用 Key 时给出明确引导（而不是抛 undefined）
+const requireProviders = (): LLMProvider[] => {
+  const ps = buildProviders();
+  if (ps.length === 0) throw new Error(NO_KEY_MSG);
+  return ps;
 };
 
 // Surface the active configuration so users always know which model is in use.
@@ -195,7 +222,7 @@ const callProvider = async (p: LLMProvider, messages: { role: string; content: s
 
 const chatCompletion = async (prompt: string, temperature?: number): Promise<string> => {
     let lastErr: unknown;
-    for (const p of buildProviders()) {
+    for (const p of requireProviders()) {
         try {
             return await callProvider(p, [{ role: "user", content: prompt }], temperature);
         } catch (e: any) {
@@ -211,7 +238,7 @@ const chatCompletion = async (prompt: string, temperature?: number): Promise<str
 // 带 system 指令的对话（用于注入 AI 导师人设与"记住你"的上下文）
 export const chatCompletionWithSystem = async (system: string, prompt: string, temperature?: number): Promise<string> => {
     let lastErr: unknown;
-    for (const p of buildProviders()) {
+    for (const p of requireProviders()) {
         try {
             return await callProvider(p, [
                 { role: "system", content: system },
@@ -329,7 +356,7 @@ export const streamChatCompletion = async (
     ...messages,
   ];
   let lastErr: unknown;
-  for (const p of buildProviders()) {
+  for (const p of requireProviders()) {
     try {
       return await callProviderStream(p, fullMessages, temperature, onDelta);
     } catch (e: any) {
