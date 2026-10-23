@@ -133,6 +133,9 @@ const requireProviders = (): LLMProvider[] => {
   return ps;
 };
 
+// 是否至少配好了一个可用的 provider（用于新用户引导/提示）
+export const hasUsableProvider = (): boolean => buildProviders().length > 0;
+
 // Surface the active configuration so users always know which model is in use.
 console.info(
   `[LinguaFlow] LLM providers (env): qwen → ${QWEN_LLM_MODEL}` +

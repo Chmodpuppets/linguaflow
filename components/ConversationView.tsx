@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile, ChatCard, DailyTask } from '../types';
-import { streamChatCompletion, buildTutorSystemPrompt, generateDailyTasks } from '../services/aiService';
+import { streamChatCompletion, buildTutorSystemPrompt, generateDailyTasks, hasUsableProvider } from '../services/aiService';
 import { addActivity, getLevelInfo } from '../services/storageService';
 import { Send, Sparkles, ArrowRight, CheckCircle2, Flame, Gift, Share2 } from 'lucide-react';
 import { GlassCard, NeonButton, NeonBadge } from './ui';
@@ -17,6 +17,8 @@ interface ConversationViewProps {
   user: UserProfile;
   onStartTask: (module: DailyTask['module']) => void;
   onUpdateUser: (u: UserProfile) => void;
+  /** 一键跳到「我的资料 → 模型设置」（新用户未配 API Key 时的引导） */
+  onGoToModelSettings?: () => void;
 }
 
 // 欢迎区快捷提示：点击填入输入框，降低「不知道该问什么」的门槛
@@ -77,7 +79,7 @@ const loadChest = (): { opened: boolean; reward: number | null } => {
   return { opened: false, reward: null };
 };
 
-const ConversationView: React.FC<ConversationViewProps> = ({ user, onStartTask, onUpdateUser }) => {
+const ConversationView: React.FC<ConversationViewProps> = ({ user, onStartTask, onUpdateUser, onGoToModelSettings }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
@@ -233,6 +235,47 @@ const ConversationView: React.FC<ConversationViewProps> = ({ user, onStartTask, 
       {/* 欢迎区：仅无历史时展示 */}
       {messages.length === 0 && (
         <div className="mb-6 space-y-4">
+          {/* 新用户引导：本站不内置 API Key，先带用户去申请免费的 */}
+          {!hasUsableProvider() && (
+            <div className="rounded-2xl border border-amber-400/30 bg-amber-400/10 p-5">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-400/15 text-xl">🔑</div>
+                <div className="flex-1">
+                  <p className="font-semibold text-white">先填一个你自己的 API Key，才能开始对话</p>
+                  <p className="mt-1 text-sm text-muted leading-relaxed">
+                    本站不内置任何密钥。下面几家都有免费额度，注册两分钟就能拿到：
+                  </p>
+                  <div className="mt-3 space-y-1.5">
+                    {[
+                      { name: '智谱 GLM', desc: '注册即送免费额度 · 推荐先用', url: 'https://open.bigmodel.cn' },
+                      { name: '阿里云百炼（Qwen）', desc: '有免费 token 额度', url: 'https://bailian.console.aliyun.com' },
+                      { name: 'OpenRouter', desc: '部分模型免费', url: 'https://openrouter.ai/keys' },
+                    ].map((p) => (
+                      <a
+                        key={p.name}
+                        href={p.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 transition-colors hover:border-amber-300/40 hover:bg-amber-400/10"
+                      >
+                        <span className="text-sm font-semibold text-white">{p.name}</span>
+                        <span className="text-[11px] text-muted">{p.desc} ↗</span>
+                      </a>
+                    ))}
+                  </div>
+                  {onGoToModelSettings && (
+                    <button
+                      onClick={onGoToModelSettings}
+                      className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-neon px-3 py-2 text-sm font-bold text-white transition-all hover:brightness-110"
+                    >
+                      去填写 Key <ArrowRight size={15} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="rounded-2xl border border-white/[0.07] bg-surface-2/60 backdrop-blur-sm p-6">
             <div className="flex items-start gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-neon/15 text-violet-300">

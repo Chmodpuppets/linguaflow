@@ -11,6 +11,8 @@ interface ProfileViewProps {
   user: UserProfile;
   onUpdateUser: (user: UserProfile) => void;
   onLogout: () => void;
+  /** 打开时默认选中的选项卡（用于「去填写 API Key」一键跳转） */
+  initialTab?: 'overview' | 'settings' | 'models';
 }
 
 // 考试目标 ↔ 语言 映射（用于下拉筛选与切换语言时自动回落）
@@ -32,8 +34,8 @@ const EXAM_OPTIONS: { value: TargetExam; label: string; lang: Language | null }[
   { value: 'DELE', label: '西语 DELE', lang: Language.Spanish },
 ];
 
-const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'settings' | 'models'>('overview');
+const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout, initialTab }) => {
+  const [activeTab, setActiveTab] = useState<'overview' | 'settings' | 'models'>(initialTab || 'overview');
   const [showAssessment, setShowAssessment] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [clearDataOnLogout, setClearDataOnLogout] = useState(false);

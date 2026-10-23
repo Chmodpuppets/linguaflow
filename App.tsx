@@ -122,6 +122,11 @@ const App: React.FC = () => {
   // → React 报 "Rendered more hooks than during the previous render"
   const prevLevelRef = useRef<number | null>(null);
   const [levelUpFlash, setLevelUpFlash] = useState<number | null>(null);
+  // 「我的资料」默认选项卡：从对话台「去填写 Key」跳转时直达「模型设置」
+  const [profileInitialTab, setProfileInitialTab] = useState<'overview' | 'settings' | 'models'>('overview');
+  useEffect(() => {
+    if (mode !== AppMode.Profile) setProfileInitialTab('overview');
+  }, [mode]);
 
   // 升级检测：等级跨 500 边界跃升时闪光；ref 用 lazy 守卫避免首登后立即触发
   useEffect(() => {
@@ -375,9 +380,19 @@ const App: React.FC = () => {
             />
         );
       case AppMode.Profile:
-        return <ProfileView user={user} onUpdateUser={handleUserUpdate} onLogout={handleLogout} />;
+        return <ProfileView user={user} onUpdateUser={handleUserUpdate} onLogout={handleLogout} initialTab={profileInitialTab} />;
       case AppMode.Conversation:
-        return <ConversationView user={user} onStartTask={handleStartTask} onUpdateUser={handleUserUpdate} />;
+        return (
+          <ConversationView
+            user={user}
+            onStartTask={handleStartTask}
+            onUpdateUser={handleUserUpdate}
+            onGoToModelSettings={() => {
+              setProfileInitialTab('models');
+              setMode(AppMode.Profile);
+            }}
+          />
+        );
       default:
         return <TypingView user={user} onComplete={handleUserUpdate} />;
     }
