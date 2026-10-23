@@ -323,7 +323,8 @@ export const markFlywheelStep = (step: FlywheelStep, lang?: Language): DailyFlyw
   return fw;
 };
 
-// 连胜仅在「完成产出飞轮」时累加（取代原 addActivity 内任何活动即 +1 的逻辑）。
+// 连胜唯一口径：完成「今日产出飞轮」（写作 + 听写 + 有字形包时的字形特训）时由调用方 commitDailyStreak。
+// 对话台星任务全清只给 XP，不再旁路续连胜。
 export const commitDailyStreak = (user: UserProfile): UserProfile => {
   const today = getTodayString();
   if (user.lastStreakDate === today) return user; // 今天已计入，防重

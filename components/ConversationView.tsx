@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile, ChatCard, DailyTask } from '../types';
 import { streamChatCompletion, buildTutorSystemPrompt, generateDailyTasks } from '../services/aiService';
-import { addActivity, commitDailyStreak, getLevelInfo } from '../services/storageService';
+import { addActivity, getLevelInfo } from '../services/storageService';
 import { Send, Sparkles, ArrowRight, CheckCircle2, Flame, Gift, Share2 } from 'lucide-react';
 import { GlassCard, NeonButton, NeonBadge } from './ui';
 import { Markdown } from './ui/Markdown';
@@ -128,10 +128,9 @@ const ConversationView: React.FC<ConversationViewProps> = ({ user, onStartTask, 
       {}
     );
     const nextDone = { ...doneMap, [task.id]: quality };
-    // 今日任务全部完成 → 续连胜（复用 commitDailyStreak，幂等，同一天只续一次，与产出飞轮共存）
-    const allDone = Object.keys(nextDone).length >= dailyTasks.length && dailyTasks.length > 0;
-    const finalUser = allDone ? commitDailyStreak(updated) : updated;
-    onUpdateUser(finalUser);
+    // 连胜口径统一：只由「完成今日产出飞轮」触发（见 storageService.commitDailyStreak），
+    // 对话台星任务全清仅给 XP + 宝箱，不再旁路续连胜。
+    onUpdateUser(updated);
     setDoneMap(nextDone);
     setRatingFor(null);
     try { localStorage.setItem(DONE_KEY, JSON.stringify({ date: todayStr(), done: nextDone })); } catch {}
@@ -285,7 +284,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ user, onStartTask, 
               {Object.keys(doneMap).length >= dailyTasks.length && (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 rounded-xl border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-sm text-amber-300">
-                    <Flame size={16} /> 今日任务全部完成，连胜已续上！
+                    <Flame size={16} /> 今日任务全部完成！去「今日」完成产出飞轮，点亮今日连胜 🔥
                   </div>
                   {chest.opened ? (
                     <div className="flex items-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-300">

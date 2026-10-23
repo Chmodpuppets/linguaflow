@@ -310,6 +310,9 @@ export const CYCLE_STAGE_LABELS: Record<WritingCycleStage, string> = {
   share: '分享',
 };
 
+// 阶段推进顺序（写作循环的闭环：写 → 批改 → 进入下一阶段）
+export const CYCLE_STAGE_ORDER: WritingCycleStage[] = ['plan', 'draft', 'reread', 'rewrite', 'edit', 'share'];
+
 // 写作语体 / 口气（register）：同一主题用不同语体写，训练得体表达
 export type WritingRegister = 'casual' | 'neutral' | 'polite' | 'formal' | 'business';
 export const REGISTER_LABELS: Record<WritingRegister, string> = {

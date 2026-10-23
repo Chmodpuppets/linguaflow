@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserProfile, WritingNode, CEFRLevel, Language, GuidedWritingFeedback, GuidedMode, ErrorPatternType, REGISTER_LABELS, CompositionGenre, GENRE_LABELS, PRACTICE_TYPE_LABELS, CYCLE_STAGE_LABELS, TargetExam, CustomDirectionSeed } from '../types';
+import { UserProfile, WritingNode, CEFRLevel, Language, GuidedWritingFeedback, GuidedMode, ErrorPatternType, REGISTER_LABELS, CompositionGenre, GENRE_LABELS, PRACTICE_TYPE_LABELS, CYCLE_STAGE_LABELS, CYCLE_STAGE_ORDER, WritingCycleStage, TargetExam, CustomDirectionSeed } from '../types';
 import { ensureGrowthTree, saveWritingTree, addActivity, addErrorCards } from '../services/storageService';
 import { analyzeGuidedWriting, generateSpeech } from '../services/aiService';
 import { getCustomDirections, updateCustomDirection, deleteCustomDirection, regenerateCustomDirection, buildCustomDirectionNodes, MAX_CUSTOM_DIRECTIONS } from '../services/customDirectionService';
@@ -200,6 +200,51 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
       setError('AI 批改失败，请检查网络/API Key 后重试。');
     }
     setAnalyzing(false);
+  };
+
+  // 写作循环：本阶段批改完成后，把节点推进到下一阶段（保留文本、清空反馈，按新阶段重写）
+  const advanceCycle = (stage: WritingCycleStage) => {
+    if (!active) return;
+    const i = CYCLE_STAGE_ORDER.indexOf(stage);
+    if (i < 0 || i + 1 >= CYCLE_STAGE_ORDER.length) return;
+    const next = CYCLE_STAGE_ORDER[i + 1];
+    persist(nodes.map((n) =>
+      n.id === active.id ? { ...n, cycleStage: next, content: normalizedInput, updatedAt: Date.now() } : n
+    ));
+    setFeedback(null);
+    setError(null);
+  };
+
+  // 下一阶段（用于按钮文案与渲染判断）
+  const nextStageOf = (stage: WritingCycleStage): WritingCycleStage | null => {
+    const i = CYCLE_STAGE_ORDER.indexOf(stage);
+    return i >= 0 && i + 1 < CYCLE_STAGE_ORDER.length ? CYCLE_STAGE_ORDER[i + 1] : null;
+  };
+
+  // 阶段进度条：构思 → 起草 → 重读 → 重写 → 编辑 → 分享
+  const cycleStepper = (stage?: WritingCycleStage) => {
+    if (!stage) return null;
+    const cur = CYCLE_STAGE_ORDER.indexOf(stage);
+    return (
+      <div className="mt-2 flex flex-wrap items-center gap-1 text-[10px]">
+        {CYCLE_STAGE_ORDER.map((s, i) => (
+          <React.Fragment key={s}>
+            <span
+              className={
+                i < cur
+                  ? 'text-sky-300/60'
+                  : i === cur
+                    ? 'px-2 py-0.5 rounded-full bg-sky-500/25 border border-sky-400/50 text-sky-100 font-bold'
+                    : 'text-faint'
+              }
+            >
+              {CYCLE_STAGE_LABELS[s]}
+            </span>
+            {i < CYCLE_STAGE_ORDER.length - 1 && <span className="text-faint">→</span>}
+          </React.Fragment>
+        ))}
+      </div>
+    );
   };
 
   // 完成任务：标记 completed + 存内容 + 解锁同主题下一 task + 发 XP
@@ -567,6 +612,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                   )}
                 </div>
               )}
+              {cycleStepper(active.cycleStage ?? 'draft')}
               <h3 className="text-xl font-bold text-white mt-1">{active.title}</h3>
               {active.spine && siblingTheme && (
                 <button
@@ -771,6 +817,20 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                     {feedback.registerNote}
                   </div>
                 )}
+
+                {(() => {
+                  const st = active.cycleStage ?? 'draft';
+                  const nx = nextStageOf(st);
+                  if (!nx) return null;
+                  return (
+                    <button
+                      onClick={() => advanceCycle(st)}
+                      className="w-full py-3 rounded-xl bg-sky-500/15 border border-sky-400/40 text-sky-200 font-bold hover:bg-sky-500/25 transition-all duration-200 flex items-center justify-center gap-2"
+                    >
+                      <ArrowRight size={16} /> 本阶段完成 · 进入「{CYCLE_STAGE_LABELS[nx]}」
+                    </button>
+                  );
+                })()}
 
                 <div className="flex gap-2">
                   <button

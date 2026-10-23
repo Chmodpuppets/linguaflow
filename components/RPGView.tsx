@@ -56,6 +56,14 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
     // AI 导师"记住你"的系统提示（人设 + 目标 + 薄弱点）
     const tutorSystem = buildTutorSystemPrompt(user);
 
+    // 下一关：按 RPG_PACKS 顺序取当前场景的下一个（通关→推进的闭环）
+    const nextScenario = (() => {
+        if (!currentDef) return null;
+        const flat = RPG_PACKS.flatMap((p) => p.scenarios.map((s) => ({ def: s, universe: p.name })));
+        const idx = flat.findIndex((x) => x.def.id === currentDef.id);
+        return idx >= 0 && idx + 1 < flat.length ? flat[idx + 1] : null;
+    })();
+
     // --- RPG 进度本地保存（可续玩） ---
     const RPG_SESSION_KEY = 'linguaflow_rpg_session';
     const saveSession = (scn: RPGScenario | null, msgs: RPGMessage[], completed: string[]) => {
@@ -700,13 +708,24 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                                 ? `你完成了 ${completedObjectives.size} / ${scenario.objectives.length} 个目标，获得了经验值。`
                                 : '你成功完成了场景，获得了经验值。'}
                         </p>
-                        <div className="flex gap-3 justify-center">
-                            <button onClick={performExit} className="px-6 py-3 bg-surface-3 hover:bg-surface-3 text-white rounded-xl font-bold">
+                        <div className="flex flex-wrap gap-3 justify-center">
+                            <button onClick={performExit} className="px-5 py-3 bg-surface-3 hover:bg-surface-3/80 text-white rounded-xl font-bold">
                                 退出
                             </button>
                             {currentDef && (
-                                <button onClick={() => handleStart(currentDef, scenario?.universe || '')} className="px-6 py-3 bg-gradient-to-r from-neon to-neon-2 hover:brightness-110 hover:shadow-glow-neon text-white rounded-xl font-bold flex items-center gap-2 transition-all duration-200">
+                                <button onClick={() => handleStart(currentDef, scenario?.universe || '')} className="px-5 py-3 bg-surface-3 hover:bg-surface-3/80 text-white rounded-xl font-bold flex items-center gap-2">
                                     <RotateCcw size={18} /> 再玩一次
+                                </button>
+                            )}
+                            {nextScenario && (
+                                <button
+                                    onClick={() => {
+                                        setShowVictoryModal(false);
+                                        handleStart(nextScenario.def, nextScenario.universe);
+                                    }}
+                                    className="px-5 py-3 bg-gradient-to-r from-neon to-neon-2 hover:brightness-110 hover:shadow-glow-neon text-white rounded-xl font-bold flex items-center gap-2 transition-all duration-200"
+                                >
+                                    <ArrowRight size={18} /> 下一关
                                 </button>
                             )}
                         </div>
