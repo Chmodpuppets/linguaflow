@@ -3,7 +3,7 @@ import { uuid } from '../utils/uuid';
 
 import React, { useState, useEffect } from 'react';
 import { UserProfile, VocabularyItem } from '../types';
-import { getVocabulary, saveVocabularyItem, deleteVocabularyItem, addActivity, getDueVocabulary, updateVocabularyItem, reviewVocabulary, progressQuests } from '../services/storageService';
+import { getVocabulary, saveVocabularyItem, deleteVocabularyItem, addActivity, getDueVocabulary, updateVocabularyItem, reviewVocabulary } from '../services/storageService';
 import { generateWordDetails, playWord } from '../services/aiService';
 import { BookA, Plus, Search, Trash2, Sparkles, Volume2, Tag, Loader2, Save, X, Repeat, Check, XCircle, Layers } from 'lucide-react';
 
@@ -56,7 +56,15 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser, ini
     if (!current) return;
     const updated = reviewVocabulary(current, known);
     updateVocabularyItem(updated);
-    const updatedUser = progressQuests(user, 'vocab_review', 1);
+    // 复习计入活动：给 XP + 记日志 + 推进「复习」任务（details.review 标记，避免添加单词也算复习）
+    const { user: updatedUser } = addActivity(
+      user,
+      'vocabulary',
+      user.learningLanguage,
+      known ? 3 : 1,
+      `复习单词：${current.word}（${known ? '记住' : '需重练'}）`,
+      { word: current.word, review: true }
+    );
     onUpdateUser(updatedUser);
     setReviewDone((d) => d + 1);
     setRevealed(false);

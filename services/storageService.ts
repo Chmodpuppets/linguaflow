@@ -877,7 +877,8 @@ export const addActivity = (
   if (type === 'typing') { questKind = 'typing_words'; questAmount = details.wordCount ?? 0; }
   else if (type === 'writing' || type === 'tree_writing') { questKind = 'writing_words'; questAmount = details.wordCount ?? 0; }
   else if (type === 'rpg') { questKind = 'rpg_sessions'; questAmount = 1; }
-  else if (type === 'vocabulary') { questKind = 'vocab_review'; questAmount = 1; }
+  // 词汇：只有「复习」(details.review) 才推进每日复习任务；「添加单词」给 XP 但不算复习
+  else if (type === 'vocabulary' && details?.review) { questKind = 'vocab_review'; questAmount = 1; }
   else if (type === 'script') { questKind = 'script_practice'; questAmount = details.count ?? 1; }
   if (questKind) progressQuests(updatedUser, questKind, questAmount);
 

@@ -7,7 +7,7 @@ import {
   deleteErrorCard,
   getDueErrorCards,
   reviewErrorCard,
-  progressQuests,
+  addActivity,
 } from '../services/storageService';
 import { BookX, Search, Trash2, Repeat, Check, XCircle, Layers, AlertCircle } from 'lucide-react';
 
@@ -49,7 +49,15 @@ const ErrorBookView: React.FC<ErrorBookViewProps> = ({ user, onUpdateUser, initi
     if (!current) return;
     const updated = reviewErrorCard(current, known);
     updateErrorCard(updated);
-    const updatedUser = progressQuests(user, 'vocab_review', 1);
+    // 复习计入活动：给 XP + 记日志 + 推进「复习」任务
+    const { user: updatedUser } = addActivity(
+      user,
+      'vocabulary',
+      user.learningLanguage,
+      known ? 3 : 1,
+      `复习错题：${current.original}`,
+      { word: current.original, review: true }
+    );
     onUpdateUser(updatedUser);
     setReviewDone((d) => d + 1);
     setRevealed(false);
