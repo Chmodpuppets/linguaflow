@@ -84,7 +84,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout,
     setModelTest({ status: 'testing', msg: '正在测试连接…' });
     try {
       const res = await testModelConnection(modelCfg);
-      setModelTest({ status: 'ok', msg: `连接成功：${res.trim().slice(0, 60)}` });
+      // 测试通过即自动保存：避免「测试过了但没点保存 → 对话页仍报未配置」的困惑
+      saveAIConfig(modelCfg);
+      setModelTest({ status: 'ok', msg: `连接成功：${res.trim().slice(0, 60)}（已自动保存）` });
     } catch (e: any) {
       setModelTest({ status: 'error', msg: `连接失败：${e?.message || e}` });
     }

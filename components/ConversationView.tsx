@@ -191,15 +191,21 @@ const ConversationView: React.FC<ConversationViewProps> = ({ user, onStartTask, 
         });
       });
     } catch (e) {
-      // 无 key / 网络失败：把占位消息替换为可读提示，不白屏
+      // 按真实原因给不同提示（别把所有失败都说成「没配 Key」）
+      const raw = e instanceof Error ? e.message : String(e);
+      const friendly =
+        /未配置 API Key|尚未配置 API Key/.test(raw)
+          ? '本站不内置 API Key —— 请先到「我的资料 → 模型设置」填写你自己的密钥。'
+          : /限流|429|402|Quota|rate.?limit/i.test(raw)
+            ? 'AI 暂时被限流或额度不足（免费模型有每分钟 / 并发限制），请等 10–30 秒再试，或在「模型设置」换一个模型 / 厂商。'
+            : /401|403|invalid.*key|unauthorized/i.test(raw)
+              ? '密钥无效或没有权限：请到「我的资料 → 模型设置」检查 Key 与厂商是否匹配（智谱 Key 要填在「智谱 GLM」里）。'
+              : `AI 暂时不可用：${raw.slice(0, 140)}`;
       setMessages((prev) => {
         const next = [...prev];
         const last = next[next.length - 1];
         if (last && last.role === 'assistant' && !last.content) {
-          next[next.length - 1] = {
-            ...last,
-            content: '抱歉，AI 暂时不可用。本站不内置 API Key —— 请先到「我的资料 → 模型设置」填写你自己的密钥，或稍后重试。',
-          };
+          next[next.length - 1] = { ...last, content: friendly };
         }
         return next;
       });

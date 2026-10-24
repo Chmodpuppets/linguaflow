@@ -36,10 +36,8 @@ await page.waitForTimeout(800);
 await page.getByRole('button', { name: /智谱 GLM/ }).first().click();
 await page.waitForTimeout(400);
 
-// 填 Key（模型保持默认 glm-4-flash）
+// 填 Key（模型保持默认 glm-4-flash）；故意不点「保存」，验证测试成功会自动保存
 await page.getByPlaceholder('必填：粘贴你自己的 API Key').fill(KEY);
-await page.getByRole('button', { name: /^保存/ }).first().click().catch(() => {});
-await page.waitForTimeout(500);
 await page.getByRole('button', { name: /测试连接/ }).first().click();
 
 // 等结果（最多 30s）
@@ -54,6 +52,14 @@ for (let i = 0; i < 20; i++) {
   }
 }
 console.log(`测试结果: ${msg || '(超时无结果)'}`);
+// 验证「测试成功自动保存」：只点过测试、没点保存，配置也应已落库
+const saved = await page.evaluate(() => {
+  const raw = localStorage.getItem('linguaflow_ai_config');
+  if (!raw) return { key: false, active: '', model: '' };
+  const c = JSON.parse(raw);
+  return { key: !!(c.glm && c.glm.apiKey), active: c.active, model: (c.glm && c.glm.model) || '' };
+});
+console.log(`自动保存配置: key=${saved.key} active=${saved.active} model=${saved.model}`);
 console.log(`未捕获错误: ${errors.length}${errors.length ? ' :: ' + errors.join(' | ') : ''}`);
 await browser.close();
-process.exit(/连接成功/.test(msg) && errors.length === 0 ? 0 : 1);
+process.exit(/连接成功/.test(msg) && saved.key && errors.length === 0 ? 0 : 1);
