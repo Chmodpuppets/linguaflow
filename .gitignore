@@ -43,6 +43,7 @@ opc-doc/
 
 # Playwright QA 回归截图产物（运行时生成，非源码）
 /public/qa-screenshots/
+/qa-screenshots/
 
 # Python cache
 __pycache__/
