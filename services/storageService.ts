@@ -35,7 +35,7 @@ export const ALL_STORAGE_KEYS: string[] = [
 
 // --- Runtime AI model configuration (switcher in Settings -> 模型设置) ---
 // Keys are stored ONLY in localStorage (browser), never committed to source.
-export type AIProviderId = 'qwen' | 'openrouter' | 'glm' | 'custom';
+export type AIProviderId = 'qwen' | 'openrouter' | 'glm' | 'deepseek' | 'custom';
 
 /**
  * 任务级模型路由：按"活儿"分配模型，而非全站一个默认模型。
@@ -107,6 +107,7 @@ export interface AIConfig {
   qwen: AIProviderConfig;
   openrouter: AIProviderConfig;
   glm: AIProviderConfig;
+  deepseek: AIProviderConfig;
   custom: AIProviderConfig;
   /** Qwen TTS 音色 id（qwen3-tts-flash 的 voice 参数），见 aiService.TTS_VOICES */
   ttsVoice: string;
@@ -121,6 +122,7 @@ export const defaultAIConfig = (): AIConfig => ({
   qwen: { baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen3.7-flash-2026-07-15', apiKey: '' },
   openrouter: { baseUrl: 'https://openrouter.ai/api/v1', model: 'z-ai/glm-5.3-flash', apiKey: '' },
   glm: { baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash', apiKey: '' },
+  deepseek: { baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat', apiKey: '' },
   custom: { baseUrl: '', model: '', apiKey: '' },
   ttsVoice: 'Cherry',
 });
@@ -136,6 +138,7 @@ export const getAIConfig = (): AIConfig => {
       qwen: { ...d.qwen, ...(p.qwen || {}) },
       openrouter: { ...d.openrouter, ...(p.openrouter || {}) },
       glm: { ...d.glm, ...(p.glm || {}) },
+      deepseek: { ...d.deepseek, ...(p.deepseek || {}) },
       custom: { ...d.custom, ...(p.custom || {}) },
       ttsVoice: p.ttsVoice || d.ttsVoice,
       taskRoutes: (p.taskRoutes as Partial<Record<TaskCategory, TaskTier>>) || {},

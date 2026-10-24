@@ -765,10 +765,11 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout,
                 </p>
 
                 <label className="text-sm font-bold text-muted mb-2 block">当前模型</label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">
                   {([
-                    { id: 'glm', label: '智谱 GLM', desc: 'GLM-4.7-Flash' },
+                    { id: 'glm', label: '智谱 GLM', desc: 'glm-4-flash' },
                     { id: 'qwen', label: 'Qwen', desc: 'DashScope' },
+                    { id: 'deepseek', label: 'DeepSeek', desc: 'deepseek-chat' },
                     { id: 'openrouter', label: 'OpenRouter', desc: '多模型网关' },
                     { id: 'custom', label: '自定义', desc: 'OpenAI 兼容端点' },
                   ] as const).map((p) => (
@@ -793,6 +794,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout,
                     qwen: { base: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen3.7-flash-2026-07-15' },
                     openrouter: { base: 'https://openrouter.ai/api/v1', model: 'z-ai/glm-5.3-flash' },
                     glm: { base: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash' },
+                    deepseek: { base: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
                     custom: { base: 'https://your-endpoint/v1', model: 'your-model' },
                   };
                   const h = hints[modelCfg.active];

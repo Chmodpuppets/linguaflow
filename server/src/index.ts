@@ -222,7 +222,7 @@ app.get('/log/error', (c) => {
 // --- LLM 中转：部分厂商（如智谱）CORS 预检不放行浏览器直连，由服务端代发 ---
 // 仅允许已知厂商域名，避免变成开放代理（SSRF）。
 const LLM_ALLOW_HOSTS = new Set(
-  (process.env.LLM_ALLOW_HOSTS || 'open.bigmodel.cn,dashscope.aliyuncs.com,openrouter.ai')
+  (process.env.LLM_ALLOW_HOSTS || 'open.bigmodel.cn,dashscope.aliyuncs.com,openrouter.ai,api.deepseek.com')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)

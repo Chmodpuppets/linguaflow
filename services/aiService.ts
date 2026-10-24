@@ -114,6 +114,7 @@ const buildProviders = (override?: AIConfig): LLMProvider[] => {
     GLM_MODEL
   );
   const customProvider = mk('custom', cfg.custom, '', '');
+  const deepseekProvider = mk('deepseek', cfg.deepseek, 'https://api.deepseek.com/v1', 'deepseek-chat');
 
   // 仅 dev / 自托管 .env 提供 Key 时才会出现的兜底 provider
   const envProviders: LLMProvider[] = [];
@@ -128,12 +129,13 @@ const buildProviders = (override?: AIConfig): LLMProvider[] => {
     qwen: qwenProvider,
     openrouter: openrouterProvider,
     glm: glmProvider,
+    deepseek: deepseekProvider,
     custom: customProvider,
   };
   const active = byId[cfg.active] ?? null;
 
   // 所有真正可用的 provider（去重：同名优先运行时配置）
-  const all = [glmProvider, customProvider, qwenProvider, openrouterProvider, ...envProviders].filter(Boolean) as LLMProvider[];
+  const all = [glmProvider, deepseekProvider, customProvider, qwenProvider, openrouterProvider, ...envProviders].filter(Boolean) as LLMProvider[];
 
   // Active 优先；若它没配 Key，则回落到任意一个可用的
   return active ? [active, ...all.filter((p) => p.name !== active.name)] : all;
@@ -192,10 +194,13 @@ const isQuotaOrLimit = (status: number, text: string): boolean =>
   status === 429 || status === 402 ||
   /quota|exceeded|insufficient|额度|余额|rate.?limit|limit reached/i.test(text);
 
-// 限流/额度不足的可读错误（免费模型常有每分钟/并发限制，等一会儿即恢复）
-const quotaError = (name: string, status: number): ChatError => {
+// 限流 / 额度不足：403 也可能是「免费额度用完」，所以要看错误体再区分文案
+const quotaError = (name: string, status: number, detail = ''): ChatError => {
+  const exhausted = /exhausted|insufficient|balance|arrear|余额|额度已用完|欠费/i.test(detail);
   const err = new Error(
-    `${name} 限流或额度不足（HTTP ${status}）：免费模型有每分钟/并发限制，请等 10–30 秒再试；或在「模型设置」里换一个模型 / 厂商。`
+    exhausted
+      ? `${name} 的额度已用完或余额不足（HTTP ${status}）：请到 ${name} 控制台充值，或关闭「仅用免费额度」模式；也可以改用其他厂商。`
+      : `${name} 限流（HTTP ${status}）：免费模型有每分钟 / 并发限制，请等 10–30 秒再试，或改用其他厂商。`
   ) as ChatError;
   err.quota = true;
   return err;
@@ -254,11 +259,11 @@ const callProvider = async (p: LLMProvider, messages: { role: string; content: s
 
     if (!res.ok) {
         const errText = await res.text().catch(() => "");
-        // 先判鉴权（401/403），避免被厂商错误体里的「额度」等词误判成限流
-        if (res.status === 401 || res.status === 403) throw authError(p.name, res.status, errText);
+        // 额度/限流优先（403 也可能是「免费额度用完」），再判鉴权
         if (isQuotaOrLimit(res.status, errText)) {
-            throw quotaError(p.name, res.status);
+            throw quotaError(p.name, res.status, errText);
         }
+        if (res.status === 401 || res.status === 403) throw authError(p.name, res.status, errText);
         throw new Error(`AI 调用失败（${p.name} ${res.status}）：${errText.slice(0, 200)}`);
     }
 
@@ -348,11 +353,11 @@ const callProviderStream = async (
 
   if (!res.ok) {
     const errText = await res.text().catch(() => "");
-    // 先判鉴权（401/403），避免被厂商错误体里的「额度」等词误判成限流
-    if (res.status === 401 || res.status === 403) throw authError(p.name, res.status, errText);
+    // 额度/限流优先（403 也可能是「免费额度用完」），再判鉴权
     if (isQuotaOrLimit(res.status, errText)) {
-      throw quotaError(p.name, res.status);
+      throw quotaError(p.name, res.status, errText);
     }
+    if (res.status === 401 || res.status === 403) throw authError(p.name, res.status, errText);
     throw new Error(`AI 调用失败（${p.name} ${res.status}）：${errText.slice(0, 200)}`);
   }
 
