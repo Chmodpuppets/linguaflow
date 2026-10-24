@@ -38,7 +38,7 @@ const OPENROUTER_LLM_MODEL = process.env.OPENROUTER_MODEL || "stealth/ox-alpha";
 const GLM_API_KEY = process.env.GLM_API_KEY || "";
 export const GLM_ENV_API_KEY = GLM_API_KEY;
 const GLM_BASE_URL = import.meta.env.VITE_GLM_BASE_URL || "https://open.bigmodel.cn/api/paas/v4";
-const GLM_MODEL = import.meta.env.VITE_GLM_MODEL || "GLM-4.7-Flash";
+const GLM_MODEL = import.meta.env.VITE_GLM_MODEL || "glm-4-flash";
 
 // Speech models (DashScope). Override via .env.
 // TTS: qwen3-tts-flash —— Qwen3-TTS 系列，一个模型覆盖中/英/日/韩/俄等多语种，
@@ -75,6 +75,18 @@ interface LLMProvider {
 // (Settings -> 模型设置) plus the env-based Qwen/OpenRouter providers.
 // The user's selected provider is tried first; if it has no key configured,
 // we gracefully fall back to the first available provider (rather than erroring).
+// 线上版走同源服务端中转：部分厂商（如智谱）CORS 预检不放行浏览器直连。
+// 开源版 / 未登录（无服务器地址或 token）时退回浏览器直连。
+const LLM_PROXY_BASE = (process.env.COMMUNITY_URL || '').trim().replace(/\/+$/, '');
+const getProxyToken = (): string => {
+  try {
+    return localStorage.getItem('linguaflow_sync_token') || '';
+  } catch {
+    return '';
+  }
+};
+const useLlmProxy = (): boolean => !!LLM_PROXY_BASE && !!getProxyToken();
+
 const NO_KEY_MSG = '尚未配置 API Key：请到「我的资料 → 模型设置」填写你自己的密钥后再使用 AI。';
 
 const buildProviders = (override?: AIConfig): LLMProvider[] => {
@@ -191,21 +203,25 @@ const callProvider = async (p: LLMProvider, messages: { role: string; content: s
     if (!inCheck.ok) throw new Error(inCheck.reason || "输入未通过内容安全检查。");
 
     let res: Response;
+    const proxy = useLlmProxy();
+    const endpoint = proxy ? `${LLM_PROXY_BASE}/llm/chat` : `${p.baseUrl}/chat/completions`;
+    const headers: Record<string, string> = proxy
+        ? { "Authorization": `Bearer ${getProxyToken()}`, "Content-Type": "application/json" }
+        : {
+            "Authorization": `Bearer ${p.apiKey}`,
+            "Content-Type": "application/json",
+            ...(p.name === "openrouter"
+                ? { "HTTP-Referer": "https://linguaflow.app", "X-Title": "LinguaFlow" }
+                : {}),
+        };
+    const payload = proxy
+        ? { baseUrl: p.baseUrl, apiKey: p.apiKey, model: p.model, messages, temperature: temperature ?? 0.7 }
+        : { model: p.model, messages, temperature: temperature ?? 0.7 };
     try {
-        res = await fetch(`${p.baseUrl}/chat/completions`, {
+        res = await fetch(endpoint, {
             method: "POST",
-            headers: {
-                "Authorization": `Bearer ${p.apiKey}`,
-                "Content-Type": "application/json",
-                ...(p.name === "openrouter"
-                    ? { "HTTP-Referer": "https://linguaflow.app", "X-Title": "LinguaFlow" }
-                    : {}),
-            },
-            body: JSON.stringify({
-                model: p.model,
-                messages,
-                temperature: temperature ?? 0.7,
-            }),
+            headers,
+            body: JSON.stringify(payload),
         });
     } catch (e) {
         const err = new Error(`Network error (${p.name})`) as ChatError;
@@ -281,22 +297,25 @@ const callProviderStream = async (
   if (!inCheck.ok) throw new Error(inCheck.reason || "输入未通过内容安全检查。");
 
   let res: Response;
-  try {
-    res = await fetch(`${p.baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
+  const proxy = useLlmProxy();
+  const endpoint = proxy ? `${LLM_PROXY_BASE}/llm/chat` : `${p.baseUrl}/chat/completions`;
+  const headers: Record<string, string> = proxy
+    ? { "Authorization": `Bearer ${getProxyToken()}`, "Content-Type": "application/json" }
+    : {
         "Authorization": `Bearer ${p.apiKey}`,
         "Content-Type": "application/json",
         ...(p.name === "openrouter"
           ? { "HTTP-Referer": "https://linguaflow.app", "X-Title": "LinguaFlow" }
           : {}),
-      },
-      body: JSON.stringify({
-        model: p.model,
-        messages,
-        temperature: temperature ?? 0.7,
-        stream: true,
-      }),
+      };
+  const payload = proxy
+    ? { baseUrl: p.baseUrl, apiKey: p.apiKey, model: p.model, messages, temperature: temperature ?? 0.7, stream: true }
+    : { model: p.model, messages, temperature: temperature ?? 0.7, stream: true };
+  try {
+    res = await fetch(endpoint, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
     });
   } catch (e) {
     const err = new Error(`Network error (${p.name})`) as ChatError;

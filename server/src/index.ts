@@ -219,6 +219,57 @@ app.get('/log/error', (c) => {
   return c.json(listErrorLogs(limit));
 });
 
+// --- LLM 中转：部分厂商（如智谱）CORS 预检不放行浏览器直连，由服务端代发 ---
+// 仅允许已知厂商域名，避免变成开放代理（SSRF）。
+const LLM_ALLOW_HOSTS = new Set(
+  (process.env.LLM_ALLOW_HOSTS || 'open.bigmodel.cn,dashscope.aliyuncs.com,openrouter.ai')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+);
+
+app.post('/llm/chat', auth, async (c) => {
+  if (rateLimitedLog(clientIp(c))) return c.json({ error: 'too many requests' }, 429);
+  const body = await c.req.json().catch(() => null);
+  const baseUrl = String(body?.baseUrl || '').replace(/\/+$/, '');
+  const apiKey = String(body?.apiKey || '');
+  const model = String(body?.model || '').slice(0, 128);
+  const messages = Array.isArray(body?.messages) ? body.messages : null;
+  const temperature = typeof body?.temperature === 'number' ? body.temperature : 0.7;
+  const stream = !!body?.stream;
+  if (!baseUrl || !apiKey || !model || !messages) return c.json({ error: '缺少参数' }, 400);
+
+  let host = '';
+  try {
+    host = new URL(baseUrl).hostname;
+  } catch {
+    return c.json({ error: 'baseUrl 非法' }, 400);
+  }
+  if (!LLM_ALLOW_HOSTS.has(host)) return c.json({ error: `不允许的域名：${host}` }, 403);
+
+  const upstream = await fetch(`${baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      ...(host === 'openrouter.ai' ? { 'HTTP-Referer': 'https://linguaflow.app', 'X-Title': 'LinguaFlow' } : {}),
+    },
+    body: JSON.stringify({ model, messages, temperature, ...(stream ? { stream: true } : {}) }),
+  }).catch(() => null);
+
+  if (!upstream) return c.json({ error: '上游不可达' }, 502);
+  if (!upstream.ok) {
+    const detail = await upstream.text().catch(() => '');
+    return c.json({ error: `上游 ${upstream.status}`, detail: detail.slice(0, 500) }, upstream.status as any);
+  }
+
+  // 原样透传（含 SSE 流）；必须用 c.body() 才能带上中间件设置的 CORS 头
+  return c.body(upstream.body as any, 200, {
+    'Content-Type': stream ? 'text/event-stream; charset=utf-8' : 'application/json; charset=utf-8',
+    'Cache-Control': 'no-cache',
+  });
+});
+
 // 连胜排行榜（公开，无需鉴权）：按 streak 降序
 app.get('/leaderboard', (c) => {
   const raw = Number(c.req.query('limit') || '20');
