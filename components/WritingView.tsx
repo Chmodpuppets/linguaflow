@@ -6,6 +6,7 @@ import { UserProfile, WritingFeedback, WritingRevisionFeedback, CEFRLevel, ExamS
 import { analyzeWriting, analyzeWritingRevision } from '../services/aiService';
 import { addActivity, addErrorCards, addWritingScore } from '../services/storageService';
 import { countWords } from '../services/textUtils';
+import { AIBadge } from './ui';
 import GuidedWritingView from './GuidedWritingView';
 import { Sparkles, ArrowRight, BookCheck, Wand2, Star, AlertCircle } from 'lucide-react';
 import WritingLanguageGate from './WritingLanguageGate';
@@ -341,7 +342,7 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
                 <div className="bg-gradient-to-r from-yellow-500/10 to-transparent p-4 rounded-xl border border-yellow-500/20 flex items-center gap-3">
                     <Star size={24} className="text-yellow-400 fill-current animate-pulse" />
                     <div>
-                        <h4 className="font-bold text-yellow-100">已收到批改！</h4>
+                        <h4 className="font-bold text-yellow-100 flex items-center gap-2">已收到批改！ <AIBadge /></h4>
                         <p className="text-xs text-yellow-200/70">你的努力已获得经验值。</p>
                     </div>
                 </div>

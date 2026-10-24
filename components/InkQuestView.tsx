@@ -1,4 +1,5 @@
 import { uuid } from '../utils/uuid';
+import { AIBadge } from './ui';
 
 import React, { useState, useMemo, useRef } from 'react';
 import { UserProfile, CEFRLevel, Language, ErrorPatternType } from '../types';
@@ -785,6 +786,7 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
               <div className="flex items-center gap-2 text-violet-300">
                 <Sparkles size={16} className="drop-shadow-[0_0_6px_rgba(139,92,246,0.8)]" />
                 <span className="text-sm font-bold">教练小条</span>
+                <AIBadge />
               </div>
               {feedback.highlight && (
                 <div>

@@ -124,6 +124,22 @@ export const NeonBadge: React.FC<NeonBadgeProps> = ({
   );
 };
 
+/* ---------- AIBadge：AI 生成内容标识（GB 45438—2025 显式标识） ---------- */
+export const AIBadge: React.FC<{ className?: string; label?: string }> = ({
+  className = '',
+  label = 'AI 生成',
+}) => (
+  <span
+    className={`inline-flex items-center gap-1 rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] font-medium text-muted/80 ${className}`}
+    title="本内容由人工智能生成，仅供参考"
+  >
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8" />
+    </svg>
+    {label}
+  </span>
+);
+
 /* ---------- SectionTitle：区块标题（带渐变光条） ---------- */
 type SectionTitleProps = {
   title: React.ReactNode;

@@ -41,6 +41,10 @@ export default defineConfig(({ mode }) => {
         'process.env.API_KEY': JSON.stringify(openrouterKey),
         'process.env.GLM_API_KEY': JSON.stringify(glmKey),
         'process.env.OPENROUTER_MODEL': JSON.stringify(env.OPENROUTER_MODEL),
+        // 内容安全：拦截词表/审核接口由部署方配置；密钥同 API Key 一样不在生产构建内置
+        'process.env.MODERATION_BLOCKLIST': JSON.stringify(env.MODERATION_BLOCKLIST || ''),
+        'process.env.MODERATION_URL': JSON.stringify(env.MODERATION_URL || ''),
+        'process.env.MODERATION_KEY': JSON.stringify(isProdBuild ? '' : env.MODERATION_KEY || ''),
         // 双发行版：`npm run build` = 开源版（无社区地址）；`npm run build:online` 读 .env.online 内置地址
         'process.env.COMMUNITY_URL': JSON.stringify(env.COMMUNITY_URL || ''),
         'process.env.APP_EDITION': JSON.stringify(env.COMMUNITY_URL ? 'online' : 'oss')

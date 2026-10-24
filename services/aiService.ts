@@ -6,6 +6,7 @@ import { MENTOR_PERSONAS } from '../constants';
 import { getAIConfig, AIConfig, TaskCategory, TaskTier, DEFAULT_TASK_ROUTES, recomputeStudyBookStats } from './storageService';
 import { pickLocalTasks } from '../data/dailyTasks';
 import { logChat } from './chatLogService';
+import { moderate } from './moderationService';
 
 // --- Qwen (DashScope) + OpenRouter configuration ---
 // Primary LLM provider: Alibaba Cloud DashScope "Qwen" via its OpenAI-compatible
@@ -184,6 +185,11 @@ const userPromptText = (messages: { role: string; content: string }[]): string =
   messages.filter((m) => m.role === 'user').map((m) => m.content).join('\n');
 
 const callProvider = async (p: LLMProvider, messages: { role: string; content: string }[], temperature?: number): Promise<string> => {
+    // 内容安全（输入）：发送前拦截不合规输入
+    const lastUserForCheck = [...messages].reverse().find((m) => m.role === "user")?.content || "";
+    const inCheck = await moderate(lastUserForCheck, "input");
+    if (!inCheck.ok) throw new Error(inCheck.reason || "输入未通过内容安全检查。");
+
     let res: Response;
     try {
         res = await fetch(`${p.baseUrl}/chat/completions`, {
@@ -218,7 +224,10 @@ const callProvider = async (p: LLMProvider, messages: { role: string; content: s
     }
 
     const data = await res.json();
-    const content = data?.choices?.[0]?.message?.content ?? "";
+    const rawContent = data?.choices?.[0]?.message?.content ?? "";
+    // 内容安全（输出）：不合规输出替换为提示，不返回原文
+    const outCheck = await moderate(rawContent, "output");
+    const content = outCheck.ok ? rawContent : (outCheck.reason || "AI 生成内容未通过安全检查，已拦截。");
     logChat({ model: p.model, prompt: userPromptText(messages), response: content });
     return content;
 };
@@ -266,6 +275,11 @@ const callProviderStream = async (
   temperature: number | undefined,
   onDelta: (delta: string) => void
 ): Promise<string> => {
+  // 内容安全（输入）：流式无法事后撤回，必须在发送前拦截
+  const lastUserForCheck = [...messages].reverse().find((m) => m.role === "user")?.content || "";
+  const inCheck = await moderate(lastUserForCheck, "input");
+  if (!inCheck.ok) throw new Error(inCheck.reason || "输入未通过内容安全检查。");
+
   let res: Response;
   try {
     res = await fetch(`${p.baseUrl}/chat/completions`, {

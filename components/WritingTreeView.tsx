@@ -6,6 +6,7 @@ import { analyzeGuidedWriting, generateSpeech } from '../services/aiService';
 import { getCustomDirections, updateCustomDirection, deleteCustomDirection, regenerateCustomDirection, buildCustomDirectionNodes, MAX_CUSTOM_DIRECTIONS } from '../services/customDirectionService';
 import { romajiToKana } from '../services/romajiKana';
 import { countWords } from '../services/textUtils';
+import { AIBadge } from './ui';
 import {
   FolderTree, FileText, ChevronRight, ChevronDown, Lock, CheckCircle2,
   Sparkles, Wand2, Volume2, ArrowRight, AlertCircle, PenLine, BookOpen,
@@ -731,6 +732,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
                 <div className="bg-dark/30 border border-line-strong rounded-xl p-4">
                   <div className="text-xs text-muted mb-1 flex items-center gap-2">
                     AI 改写
+                    <AIBadge />
                     <button
                       onClick={() => speak(feedback.correctedText)}
                       className="text-secondary hover:underline inline-flex items-center gap-1"

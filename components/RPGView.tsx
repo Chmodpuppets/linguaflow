@@ -6,6 +6,7 @@ import { UserProfile, RPGScenario, RPGMessage, ScenarioDef, CEFRLevel } from '..
 import { RPG_PACKS } from '../data/rpgScenarios';
 import { startRPGScenario, continueRPGTurn, playCachedSpeech, cancelSpeech, pauseSpeech, resumeSpeech, hasPausedSpeech, buildTutorSystemPrompt, playWord } from '../services/aiService';
 import { addActivity, saveVocabularyItem, getVocabulary, deleteVocabularyItem } from '../services/storageService';
+import { AIBadge } from './ui';
 import { 
     Send, Volume2, User, Bot, CheckCircle2, 
     Gamepad2, Sparkles, BookA, ArrowRight,
@@ -830,8 +831,10 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                                     {/* Header */}
                                     {isAi && (
                                         <div className="flex items-center justify-between mb-2">
-                                            <span className="text-xs font-bold text-secondary">{scenario.aiRole}</span>
-                                            
+                                            <div className="flex items-center gap-1.5">
+                                              <span className="text-xs font-bold text-secondary">{scenario.aiRole}</span>
+                                              <AIBadge />
+                                            </div>
                                             {!isAudioActive && (
                                                 <button 
                                                     onClick={() => onAudioButton(msg.id, msg.text)}

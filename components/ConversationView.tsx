@@ -3,7 +3,7 @@ import { UserProfile, ChatCard, DailyTask } from '../types';
 import { streamChatCompletion, buildTutorSystemPrompt, generateDailyTasks, hasUsableProvider } from '../services/aiService';
 import { addActivity, getLevelInfo } from '../services/storageService';
 import { Send, Sparkles, ArrowRight, CheckCircle2, Flame, Gift, Share2 } from 'lucide-react';
-import { GlassCard, NeonButton, NeonBadge } from './ui';
+import { GlassCard, NeonButton, NeonBadge, AIBadge } from './ui';
 import { Markdown } from './ui/Markdown';
 import AchievementCard from './AchievementCard';
 
@@ -441,6 +441,7 @@ const MessageBubble: React.FC<{ msg: ChatMessage }> = ({ msg }) => {
         <div className="rounded-2xl rounded-tl-sm border border-white/[0.07] bg-surface-2/70 px-4 py-3 text-sm text-body leading-relaxed">
           <Markdown>{msg.content}</Markdown>
         </div>
+        {msg.content && <AIBadge />}
         {msg.cards && msg.cards.length > 0 && (
           <div className="space-y-2">
             {msg.cards.map((c) => <CardBlock key={c.id} card={c} />)}
