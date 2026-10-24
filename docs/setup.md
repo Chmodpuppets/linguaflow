@@ -67,6 +67,12 @@ npm run preview
 - 远端审核：`MODERATION_URL`（约定 `POST {text, side}` → `{ok|allowed, reason}`）、`MODERATION_KEY`
 - 默认不配置 = 不拦截；远端不可用时自动放行（保可用性）
 
+### 线上版为什么走服务器中转 LLM？
+部分厂商（如**智谱**）的 CORS 预检不放行浏览器直连，前端会看到 `Network error`。因此线上版（配置了 `COMMUNITY_URL` 且已登录）会把 LLM 请求发到自建服务器的 `POST /llm/chat`，由服务端代发：
+- 服务端只放行白名单域名（`open.bigmodel.cn` / `dashscope.aliyuncs.com` / `openrouter.ai`，可用 `LLM_ALLOW_HOSTS` 扩展），避免变成开放代理；
+- 仍使用**用户自己的 Key**（随请求透传，不落库）；
+- 开源版 / 本地开发（无服务器）仍然浏览器直连。
+
 ---
 
 ## 项目结构
