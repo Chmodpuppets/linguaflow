@@ -201,6 +201,20 @@ const quotaError = (name: string, status: number): ChatError => {
   return err;
 };
 
+// 鉴权 / 权限类（401/403）：多半是 Key 与厂商不匹配、未开通模型或无权限 —— 不能误报成限流
+const authError = (name: string, status: number, detail: string): ChatError => {
+  const hint =
+    name === 'qwen'
+      ? '如果你填的是智谱（GLM）的 Key，请填到「智谱 GLM」那一栏，不要填在 Qwen 里。'
+      : name === 'glm'
+        ? '请确认 Key 来自智谱开放平台，且账号已开通该模型。'
+        : '请确认 Key 与所选厂商匹配，且已开通对应模型。';
+  const err = new Error(
+    `${name} 拒绝了请求（HTTP ${status}）：${hint}${detail ? `（上游返回：${detail.slice(0, 120)}）` : ''}`
+  ) as ChatError;
+  return err;
+};
+
 // 提取"用户提问"内容（用于合规日志：记录用户输入 + AI 返回）
 const userPromptText = (messages: { role: string; content: string }[]): string =>
   messages.filter((m) => m.role === 'user').map((m) => m.content).join('\n');
@@ -240,10 +254,12 @@ const callProvider = async (p: LLMProvider, messages: { role: string; content: s
 
     if (!res.ok) {
         const errText = await res.text().catch(() => "");
+        // 先判鉴权（401/403），避免被厂商错误体里的「额度」等词误判成限流
+        if (res.status === 401 || res.status === 403) throw authError(p.name, res.status, errText);
         if (isQuotaOrLimit(res.status, errText)) {
             throw quotaError(p.name, res.status);
         }
-        throw new Error(`LLM request failed (${p.name} ${res.status}): ${errText}`);
+        throw new Error(`AI 调用失败（${p.name} ${res.status}）：${errText.slice(0, 200)}`);
     }
 
     const data = await res.json();
@@ -332,10 +348,12 @@ const callProviderStream = async (
 
   if (!res.ok) {
     const errText = await res.text().catch(() => "");
+    // 先判鉴权（401/403），避免被厂商错误体里的「额度」等词误判成限流
+    if (res.status === 401 || res.status === 403) throw authError(p.name, res.status, errText);
     if (isQuotaOrLimit(res.status, errText)) {
       throw quotaError(p.name, res.status);
     }
-    throw new Error(`LLM stream failed (${p.name} ${res.status}): ${errText}`);
+    throw new Error(`AI 调用失败（${p.name} ${res.status}）：${errText.slice(0, 200)}`);
   }
 
   if (!res.body) {

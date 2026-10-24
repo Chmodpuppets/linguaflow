@@ -783,6 +783,10 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout,
                   ))}
                 </div>
 
+                <p className="text-[11px] text-faint -mt-1 mb-3">
+                  Key 必须与厂商匹配：智谱（GLM）的 Key 填在「智谱 GLM」；阿里云百炼的 Key 填在「Qwen」。填错会报 401 / 403。
+                </p>
+
                 {(() => {
                   const cfgNow = modelCfg[modelCfg.active];
                   const hints: Record<string, { base: string; model: string }> = {
