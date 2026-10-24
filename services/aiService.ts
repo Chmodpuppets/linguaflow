@@ -18,6 +18,18 @@ const QWEN_API_KEY = process.env.QWEN_API_KEY || "";
 if (!QWEN_API_KEY) {
   console.warn("[LinguaFlow] QWEN_API_KEY is not set. Copy .env.example to .env and add your DashScope API key.");
 }
+
+// 语音（TTS/STT）用的 DashScope Key：优先用户在「模型设置 → Qwen」里自填的 Key。
+// 生产构建不内置 .env 的 Key，所以不能只读 QWEN_API_KEY。
+const getQwenKey = (): string => {
+  try {
+    const k = (getAIConfig().qwen?.apiKey || '').trim();
+    if (k) return k;
+  } catch {
+    /* ignore */
+  }
+  return QWEN_API_KEY;
+};
 // Model used for the Qwen provider. Override via QWEN_MODEL in .env.
 // (e.g. qwen-turbo, qwen-plus, qwen-max, qwen3.7-flash-2026-07-15, ...)
 const QWEN_LLM_MODEL = process.env.QWEN_MODEL || "qwen3.8-flash";
@@ -488,21 +500,17 @@ export const generateDailyTasks = async (user: UserProfile): Promise<DailyTask[]
 // 把"活儿"分配到对的模型：高频小调用走快模型，深推理活走高推理模型。
 // env key 缺失时优雅回落到其它可用 provider，不会直接报错。
 const resolveTier = (tier: TaskTier): LLMProvider | null => {
-  const envProviders: LLMProvider[] = [];
-  if (QWEN_API_KEY) envProviders.push({ name: "qwen", baseUrl: QWEN_BASE_URL, apiKey: QWEN_API_KEY, model: QWEN_LLM_MODEL });
-  if (OPENROUTER_API_KEY) envProviders.push({ name: "openrouter", baseUrl: OPENROUTER_BASE_URL, apiKey: OPENROUTER_API_KEY, model: OPENROUTER_LLM_MODEL });
-  const glmKey = getAIConfig().glm.apiKey || GLM_API_KEY;
-  const glmProvider: LLMProvider | null = glmKey
-    ? { name: "glm", baseUrl: GLM_BASE_URL, apiKey: glmKey, model: GLM_MODEL }
-    : null;
-
-  if (tier === "auto") return buildProviders()[0] ?? null;
+  // 统一走 buildProviders()：运行时配置（用户自填 Key）与环境变量兜底都在里面
+  const all = buildProviders();
+  if (!all.length) return null;
+  if (tier === "auto") return all[0];
+  const pick = (name: string) => all.find((p) => p.name === name) ?? null;
   if (tier === "fast") {
-    // 高频小活：优先快模型，避开慢推理模型；仅当别无选择才回落 openrouter。
-    return envProviders.find((p) => p.name === "qwen") ?? glmProvider ?? envProviders.find((p) => p.name === "openrouter") ?? null;
+    // 高频小活：优先快模型（GLM / DeepSeek），避开慢推理模型
+    return pick("glm") ?? pick("deepseek") ?? pick("qwen") ?? all[0];
   }
-  // reason：深推理活：优先 OpenRouter（ox-alpha）。
-  return envProviders.find((p) => p.name === "openrouter") ?? envProviders.find((p) => p.name === "qwen") ?? glmProvider ?? null;
+  // reason：深推理活：优先 OpenRouter，其次 DeepSeek
+  return pick("openrouter") ?? pick("deepseek") ?? pick("qwen") ?? pick("glm") ?? all[0];
 };
 
 export const getProviderForTask = (category: TaskCategory): LLMProvider | null => {
@@ -1575,9 +1583,11 @@ export const hasPausedSpeech = (): boolean => {
  * 错误抛异常；调用方负责缓存与回退。
  */
 async function fetchQwenTtsUrl(text: string, voice: string): Promise<string> {
+  const key = getQwenKey();
+  if (!key) throw new Error("未配置 Qwen（DashScope）API Key：请到「我的资料 → 模型设置 → Qwen」填写后重试。");
   const res = await fetch(`${QWEN_HOST}/api/v1/services/aigc/multimodal-generation/generation`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${QWEN_API_KEY}`, "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: QWEN_TTS_MODEL,
       input: { text, voice },
@@ -1622,7 +1632,7 @@ export const previewVoice = (voice: string, text: string): Promise<void> => {
 export const fetchSpeechUrl = async (text: string, voice?: string): Promise<string | null> => {
   const t = (text || "").trim();
   if (!t) return null;
-  if (!QWEN_API_KEY) return null;
+  if (!getQwenKey()) return null;
   try {
     return await fetchQwenTtsUrl(t, voice || currentTtsVoice());
   } catch (e) {
@@ -1697,7 +1707,7 @@ export const generateSpeech = (
     // 语种检测仅用于：Qwen 不可用时，给浏览器 Web Speech 兜底选对音色语言。
     const contentLang = detectContentLanguage(text) ?? opts?.lang ?? Language.English;
 
-    if (!QWEN_API_KEY) {
+    if (!getQwenKey()) {
       playWebSpeech(text, { ...opts, lang: contentLang });
       return;
     }
@@ -1744,7 +1754,7 @@ export const playCachedSpeech = async (
 
   const contentLang = detectContentLanguage(text) ?? opts?.lang ?? Language.English;
 
-  if (!QWEN_API_KEY) {
+  if (!getQwenKey()) {
     playWebSpeech(text, { ...opts, lang: contentLang });
     return;
   }
