@@ -873,7 +873,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData, 
                       const offsetClass = index % 2 === 0 ? 'translate-x-0' : (index % 4 === 1 ? 'translate-x-12' : '-translate-x-12');
 
                       return (
-                          <div key={stage.id} className={`relative z-10 flex justify-center transition-transform ${offsetClass}`}>
+                          <div key={stage.id} className={`relative z-10 flex justify-center transition-transform hover:z-30 focus-within:z-30 ${offsetClass}`}>
                               <button
                                   onClick={() => isUnlocked && fetchStageContent(stage)}
                                   disabled={!isUnlocked}
@@ -891,7 +891,8 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData, 
                                   <span className="text-3xl filter drop-shadow-md">{stage.icon}</span>
                                   
                                   {isCompleted && (
-                                      <div className="absolute -right-1 -bottom-1 bg-yellow-400 text-yellow-900 p-1 rounded-full shadow-sm">
+                                      // 放右上角：右下角会压住下方的提示卡片（A1 / WPM 那行）
+                                      <div className="absolute -top-1 -right-1 z-10 bg-yellow-400 text-yellow-900 p-1 rounded-full shadow-sm">
                                           <Star size={14} fill="currentColor" />
                                       </div>
                                   )}
