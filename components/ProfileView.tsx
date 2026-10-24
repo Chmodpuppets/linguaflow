@@ -791,7 +791,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout,
                 {(() => {
                   const cfgNow = modelCfg[modelCfg.active];
                   const hints: Record<string, { base: string; model: string }> = {
-                    qwen: { base: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen3.7-flash-2026-07-15' },
+                    qwen: { base: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen3.8-flash' },
                     openrouter: { base: 'https://openrouter.ai/api/v1', model: 'z-ai/glm-5.3-flash' },
                     glm: { base: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash' },
                     deepseek: { base: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },

@@ -119,7 +119,7 @@ export interface AIConfig {
 // 见 vite.config.ts）。所有 Key 都必须由用户在「模型设置」里自行填写后才能使用 AI。
 export const defaultAIConfig = (): AIConfig => ({
   active: 'glm',
-  qwen: { baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen3.7-flash-2026-07-15', apiKey: '' },
+  qwen: { baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen3.8-flash', apiKey: '' },
   openrouter: { baseUrl: 'https://openrouter.ai/api/v1', model: 'z-ai/glm-5.3-flash', apiKey: '' },
   glm: { baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash', apiKey: '' },
   deepseek: { baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat', apiKey: '' },

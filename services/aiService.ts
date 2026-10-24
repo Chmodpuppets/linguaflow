@@ -20,7 +20,7 @@ if (!QWEN_API_KEY) {
 }
 // Model used for the Qwen provider. Override via QWEN_MODEL in .env.
 // (e.g. qwen-turbo, qwen-plus, qwen-max, qwen3.7-flash-2026-07-15, ...)
-const QWEN_LLM_MODEL = process.env.QWEN_MODEL || "qwen3.7-flash-2026-07-15";
+const QWEN_LLM_MODEL = process.env.QWEN_MODEL || "qwen3.8-flash";
 
 // Derive the DashScope host for TTS/STT endpoints (which live outside /compatible-mode).
 const QWEN_HOST = QWEN_BASE_URL.replace(/\/compatible-mode\/v1\/?$/, "");
