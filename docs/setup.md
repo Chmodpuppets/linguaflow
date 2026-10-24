@@ -19,10 +19,11 @@ cd linguaflow
 # 2. 安装依赖
 npm install
 
-# 3. 配置环境变量（关键步骤，见下）
+# 3. 配置环境变量（可选，仅本地开发用）
 cp .env.example .env
-# 推荐：填入 VITE_GLM_API_KEY（智谱免费模型，首选大模型）
-# 若要用中文朗读 / 录音转写：再填入 QWEN_API_KEY 并开通对应语音服务
+# 填入 VITE_GLM_API_KEY / QWEN_API_KEY / OPENROUTER_API_KEY 可让 `npm run dev` 直接可用；
+# ⚠️ 生产构建（npm run build / build:online）会**清空所有 Key**，不会打包进 dist。
+#    线上用户需在应用内「我的资料 → 模型设置」填写自己的 Key。
 
 # 4. 启动开发服务器
 npm run dev
@@ -39,22 +40,32 @@ npm run preview
 
 ## 如何获取 API Key
 
+> **本项目不内置任何 API Key**（生产构建会把 `.env` 里的 Key 全部清空，避免部署出去的 JS 被人扒出）。
+> 因此有两种配置方式：
+> - **线上用户**：进入应用 →「我的资料 → 模型设置」→ 选一家 provider → 填入自己的 Key → 保存，即可使用 AI。
+> - **本地开发**：把 Key 写进 `.env`，`npm run dev` 直接生效（生产构建不会带上）。
+
 ### 首选（推荐）：智谱 GLM 免费模型
 1. 注册 / 登录 [智谱开放平台 open.bigmodel.cn](https://open.bigmodel.cn/)。
 2. 在「API Keys」创建 Key。智谱提供**免费模型额度**（如 `GLM-4.7-Flash` / `GLM-4-Flash`，以控制台显示为准），白嫖够用。
-3. 填入 `.env` 的 `VITE_GLM_API_KEY`。
-4. 在应用内「设置 → 模型设置」可随时切换模型；默认即为 OpenRouter（`stealth/ox-alpha`）。
+3. 填到 **应用内「模型设置」**（或本地开发的 `.env` 的 `VITE_GLM_API_KEY`）。
+4. 默认 provider 即 GLM；四家（GLM / Qwen / OpenRouter / 自定义）都可在「模型设置」里切换。
 
 ### 备选：阿里云百炼（Qwen）
-1. 注册 / 登录 [阿里云百炼控制台](https://dashscope.console.aliyun.com/)。
+1. 注册 / 登录 [阿里云百炼控制台](https://bailian.console.aliyun.com/)。
 2. 开通 **模型服务**（文字生成类，如 Qwen-Turbo/Plus/Flash 系列）。
-3. 在「API-KEY 管理」创建 Key，填入 `.env` 的 `QWEN_API_KEY`。
+3. 在「API-KEY 管理」创建 Key，填到「模型设置 → Qwen」的 API 密钥（本地开发可放 `.env` 的 `QWEN_API_KEY`）。
 
-> 💡 若你需要**中文朗读（TTS）或录音转写（STT）**，Qwen Key 是必须的——因为语音接口走 DashScope。在百炼控制台额外开通 **语音合成（Sambert）** 与 **语音识别（Paraformer）** 服务即可。
+> 💡 中文朗读（TTS）走 DashScope；未配置 Qwen Key 时会自动回落到浏览器本地语音，功能不受阻。
 
 ### 兜底：OpenRouter
 1. 注册 [OpenRouter](https://openrouter.ai/keys) 并创建 Key。
-2. 填入 `.env` 的 `OPENROUTER_API_KEY`（留空则不启用兜底）。
+2. 填到「模型设置 → OpenRouter」（本地开发可放 `.env` 的 `OPENROUTER_API_KEY`）。
+
+### 内容安全（可选，部署方配置）
+- 本地拦截词：`.env` 的 `MODERATION_BLOCKLIST`（逗号或换行分隔）
+- 远端审核：`MODERATION_URL`（约定 `POST {text, side}` → `{ok|allowed, reason}`）、`MODERATION_KEY`
+- 默认不配置 = 不拦截；远端不可用时自动放行（保可用性）
 
 ---
 
