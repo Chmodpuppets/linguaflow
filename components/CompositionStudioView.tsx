@@ -102,6 +102,11 @@ const CompositionStudioView: React.FC<Props> = ({ user, onUpdateUser }) => {
 
   const totalComps = nodes.filter((n) => n.type === 'composition').length;
   const doneComps = nodes.filter((n) => n.type === 'composition' && n.completed).length;
+  // 新用户常见情况：作文篇目按 CEFR 等级解锁（默认 B1），A1/A2 进来会全部锁住。
+  // 若不说明，用户会以为模块坏了 —— 这里显式给出解锁条件。
+  const lockedComps = nodes.filter((n) => n.type === 'composition' && !n.unlocked && !n.completed);
+  const allLocked = totalComps > 0 && lockedComps.length === totalComps;
+  const unlockLevel = lockedComps[0]?.cefrLevel;
 
   return (
     <div className="flex flex-col lg:flex-row h-[calc(100vh-180px)] gap-4">
@@ -144,7 +149,14 @@ const CompositionStudioView: React.FC<Props> = ({ user, onUpdateUser }) => {
         </div>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-3">
-          {grouped.length === 0 && (
+          {allLocked && (
+            <div className="rounded-lg border border-amber-400/25 bg-amber-400/10 p-3 text-[11px] leading-relaxed text-amber-200/90">
+              <div className="mb-1 font-bold">🔒 全部 {totalComps} 篇暂未解锁</div>
+              主题作文要求 <b>{unlockLevel}</b> 级别。继续在「墨程 / 写作树 / 写作工坊」积累，
+              升到 {unlockLevel} 后这里会自动开放。
+            </div>
+          )}
+          {grouped.length === 0 && !allLocked && (
             <p className="text-center text-muted text-sm py-10">没有符合条件的作文</p>
           )}
           {grouped.map(({ theme, comps }) => (
@@ -176,6 +188,7 @@ const CompositionStudioView: React.FC<Props> = ({ user, onUpdateUser }) => {
                         {c.genre ? GENRE_LABELS[c.genre] : '作文'}
                         {c.register ? ` · ${REGISTER_LABELS[c.register]}` : ''}
                         {c.wordCount ? ` · ${c.wordCount}词` : ''}
+                        {locked && c.cefrLevel ? ` · 🔒 ${c.cefrLevel} 解锁` : ''}
                       </span>
                     </span>
                     <ChevronRight size={14} className="text-faint flex-shrink-0" />

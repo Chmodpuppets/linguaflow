@@ -232,6 +232,16 @@ const authError = (name: string, status: number, detail: string): ChatError => {
   return err;
 };
 
+// 服务端/上游错误（5xx、中转「上游不可达」等）：多数是瞬时故障，标记为可回落，
+// 让 chatCompletion* 的 provider 链路继续尝试下一个厂商，而不是直接把失败抛给用户。
+const serverError = (name: string, status: number, detail = ''): ChatError => {
+  const err = new Error(
+    `${name} 服务端异常（HTTP ${status}）：${detail ? detail.slice(0, 120) : '上游暂时不可用，已尝试切换其它模型'}`
+  ) as ChatError;
+  err.network = status >= 500 || /上游不可达|bad gateway|temporarily|unavailable/i.test(detail);
+  return err;
+};
+
 // 提取"用户提问"内容（用于合规日志：记录用户输入 + AI 返回）
 const userPromptText = (messages: { role: string; content: string }[]): string =>
   messages.filter((m) => m.role === 'user').map((m) => m.content).join('\n');
@@ -276,7 +286,7 @@ const callProvider = async (p: LLMProvider, messages: { role: string; content: s
             throw quotaError(p.name, res.status, errText);
         }
         if (res.status === 401 || res.status === 403) throw authError(p.name, res.status, errText);
-        throw new Error(`AI 调用失败（${p.name} ${res.status}）：${errText.slice(0, 200)}`);
+        throw serverError(p.name, res.status, errText);
     }
 
     const data = await res.json();
@@ -370,7 +380,7 @@ const callProviderStream = async (
       throw quotaError(p.name, res.status, errText);
     }
     if (res.status === 401 || res.status === 403) throw authError(p.name, res.status, errText);
-    throw new Error(`AI 调用失败（${p.name} ${res.status}）：${errText.slice(0, 200)}`);
+    throw serverError(p.name, res.status, errText);
   }
 
   if (!res.body) {
