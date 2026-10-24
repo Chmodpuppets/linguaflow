@@ -824,6 +824,9 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout,
                             未填写 Key —— AI 功能不可用。本站不内置任何 API Key，需使用你自己的密钥。
                           </p>
                         )}
+                        <p className="text-[11px] text-faint mt-1.5">
+                          提示：免费模型（如 glm-4-flash）有每分钟 / 并发限制；若报「429 限流」，等 10–30 秒再试即可。
+                        </p>
                       </div>
                     </div>
                   );

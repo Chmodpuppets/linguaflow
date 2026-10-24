@@ -192,6 +192,15 @@ const isQuotaOrLimit = (status: number, text: string): boolean =>
   status === 429 || status === 402 ||
   /quota|exceeded|insufficient|额度|余额|rate.?limit|limit reached/i.test(text);
 
+// 限流/额度不足的可读错误（免费模型常有每分钟/并发限制，等一会儿即恢复）
+const quotaError = (name: string, status: number): ChatError => {
+  const err = new Error(
+    `${name} 限流或额度不足（HTTP ${status}）：免费模型有每分钟/并发限制，请等 10–30 秒再试；或在「模型设置」里换一个模型 / 厂商。`
+  ) as ChatError;
+  err.quota = true;
+  return err;
+};
+
 // 提取"用户提问"内容（用于合规日志：记录用户输入 + AI 返回）
 const userPromptText = (messages: { role: string; content: string }[]): string =>
   messages.filter((m) => m.role === 'user').map((m) => m.content).join('\n');
@@ -232,9 +241,7 @@ const callProvider = async (p: LLMProvider, messages: { role: string; content: s
     if (!res.ok) {
         const errText = await res.text().catch(() => "");
         if (isQuotaOrLimit(res.status, errText)) {
-            const err = new Error(`Quota/limit reached (${p.name} ${res.status})`) as ChatError;
-            err.quota = true;
-            throw err;
+            throw quotaError(p.name, res.status);
         }
         throw new Error(`LLM request failed (${p.name} ${res.status}): ${errText}`);
     }
@@ -326,9 +333,7 @@ const callProviderStream = async (
   if (!res.ok) {
     const errText = await res.text().catch(() => "");
     if (isQuotaOrLimit(res.status, errText)) {
-      const err = new Error(`Quota/limit reached (${p.name} ${res.status})`) as ChatError;
-      err.quota = true;
-      throw err;
+      throw quotaError(p.name, res.status);
     }
     throw new Error(`LLM stream failed (${p.name} ${res.status}): ${errText}`);
   }
