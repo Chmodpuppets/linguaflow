@@ -5,15 +5,15 @@
 > 最后更新：2026-10-15（「学习搭子」立项：打破「无后端」约束，方向定为**多邻国式「一起连胜」异步社交**，无 AI、非实时）
 
 ## 1. 一句话定位
-LinguaFlow 是一套以「输出驱动 (Mastery via Output)」为核心的多语言沉浸式学习 Web 应用——逼用户真的去说、写、用，而非背单词。当前已实现 **20 个导航模块 / 11 种语言**，覆盖「输入 → 输出 → 复习 → 社交 → 复盘」完整闭环。
+LinguaFlow 是一套以「输出驱动 (Mastery via Output)」为核心的多语言沉浸式学习 Web 应用——逼用户真的去说、写、用，而非背单词。当前已实现 **22 个导航模块 / 11 种语言**，覆盖「输入 → 输出 → 复习 → 社交 → 复盘」完整闭环。
 
 ## 2. 当前状态（事实基线，来自代码 + 文档交叉核对）
 - 形态：**纯前端为主**，所有学习数据存浏览器本地（localStorage + IndexedDB）。自 2026-10-15 起新增**可选轻后端社交**（`server/`，Hono + SQLite，无 AI、非实时）：`server/` 只存最小社交数据（昵称 / 好友关系 / streak），支撑「学习搭子一起连胜」；另保留可选整包备份（手动触发）。不配置服务器 = 现有纯本地模式，功能不降级。
 - 技术栈：React 19 + TypeScript + Vite 6 + Tailwind CSS（深色霓虹主题）+ lucide-react。
-- AI 接入：前端直连大模型 OpenAI 兼容接口，统一封装于 `services/aiService.ts`（services 现 9 文件：aiService / storageService / romajiKana / scriptTransliterate / textUtils / ttsCache / bookImport / chatLogService / errorReporter / moderationService）。
-  - **密钥模型（2026-10-23 起，重要）**：**生产构建不内置任何 API Key**（`vite.config.ts` 在 `production`/`online` 模式把 QWEN/OPENROUTER/GLM/MODERATION 的 Key 全部清空）；`.env` 仅对 `npm run dev` 生效。**四家 provider（GLM / Qwen / OpenRouter / 自定义）都支持用户在「模型设置」里自填 baseUrl + 模型名 + Key**；无 Key 时 AI 调用抛明确引导，对话台欢迎区会展示免费额度申请引导（GLM / 阿里云百炼 / OpenRouter）。
-  - 默认 provider：**智谱 GLM（`GLM-4.7-Flash`）**。原 OpenRouter `stealth/ox-alpha` 已于 2026-10 测试期结束（404），正式名 `z-ai/glm-5.3-flash`，仅在用户自填 OpenRouter Key 时使用。
-  - 任务路由：fast 任务走 GLM / Qwen，reason 任务走 OpenRouter（有 Key 时）。**Gemini 已迁出**（无独立 geminiService，旧引用已清除）。
+- AI 接入：前端直连大模型 OpenAI 兼容接口，统一封装于 `services/aiService.ts`（services 现 12 文件：aiService / storageService / communityService / customDirectionService / moderationService / chatLogService / errorReporter / bookImport / ttsCache / romajiKana / scriptTransliterate / textUtils）。
+  - **密钥模型（2026-10-23 起，重要）**：**生产构建不内置任何 API Key**（`vite.config.ts` 在 `production`/`online` 模式把 QWEN/OPENROUTER/GLM/MODERATION 的 Key 全部清空）；`.env` 仅对 `npm run dev` 生效。**五家 provider（GLM / Qwen / OpenRouter / DeepSeek / 自定义）都支持用户在「模型设置」里自填 baseUrl + 模型名 + Key**；无 Key 时 AI 调用抛明确引导，对话台欢迎区会展示免费额度申请引导（GLM / 阿里云百炼 / OpenRouter）。
+  - 默认 provider：**智谱 GLM（`glm-4-flash`）**。原 OpenRouter `stealth/ox-alpha` 已于 2026-10 测试期结束（404），正式名 `z-ai/glm-5.3-flash`，仅在用户自填 OpenRouter Key 时使用。（`GLM-4.7-Flash` 是推理模型，短输出正文为空，勿作默认）
+  - 任务路由：fast 任务走 GLM / DeepSeek / Qwen，reason 任务走 OpenRouter / DeepSeek（有 Key 时）。**Gemini 已迁出**（无独立 geminiService，旧引用已清除）。**5xx/上游不可达也会触发 provider 回落**（2026-10-25 修，见 `serverError()`）。
   - **合规（代码层已落地）**：① AI 生成内容显式标识 `AIBadge`（GB 45438—2025，铺在对话台 / 剧情对话 / 墨程 / 写作树 / 写作工坊）；② 内容安全 `moderationService`（本地拦截词可配 + 可选远端审核，AI 输入输出双向；默认放行、远端失败不阻断）；③ 账号注销 + 对话日志留存 180 天 + 隐私政策/用户协议（`docs/privacy.md` / `docs/terms.md`）。
   - TTS：走 Qwen `qwen3-tts-flash`（单模型覆盖中/英/日/韩/俄等多语种）；失败时回退浏览器 Web Speech。英文单词另路由有道 dictvoice。
   - STT：DashScope Paraformer-v2（录音转写接 API 已回退，仅保留本地录音回放；公网 CORS 已知限制）

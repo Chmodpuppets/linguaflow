@@ -47,9 +47,9 @@ npm run preview
 
 ### 首选（推荐）：智谱 GLM 免费模型
 1. 注册 / 登录 [智谱开放平台 open.bigmodel.cn](https://open.bigmodel.cn/)。
-2. 在「API Keys」创建 Key。智谱提供**免费模型额度**（如 `GLM-4.7-Flash` / `GLM-4-Flash`，以控制台显示为准），白嫖够用。
+2. 在「API Keys」创建 Key。智谱提供**免费模型额度**（默认模型 `glm-4-flash`，以控制台显示为准；注意 `GLM-4.7-Flash` 是推理模型、短输出时正文为空，别用），白嫖够用。
 3. 填到 **应用内「模型设置」**（或本地开发的 `.env` 的 `VITE_GLM_API_KEY`）。
-4. 默认 provider 即 GLM；四家（GLM / Qwen / OpenRouter / 自定义）都可在「模型设置」里切换。
+4. 默认 provider 即 GLM；五家（GLM / Qwen / OpenRouter / DeepSeek / 自定义）都可在「模型设置」里切换。
 
 ### 备选：阿里云百炼（Qwen）
 1. 注册 / 登录 [阿里云百炼控制台](https://bailian.console.aliyun.com/)。
@@ -69,7 +69,7 @@ npm run preview
 
 ### 线上版为什么走服务器中转 LLM？
 部分厂商（如**智谱**）的 CORS 预检不放行浏览器直连，前端会看到 `Network error`。因此线上版（配置了 `COMMUNITY_URL` 且已登录）会把 LLM 请求发到自建服务器的 `POST /llm/chat`，由服务端代发：
-- 服务端只放行白名单域名（`open.bigmodel.cn` / `dashscope.aliyuncs.com` / `openrouter.ai`，可用 `LLM_ALLOW_HOSTS` 扩展），避免变成开放代理；
+- 服务端只放行白名单域名（`open.bigmodel.cn` / `dashscope.aliyuncs.com` / `openrouter.ai` / `api.deepseek.com`，可用 `LLM_ALLOW_HOSTS` 扩展），避免变成开放代理；
 - 仍使用**用户自己的 Key**（随请求透传，不落库）；
 - 开源版 / 本地开发（无服务器）仍然浏览器直连。
 
@@ -88,7 +88,7 @@ linguaflow/
 ├── .env.example            # 环境变量模板（复制为 .env 后填写）
 ├── public/favicon.png      # 站点图标（源自 assets/brand/linguaflow-icon.png）
 ├── assets/brand/           # 品牌 LOGO 资源（三张 PNG）
-├── components/             # 各模块视图（20 个）+ 登录/档案
+├── components/             # 各模块视图（22 个）+ 登录/档案
 │   ├── LoginView.tsx          # 登录 / 语言与等级初始化
 │   ├── DailyView.tsx          # 今日一站式入口
 │   ├── RPGView.tsx            # 剧情对话 LinguaQuest
@@ -126,16 +126,16 @@ linguaflow/
 
 | 变量 | 必填 | 说明 |
 | --- | --- | --- |
-| `VITE_GLM_API_KEY` | 否* | 智谱 GLM Key，可选大模型；留空则不影响（默认大模型已切到 OpenRouter） |
+| `VITE_GLM_API_KEY` | 否* | 智谱 GLM Key，**默认大模型 provider**；留空则不影响（默认大模型即智谱 GLM） |
 | `VITE_GLM_BASE_URL` | 否 | GLM 接口地址，默认 `https://open.bigmodel.cn/api/paas/v4` |
-| `VITE_GLM_MODEL` | 否 | GLM 模型名，默认 `GLM-4.7-Flash`（如 `GLM-4-Flash`） |
+| `VITE_GLM_MODEL` | 否 | GLM 模型名，默认 `glm-4-flash`（`GLM-4.7-Flash` 是推理模型，短输出正文为空，勿用） |
 | `QWEN_API_KEY` | 否** | 阿里云百炼 Key，**仅当你需要中文朗读（TTS）/ 录音转写（STT）时才必填** |
 | `QWEN_BASE_URL` | 否 | 默认 `https://dashscope.aliyuncs.com/compatible-mode/v1` |
-| `QWEN_MODEL` | 否 | Qwen 大模型名，默认 `qwen3.7-flash-2026-07-15`（如 `qwen-max`、`qwen-turbo`） |
+| `QWEN_MODEL` | 否 | Qwen 大模型名，默认 `qwen3.8-flash`（如 `qwen-max`、`qwen-turbo`） |
 | `QWEN_TTS_MODEL` | 否 | TTS 语音模型，默认 `qwen3-tts-flash`（Qwen3-TTS 多语种；如 `qwen-audio-3.0-tts-flash`、`cosyvoice-v1`） |
 | `QWEN_STT_MODEL` | 否 | STT 语音识别模型，默认 `paraformer-v2`（如 `paraformer-realtime-v2`） |
-| `OPENROUTER_API_KEY` | 否 | OpenRouter Key，**默认大模型 provider**；留空则不启用 OpenRouter |
-| `OPENROUTER_MODEL` | 否 | OpenRouter 模型名，默认 `stealth/ox-alpha`（如 `google/gemini-2.5-flash`、`openai/gpt-4o-mini`） |
+| `OPENROUTER_API_KEY` | 否 | OpenRouter Key，**深推理任务优先 provider**（如写作批改/考试评分）；留空则不启用 |
+| `OPENROUTER_MODEL` | 否 | OpenRouter 模型名，默认 `z-ai/glm-5.3-flash`（如 `google/gemini-2.5-flash`、`openai/gpt-4o-mini`） |
 
 > \* 若只填了 GLM Key，大模型即走 GLM 免费模型，无需其他 Key。
 > \** 若只用 GLM + 非中文朗读，可完全不填 `QWEN_API_KEY`（非中文朗读走浏览器原生语音，免 Key）；只有中文朗读 / 录音转写才需要它。
@@ -151,5 +151,5 @@ linguaflow/
 - **UI**：Tailwind CSS（暗夜霓虹主题，含极光氛围 / 玻璃拟态 / 流光动效 token）+ lucide-react 图标；`components/ui` 提供 GlassCard / NeonButton / NeonBadge / SectionTitle / StatChip 基座
 - **状态 / 存储**：浏览器 localStorage（`services/storageService`）
 - **手写板**：基于 Canvas 实现（`components/HandwritePad.tsx`，纯前端、无 OCR）
-- **AI 接入**：Fetch 调用智谱 GLM / 阿里云 DashScope / OpenRouter 的 OpenAI 兼容接口（无后端依赖）
+- **AI 接入**：Fetch 调用智谱 GLM / 阿里云 DashScope / OpenRouter / DeepSeek 的 OpenAI 兼容接口；本地直连，线上版（配了 `COMMUNITY_URL`）可走可选轻后端 `server/`（云同步 / 学习搭子社交 / LLM 中转）
 

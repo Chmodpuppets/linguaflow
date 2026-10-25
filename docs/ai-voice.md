@@ -10,15 +10,15 @@
 
 | 能力 | 默认实现 | 说明 |
 | --- | --- | --- |
-| **大模型对话 / 生成（默认）** | **OpenRouter · `stealth/ox-alpha`**（免费推理模型，1M 上下文，2026-08-20 上线） | 默认即用；Key 填 `.env` 的 `OPENROUTER_API_KEY`（[openrouter.ai/keys](https://openrouter.ai/keys) 创建） |
-| **大模型（备选）** | 阿里云百炼 **Qwen**（`qwen3.7-flash-2026-07-15`） / 智谱 **GLM 免费模型**（`GLM-4.7-Flash`） | 在「设置 → 模型设置」可随时切换为 Qwen / GLM / 自定义 |
-| **降级逻辑** | 当前 provider 触发 429/402/限流时自动跳到下一个；所选 provider 缺 Key 时自动回落首个可用 provider | 过程无感 |
+| **大模型对话 / 生成（默认）** | **智谱 GLM · `glm-4-flash`**（免费额度，注册即送） | 默认即用；Key 填 `.env` 的 `VITE_GLM_API_KEY`（[open.bigmodel.cn](https://open.bigmodel.cn/) 创建） |
+| **大模型（备选 / 按任务路由）** | 阿里云百炼 **Qwen**（`qwen3.8-flash`）/ **OpenRouter**（`z-ai/glm-5.3-flash`）/ **DeepSeek**（`deepseek-chat`） | 在「设置 → 模型设置」可随时切换 GLM / Qwen / OpenRouter / DeepSeek / 自定义 |
+| **降级逻辑** | 当前 provider 命中 429/402/限流/**5xx/上游不可达**时自动跳到下一个；所选 provider 缺 Key 时自动回落首个可用 provider | 过程无感 |
 | **文字转语音 TTS** | 中文：`qwen3-tts-flash`（Qwen3-TTS，多语种）；英文单词：有道 `dictvoice`；其他语言：浏览器 Web Speech | **中文朗读依赖 Qwen/DashScope Key**，英文单词走有道免 Key，详见下方「语音 API 说明」 |
 | **语音转文字 STT（录音）** | 阿里云 **paraformer-v2** | **依赖 Qwen/DashScope Key + 开通 Paraformer**，详见下方「语音 API 说明」 |
 
-> **模型切换**：大模型默认走 **OpenRouter · `stealth/ox-alpha`**（免费推理模型）。在「设置 → 模型设置」可随时切换为 GLM / Qwen / OpenRouter / 自定义——选 OpenRouter 时模型固定为 `.env` 的 `OPENROUTER_MODEL`（当前 `stealth/ox-alpha`）。降级逻辑：请求依次尝试当前 provider → 备选 provider；只有命中「配额/限流/网络错误」才跳下一个，硬错误（参数错）直接报错。
+> **模型切换**：大模型默认走 **智谱 GLM · `glm-4-flash`**。在「设置 → 模型设置」可随时切换为 GLM / Qwen / OpenRouter / DeepSeek / 自定义——选 OpenRouter 时模型固定为 `.env` 的 `OPENROUTER_MODEL`（当前 `z-ai/glm-5.3-flash`）。降级逻辑：请求依次尝试当前 provider → 备选 provider；命中「配额/限流/网络错误/5xx」才跳下一个，硬错误（参数错 / 鉴权错）直接报错。
 
-> **按任务分配模型**：「设置 → 模型设置」底部可按学习环节单独指定模型层级——`快模型`（GLM/Qwen，用于打字辅助、批量取词、翻译、注音、RPG 对话等高频小活）或 `高推理`（OpenRouter/ox-alpha，用于写作深度批改、错误模式诊断、自适应计划、考试评分、文章导学、跨文字特训、对话复盘、SRS 排程、定目标、Agentic 闭环等深推理活），亦可 `跟随全局`。缺省路由见 `services/storageService.ts` 的 `DEFAULT_TASK_ROUTES`。
+> **按任务分配模型**：「设置 → 模型设置」底部可按学习环节单独指定模型层级——`快模型`（GLM/DeepSeek/Qwen，用于打字辅助、批量取词、翻译、注音、RPG 对话等高频小活）或 `高推理`（OpenRouter/DeepSeek，用于写作深度批改、错误模式诊断、自适应计划、考试评分、文章导学、跨文字特训、对话复盘、SRS 排程、定目标、Agentic 闭环等深推理活），亦可 `跟随全局`。缺省路由见 `services/storageService.ts` 的 `DEFAULT_TASK_ROUTES`。
 
 ---
 
