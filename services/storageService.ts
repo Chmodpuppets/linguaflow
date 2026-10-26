@@ -1722,6 +1722,34 @@ const BUILTIN_STUDY_BOOKS: Array<{
     },
 ];
 
+// 修复历史脏 id：早期 uuid() 的非 HTTPS 降级分支写错（HEX 只有 16 个字符却用整字节索引），
+// 在 http://<IP> 下会生成 "undefinedundefined-…" 这种 140 字符的假 id，且碰撞率极高
+// （实测 5000 次只有 1268 个唯一值）。id 重复会让练习进度按 id 匹配时互相覆盖。
+// 这里给所有书重新发号，box / reviews / dueDate 等学习进度原样保留。
+const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const repairBookIds = (book: StudyBook): StudyBook | null => {
+    let changed = false;
+    const seen = new Set<string>();
+    const chapters = book.chapters.map((c) => {
+        let cid = c.id;
+        if (!UUID_V4_RE.test(cid) || seen.has(cid)) { cid = uuid(); changed = true; }
+        seen.add(cid);
+        const items = c.items.map((it) => {
+            if (!UUID_V4_RE.test(it.id) || seen.has(it.id)) {
+                changed = true;
+                const nid = uuid();
+                seen.add(nid);
+                return { ...it, id: nid };
+            }
+            seen.add(it.id);
+            return it;
+        });
+        return { ...c, id: cid, items };
+    });
+    return changed ? { ...book, chapters } : null;
+};
+
 // 首次加载自动 seed 内置学习书。动态 import 内置书数据（懒加载，避免首屏变大）；
 // 无 AI key / 网络均不依赖，纯本地。seed 失败不阻塞（用户仍可手动导入）。
 // 内置书内容更新时（条目数变化）自动删除旧版重建，避免旧数据卡在 IndexedDB 不更新。
@@ -1729,6 +1757,14 @@ const BUILTIN_STUDY_BOOKS: Array<{
 export const ensureBuiltInStudyBooks = async (language: Language): Promise<void> => {
     try {
         const existing = await getStudyBooks();
+        // 先修脏 id（历史遗留），再判断内容是否需要重建
+        for (let i = 0; i < existing.length; i++) {
+            const fixed = repairBookIds(existing[i]);
+            if (fixed) {
+                await saveStudyBook(fixed);
+                existing[i] = fixed;
+            }
+        }
         for (const def of BUILTIN_STUDY_BOOKS) {
             if (def.targetLanguage !== language) continue;
             try {

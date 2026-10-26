@@ -48,7 +48,11 @@ export const uuid = (): string => {
 
   let s = '';
   for (let i = 0; i < 16; i++) {
-    s += HEX[b[i]];
+    // 每个字节要拆成两个 hex 字符（高四位 + 低四位）。
+    // 早期写成 HEX[b[i]] 是错的：b[i] 范围 0–255，而 HEX 只有 16 个字符，
+    // 索引 >15 时得到 undefined，`s += undefined` 会拼出 "undefinedundefined…"，
+    // 且大量重复 —— 直接导致 id 碰撞、学习进度互相覆盖。
+    s += HEX[b[i] >> 4] + HEX[b[i] & 0x0f];
     if (i === 3 || i === 5 || i === 7 || i === 9) s += '-';
   }
   return s;
