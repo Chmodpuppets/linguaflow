@@ -22,12 +22,21 @@ interface StudySessionViewProps {
   nativeLanguage: Language;
   onBack: () => void;
   onBookUpdate: (updated: StudyBook) => void;
+  /** 复习模式：传入该书「已到期」的条目（可跨章）。有值时只练这批，且不记忆章节断点。 */
+  dueItems?: StudyItem[];
 }
 
-const StudySessionView: React.FC<StudySessionViewProps> = ({ book, chapterId, user, onUpdateUser, nativeLanguage, onBack, onBookUpdate }) => {
+const StudySessionView: React.FC<StudySessionViewProps> = ({ book, chapterId, user, onUpdateUser, nativeLanguage, onBack, onBookUpdate, dueItems }) => {
   const chapter = book.chapters.find((c) => c.id === chapterId);
-  const [items, setItems] = useState<StudyItem[]>(() => chapter?.items ?? []);
-  const [idx, setIdx] = useState(0);
+  const isReview = !!dueItems && dueItems.length > 0;
+  const [items, setItems] = useState<StudyItem[]>(() => (isReview ? dueItems! : chapter?.items ?? []));
+  // 断点续学：普通模式从上次停下的条目继续；复习模式始终从头
+  const [idx, setIdx] = useState(() => {
+    if (isReview) return 0;
+    const saved = chapter?.currentItemIndex ?? 0;
+    const len = chapter?.items.length ?? 0;
+    return len > 0 ? Math.min(Math.max(saved, 0), len - 1) : 0;
+  });
   const [mode, setMode] = useState<StudyMode>('flashcard');
   const [revealed, setRevealed] = useState(false);
   const [options, setOptions] = useState<string[]>([]);
@@ -39,7 +48,7 @@ const StudySessionView: React.FC<StudySessionViewProps> = ({ book, chapterId, us
   const [done, setDone] = useState(false);
   const [promoteState, setPromoteState] = useState<'idle' | 'added' | 'exists'>('idle');
 
-  if (!chapter || items.length === 0) {
+  if ((!chapter && !isReview) || items.length === 0) {
     return (
       <div className="text-center py-20 text-muted">
         <p>本章节暂无内容。</p>
@@ -58,13 +67,20 @@ const StudySessionView: React.FC<StudySessionViewProps> = ({ book, chapterId, us
     (m) => current.type !== 'grammar' || (m.id !== 'recall' && m.id !== 'cloze')
   );
 
-  // 写回：更新 items → 重算 book 统计 → saveStudyBook + 通知父组件
+  // 写回：按 item.id 跨章替换（复习模式下一批条目可能来自不同章节）→ 重算统计 → 存库
   const persist = (newItems: StudyItem[]) => {
     setItems(newItems);
-    const ci = book.chapters.findIndex((c) => c.id === chapterId);
+    const byId = new Map(newItems.map((i) => [i.id, i]));
     const newBook = recomputeStudyBookStats({
       ...book,
-      chapters: book.chapters.map((c, i) => (i === ci ? { ...c, items: newItems } : c)),
+      chapters: book.chapters.map((c) => {
+        const next = { ...c, items: c.items.map((it) => byId.get(it.id) ?? it) };
+        // 断点续学：只记普通章节模式；练到最后一条则回到开头
+        if (!isReview && c.id === chapterId) {
+          next.currentItemIndex = idx + 1 >= newItems.length ? 0 : idx + 1;
+        }
+        return next;
+      }),
       lastStudiedAt: Date.now(),
     });
     saveStudyBook(newBook).catch(() => {});
@@ -182,15 +198,15 @@ const StudySessionView: React.FC<StudySessionViewProps> = ({ book, chapterId, us
     return (
       <div className="max-w-2xl mx-auto text-center py-16">
         <div className="text-4xl mb-4">🎉</div>
-        <h2 className="text-2xl font-bold text-white mb-2">本章学习完成</h2>
+        <h2 className="text-2xl font-bold text-white mb-2">{isReview ? '复习完成' : '本章学习完成'}</h2>
         <p className="text-muted mb-6">
-          本章 {total} 个学习点，其中 {completed} 个已掌握（Box ≥ 2）。
+          {isReview ? '本轮复习' : '本章'} {total} 个学习点，其中 {completed} 个已掌握（Box ≥ 2）。
         </p>
         <button
           onClick={onBack}
           className="px-6 py-3 rounded-xl bg-neon text-white font-bold hover:bg-neon/80 shadow-glow-neon"
         >
-          返回章节
+          {isReview ? '返回书籍' : '返回章节'}
         </button>
       </div>
     );
@@ -202,9 +218,16 @@ const StudySessionView: React.FC<StudySessionViewProps> = ({ book, chapterId, us
         <button onClick={onBack} className="flex items-center gap-2 text-sm text-muted hover:text-white transition-colors">
           <ArrowLeft size={16} /> 退出
         </button>
-        <span className="text-sm text-muted">
-          {idx + 1} / {total}
-        </span>
+        <div className="flex items-center gap-2">
+          {isReview && (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-400/15 text-amber-300 border border-amber-400/30">
+              复习模式
+            </span>
+          )}
+          <span className="text-sm text-muted">
+            {idx + 1} / {total}
+          </span>
+        </div>
       </div>
       <div className="w-full h-1.5 bg-line/70 rounded-full overflow-hidden">
         <div

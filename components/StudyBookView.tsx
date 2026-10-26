@@ -1,11 +1,15 @@
 import React from 'react';
 import { StudyBook } from '../types';
-import { ArrowLeft, BookOpen, CheckCircle2, ChevronRight } from 'lucide-react';
+import { ArrowLeft, BookOpen, CheckCircle2, ChevronRight, RotateCcw } from 'lucide-react';
 
 interface StudyBookViewProps {
   book: StudyBook;
   onOpenChapter: (chapterId: string) => void;
   onBack: () => void;
+  /** 该书今日到期（dueDate <= now）的条目数 */
+  dueCount?: number;
+  /** 进入复习模式（只练到期条目，可跨章） */
+  onStartReview?: () => void;
 }
 
 const UNIT_LABELS: Record<string, string> = {
@@ -15,7 +19,7 @@ const UNIT_LABELS: Record<string, string> = {
   mixed: '项',
 };
 
-const StudyBookView: React.FC<StudyBookViewProps> = ({ book, onOpenChapter, onBack }) => {
+const StudyBookView: React.FC<StudyBookViewProps> = ({ book, onOpenChapter, onBack, dueCount = 0, onStartReview }) => {
   const total = book.totalItems || 0;
   const done = book.completedItems || 0;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
@@ -66,6 +70,22 @@ const StudyBookView: React.FC<StudyBookViewProps> = ({ book, onOpenChapter, onBa
             />
           </div>
         </div>
+
+        {/* 到期复习入口：SRS 把条目排到今天，这里给入口（否则 dueDate 只是写不读） */}
+        {dueCount > 0 && onStartReview && (
+          <div className="mt-5 flex flex-wrap items-center gap-3 rounded-xl border border-amber-400/25 bg-amber-400/10 p-3">
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-bold text-amber-200">今日待复习 {dueCount} 条</div>
+              <div className="text-[11px] text-amber-200/70 mt-0.5">按间隔重复排到今天，跨章节一起过一遍</div>
+            </div>
+            <button
+              onClick={onStartReview}
+              className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg bg-amber-400 text-amber-950 text-sm font-bold hover:brightness-110 transition"
+            >
+              <RotateCcw size={15} /> 开始复习
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 章节列表 */}
