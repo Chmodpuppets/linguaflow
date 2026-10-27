@@ -6,6 +6,7 @@
 import { Language, CEFRLevel, WritingNode, CustomDirectionSeed } from '../types';
 import { CEFR_RANK, REGISTER_BY_LEVEL } from '../data/growthTree';
 import { generateCustomDirectionLeaves, CustomDirectionDraft } from './aiService';
+import { repairIds } from '../utils/idRepair';
 
 const STORAGE_KEY_DIRECTIONS = 'linguaflow_custom_directions';
 export const MAX_CUSTOM_DIRECTIONS = 5;
@@ -13,11 +14,32 @@ export const MAX_CUSTOM_DIRECTIONS = 5;
 type DirectionStore = Partial<Record<Language, CustomDirectionSeed[]>>;
 
 const readStore = (): DirectionStore => {
+  let store: DirectionStore;
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY_DIRECTIONS) || '{}');
+    store = JSON.parse(localStorage.getItem(STORAGE_KEY_DIRECTIONS) || '{}');
   } catch {
     return {};
   }
+  if (!store || typeof store !== 'object') return {};
+
+  // 修复历史脏 id（早期 uuid 在 http://IP 下会重复）→ update/delete 按 id 定位才准
+  let changed = false;
+  const fixed: DirectionStore = {};
+  for (const [lang, seeds] of Object.entries(store)) {
+    if (!Array.isArray(seeds)) continue;
+    const r = repairIds(seeds as CustomDirectionSeed[]);
+    if (r.changed) changed = true;
+    fixed[lang as Language] = r.list;
+  }
+  if (changed) {
+    try {
+      localStorage.setItem(STORAGE_KEY_DIRECTIONS, JSON.stringify(fixed));
+    } catch {
+      /* quota */
+    }
+    return fixed;
+  }
+  return store;
 };
 
 const writeStore = (store: DirectionStore) => {

@@ -1,7 +1,8 @@
 
 import { uuid } from '../utils/uuid';
+import { repairIds, repairTreeIds } from '../utils/idRepair';
 
-import { UserProfile, ActivityLog, Language, CEFRLevel, UserContent, LanguageProgress, WritingNode, VocabularyItem, DailyQuest, QuestKind, MentorPersona, AIMemory, ScriptItem, ScriptCardProgress, ErrorCard, WritingScoreRecord, TypingContent, ErrorPattern, ErrorPatternType, ERROR_PATTERN_LABELS, FlywheelStep, DailyFlywheel, SongPack, Book, StudyBook, StudyItem, StudyItemQuality } from '../types';
+import { UserProfile, ActivityLog, Language, CEFRLevel, UserContent, LanguageProgress, WritingNode, VocabularyItem, DailyQuest, QuestKind, MentorPersona, AIMemory, ScriptItem, ScriptCardProgress, ErrorCard, WritingScoreRecord, TypingContent, ErrorPattern, ErrorPatternType, ERROR_PATTERN_LABELS, FlywheelStep, DailyFlywheel, SongPack, Book, BookVideo, StudyBook, StudyItem, StudyItemQuality } from '../types';
 import { getScriptPackForLanguage } from '../data/scriptPacks';
 
 const STORAGE_KEY_USER = 'linguaflow_user';
@@ -32,6 +33,29 @@ export const ALL_STORAGE_KEYS: string[] = [
   'linguaflow_rpg_session', 'linguaflow_rpg_custom', 'linguaflow_song_packs', 'linguaflow_books',
   'linguaflow_custom_directions',
 ];
+
+// --- 历史脏 id 的读时修复（见 utils/idRepair.ts）---
+// 读列表 → 若存在非法/重复 id 则重发号并写回原 key → 返回修复后的列表。
+// 只动 id，业务字段（内容 / 进度 / 时间）保持不动；无问题时零写入。
+const readListRepair = <T extends { id: string }>(key: string, raw: string | null): T[] => {
+  if (!raw) return [];
+  let list: T[];
+  try {
+    list = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(list)) return [];
+  const { list: fixed, changed } = repairIds(list as T[]);
+  if (changed) {
+    try {
+      localStorage.setItem(key, JSON.stringify(fixed));
+    } catch {
+      /* 配额满等异常不阻塞读取 */
+    }
+  }
+  return fixed;
+};
 
 // --- Runtime AI model configuration (switcher in Settings -> 模型设置) ---
 // Keys are stored ONLY in localStorage (browser), never committed to source.
@@ -432,7 +456,7 @@ export interface InkQuestListeningItem {
 export const getInkQuestListeningItems = (lang?: Language): InkQuestListeningItem[] => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_INKQUEST_LISTENING);
-    const all: InkQuestListeningItem[] = raw ? JSON.parse(raw) : [];
+    const all = readListRepair<InkQuestListeningItem>(STORAGE_KEY_INKQUEST_LISTENING, raw);
     const filtered = lang ? all.filter((c) => c.language === lang) : all;
     return filtered.sort((a, b) => b.createdAt - a.createdAt);
   } catch {
@@ -483,7 +507,7 @@ export interface TypingLibraryItem {
 export const getTypingLibraryItems = (lang?: Language): TypingLibraryItem[] => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_TYPING_LIBRARY);
-    const all: TypingLibraryItem[] = raw ? JSON.parse(raw) : [];
+    const all = readListRepair<TypingLibraryItem>(STORAGE_KEY_TYPING_LIBRARY, raw);
     const filtered = lang ? all.filter((c) => c.language === lang) : all;
     return filtered.sort((a, b) => b.createdAt - a.createdAt);
   } catch {
@@ -547,7 +571,7 @@ const STORAGE_KEY_CUSTOM_SCRIPT = 'linguaflow_custom_script';
 export const getCustomScriptItems = (lang?: Language): CustomScriptItem[] => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_CUSTOM_SCRIPT);
-    const all: CustomScriptItem[] = raw ? JSON.parse(raw) : [];
+    const all = readListRepair<CustomScriptItem>(STORAGE_KEY_CUSTOM_SCRIPT, raw);
     return lang ? all.filter((c) => c.language === lang) : all;
   } catch {
     return [];
@@ -579,7 +603,7 @@ const STORAGE_KEY_CUSTOM_WRITING = 'linguaflow_custom_writing';
 export const getCustomWritingPrompts = (lang?: Language): CustomWritingPrompt[] => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_CUSTOM_WRITING);
-    const all: CustomWritingPrompt[] = raw ? JSON.parse(raw) : [];
+    const all = readListRepair<CustomWritingPrompt>(STORAGE_KEY_CUSTOM_WRITING, raw);
     return lang ? all.filter((c) => c.language === lang) : all;
   } catch {
     return [];
@@ -600,7 +624,7 @@ export const deleteCustomWritingPrompt = (id: string): void => {
 export const getInkQuestCards = (lang?: Language): InkQuestCard[] => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_INKQUEST);
-    const all: InkQuestCard[] = raw ? JSON.parse(raw) : [];
+    const all = readListRepair<InkQuestCard>(STORAGE_KEY_INKQUEST, raw);
     const filtered = lang ? all.filter((c) => c.language === lang) : all;
     return filtered.sort((a, b) => b.createdAt - a.createdAt);
   } catch {
@@ -924,8 +948,7 @@ export const addActivity = (
 // --- Library (Memory Bank) ---
 
 export const getLibrary = (): UserContent[] => {
-    const data = localStorage.getItem(STORAGE_KEY_LIBRARY);
-    return data ? JSON.parse(data) : [];
+    return readListRepair<UserContent>(STORAGE_KEY_LIBRARY, localStorage.getItem(STORAGE_KEY_LIBRARY));
 };
 
 export const saveLibraryItem = (item: UserContent) => {
@@ -950,7 +973,24 @@ export const deleteLibraryItem = (id: string) => {
 
 export const getWritingTree = (): WritingNode[] => {
     const data = localStorage.getItem(STORAGE_KEY_TREE);
-    return data ? JSON.parse(data) : [];
+    if (!data) return [];
+    let nodes: WritingNode[];
+    try {
+        nodes = JSON.parse(data);
+    } catch {
+        return [];
+    }
+    if (!Array.isArray(nodes)) return [];
+    // 树形：重发号时同步修正子节点的 parentId（见 utils/idRepair.ts）
+    const { list, changed } = repairTreeIds(nodes);
+    if (changed) {
+        try {
+            localStorage.setItem(STORAGE_KEY_TREE, JSON.stringify(list));
+        } catch {
+            /* ignore */
+        }
+    }
+    return list;
 };
 
 export const saveWritingTree = (nodes: WritingNode[]) => {
@@ -1013,8 +1053,7 @@ export const ensureGrowthTree = async (lang: Language, level: CEFRLevel): Promis
 // --- Vocabulary ---
 
 export const getVocabulary = (): VocabularyItem[] => {
-    const data = localStorage.getItem(STORAGE_KEY_VOCAB);
-    return data ? JSON.parse(data) : [];
+    return readListRepair<VocabularyItem>(STORAGE_KEY_VOCAB, localStorage.getItem(STORAGE_KEY_VOCAB));
 };
 
 export const saveVocabularyItem = (item: VocabularyItem) => {
@@ -1083,8 +1122,7 @@ export const getDueScriptItems = (packId: string, items: ScriptItem[]): ScriptIt
 // --- Writing Error Book (SRS) ---
 // 与词汇/字形特训共用 Leitner 间隔重复逻辑：答错回 box1，答对冲高 box，间隔变长。
 export const getErrorBook = (): ErrorCard[] => {
-    const data = localStorage.getItem(STORAGE_KEY_ERRORBOOK);
-    return data ? JSON.parse(data) : [];
+    return readListRepair<ErrorCard>(STORAGE_KEY_ERRORBOOK, localStorage.getItem(STORAGE_KEY_ERRORBOOK));
 };
 
 // 把 AI 批改建议沉淀为错题卡。按 (original 小写 + language) 去重合并：
@@ -1204,12 +1242,7 @@ export const getWritingHistoryByLang = (lang: Language): WritingScoreRecord[] =>
 const STORAGE_KEY_SONG_PACKS = 'linguaflow_song_packs';
 
 export const getSongPacks = (): SongPack[] => {
-    try {
-        const raw = localStorage.getItem(STORAGE_KEY_SONG_PACKS);
-        return raw ? JSON.parse(raw) : [];
-    } catch {
-        return [];
-    }
+    return readListRepair<SongPack>(STORAGE_KEY_SONG_PACKS, localStorage.getItem(STORAGE_KEY_SONG_PACKS));
 };
 
 export const getSongPack = (id: string): SongPack | null => {
@@ -1354,8 +1387,18 @@ export const deleteSongClips = async (packId: string): Promise<void> => {
 // ==================== 书架（Book）====================
 
 // 分页：按段落（\n\n）累积，达到 targetChars 左右切成一页，不切断段落。
-// 单段超长（超过 1.5 倍目标）则硬切，避免单页过长。
-export const paginateText = (rawText: string, targetChars = 1500): string[] => {
+// 单段超长（超过 1.5 倍目标）则切成多页，但**切点会回退到句末 / 空白边界**，
+// 绝不把单词劈成两半（旧实现裸切 1500 字符，Animal Farm 第一页曾以 "s began to arrive" 开头）。
+//
+// targetChars 取值的依据（2026-10-26 实测，Playwright + 真实 Literata 字体）：
+// 正文样式 font-literata / lg:text-2xl(24px) / leading-loose(行高 48px) / tracking 0.075em，
+// 内容宽 804px（max-w-4xl 896 - p-10 80 - pr-3 12）→ 每行约 50 字符；
+// 阅读窗 max-h-[60vh] 在常见视口下是 9–11 行：
+//   1440×790 → 60vh 474px / 9 行 / 494 字符
+//   1440×860 → 60vh 516px / 10 行 / 552 字符
+//   1512×955 → 60vh 573px / 11 行 / 608 字符
+// 取 550 = 「一页≈一屏」，笔记本上不用滚就能看到整页；更小的窗口最多溢出 1–2 行。
+export const paginateText = (rawText: string, targetChars = 550): string[] => {
     const text = rawText.trim();
     if (!text) return [];
     const paragraphs = text.split(/\n\n+/).map((p) => p.trim()).filter((p) => p.length > 0);
@@ -1363,7 +1406,26 @@ export const paginateText = (rawText: string, targetChars = 1500): string[] => {
 
     const pages: string[] = [];
     let current = '';
-    const hardCut = Math.max(targetChars, 600);
+    const hardCut = Math.max(targetChars, 400);
+
+    // 在 limit 之前找一个「体面的」切点：优先句末，其次空白，最后才硬切
+    const findCutIndex = (s: string, limit: number): number => {
+        if (s.length <= limit) return s.length;
+        const min = Math.max(1, Math.floor(limit * 0.7));
+        // 1) 句末：. ! ? … 后允许跟引号 / 括号，再跟空白（或已到结尾）
+        for (let i = limit; i >= min; i--) {
+            if (/[.!?…]/.test(s[i])) {
+                let j = i + 1;
+                while (j < s.length && /["'”’)\]]/.test(s[j])) j++;
+                if (j >= s.length || /\s/.test(s[j])) return j;
+            }
+        }
+        // 2) 回退到最近空白，保证不劈开单词
+        for (let i = limit; i >= min; i--) {
+            if (/\s/.test(s[i])) return i + 1;
+        }
+        return limit;
+    };
 
     const flush = () => {
         if (current.trim()) pages.push(current.trim());
@@ -1371,13 +1433,15 @@ export const paginateText = (rawText: string, targetChars = 1500): string[] => {
     };
 
     for (const para of paragraphs) {
-        // 单段超长：硬切成多页
+        // 单段超长：按「句末 / 空白」切点切成多页
         if (para.length > targetChars * 1.5) {
             flush();
             let rest = para;
             while (rest.length > hardCut) {
-                pages.push(rest.slice(0, hardCut));
-                rest = rest.slice(hardCut);
+                const cut = findCutIndex(rest, hardCut);
+                const piece = rest.slice(0, cut).trim();
+                if (piece) pages.push(piece);
+                rest = rest.slice(cut).replace(/^\s+/, '');
             }
             current = rest;
             continue;
@@ -1393,9 +1457,58 @@ export const paginateText = (rawText: string, targetChars = 1500): string[] => {
     return pages.length > 0 ? pages : [text];
 };
 
+/** 分页算法版本：2 = 句子边界 + 一屏一页。旧书靠它做一次性原地修复，见 repairBookPagination。 */
+export const BOOK_PAGINATION_VERSION = 2;
+
+// 旧版把正文按固定字符数裸切，会在单词中间断开（页首出现 "s began to arrive"）。
+// 旧书已经以碎片页存进库，原始正文没有保留 —— 这里按页边界特征把碎片拼回原文，再重新分页，
+// 等价于「删掉重新导入」，但保留阅读进度。只在 paginationVersion < 2 时跑一次，
+// 之后靠版本号挡住，避免反复拼接导致文本漂移。
+const isHardCutBoundary = (prev: string, next: string): boolean => {
+    const end = prev.trimEnd().slice(-1);
+    const start = next.replace(/^\s+/, '').charAt(0);
+    if (!end || !start) return false;
+    // 上一页没收在句末/分隔符，下一页却从半句腰上（小写字母、逗号、数字）开始 → 判定为裸切
+    return !/[.!?…"'”’)\]—:;]/.test(end) && /[a-z,0-9]/.test(start);
+};
+
+export const repairBookPagination = (book: Book): Book | null => {
+    if ((book.paginationVersion ?? 1) >= BOOK_PAGINATION_VERSION) return null;
+    const pages = book.pages ?? [];
+    if (pages.length === 0) return null;
+    if (pages.length === 1) return { ...book, paginationVersion: BOOK_PAGINATION_VERSION };
+
+    let hardCuts = 0;
+    for (let i = 1; i < pages.length; i++) if (isHardCutBoundary(pages[i - 1], pages[i])) hardCuts++;
+    const boundaries = pages.length - 1;
+    // 过半断点是裸切 → 当初整段长文被逐段切碎，原样拼回（不 trim，保持字节一致）；
+    // 否则按段落拼（旧的分段式分页本来就在段落边界切，\n\n 是原样还原）。
+    const glueAll = hardCuts / boundaries >= 0.5;
+
+    let rebuilt = pages[0];
+    for (let i = 1; i < pages.length; i++) {
+        rebuilt += (glueAll || isHardCutBoundary(pages[i - 1], pages[i]) ? '' : '\n\n') + pages[i];
+    }
+
+    const nextPages = paginateText(rebuilt);
+    if (nextPages.length === 0) return null;
+    const same = nextPages.length === pages.length && nextPages.every((p, i) => p === pages[i]);
+    // 读完了的书保持「已读完」（currentPage === pages.length 是完成标记），否则夹到最后一页
+    const wasDone = (book.currentPage ?? 0) >= pages.length;
+    return {
+        ...book,
+        pages: nextPages,
+        currentPage: same
+            ? book.currentPage ?? 0
+            : wasDone
+            ? nextPages.length
+            : Math.min(Math.max(book.currentPage ?? 0, 0), nextPages.length - 1),
+        paginationVersion: BOOK_PAGINATION_VERSION,
+    };
+};
+
 // 书架存储升级为 IndexedDB：容量远大于 localStorage（~5MB），可容纳大量长文本书籍。
 // 原 localStorage 的旧数据在首次读取时自动迁移到 IndexedDB，迁移后清除旧 key。
-
 const BOOKS_DB = 'linguaflow_books_db';
 const BOOKS_STORE = 'books';
 
@@ -1443,12 +1556,30 @@ export const getBooks = async (lang?: Language): Promise<Book[]> => {
     const db = await openBooksDB();
     try {
         await migrateBooksFromLocalStorage(db);
-        const all = await new Promise<Book[]>((resolve, reject) => {
+        let all = await new Promise<Book[]>((resolve, reject) => {
             const tx = db.transaction(BOOKS_STORE, 'readonly');
             const req = tx.objectStore(BOOKS_STORE).getAll();
             req.onsuccess = () => resolve((req.result as Book[]) ?? []);
             req.onerror = () => reject(req.error);
         });
+        // 历史脏 id（早期 uuid 在 http://IP 下会重复）→ 重发号并回写，
+        // 否则「按 id 打开/删除某本书」会命中另一本。
+        const { list: fixed, changed } = repairIds(all);
+        if (changed) {
+            const oldIds = new Set(all.map((b) => b.id));
+            const newIds = new Set(fixed.map((b) => b.id));
+            await new Promise<void>((resolve) => {
+                const tx = db.transaction(BOOKS_STORE, 'readwrite');
+                const store = tx.objectStore(BOOKS_STORE);
+                for (const b of fixed) store.put(b);
+                for (const oldId of oldIds) {
+                    if (!newIds.has(oldId)) store.delete(oldId);
+                }
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => resolve();
+            });
+            all = fixed;
+        }
         return sortBooks(all, lang);
     } catch {
         return [];
@@ -1513,6 +1644,33 @@ export const updateBookProgress = async (id: string, currentPage: number): Promi
         return await getBooks();
     } catch {
         return getBooks();
+    } finally {
+        db.close();
+    }
+};
+
+// 更新某本书挂载的 B 站视频（阅读工作台左侧播放器）。
+// 走「读-改-写」事务而不是 saveBook(整本)，避免把手里的旧 book 对象整体覆盖回去
+// （reader 里的 currentPage 由 updateBookProgress 单独维护，覆盖会丢进度）。
+export const updateBookVideos = async (id: string, videos: BookVideo[]): Promise<void> => {
+    const db = await openBooksDB();
+    try {
+        await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction(BOOKS_STORE, 'readwrite');
+            const store = tx.objectStore(BOOKS_STORE);
+            const req = store.get(id);
+            req.onsuccess = () => {
+                const book = req.result as Book | undefined;
+                if (book) {
+                    book.videos = videos;
+                    store.put(book);
+                }
+            };
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    } catch {
+        /* 静默：视频是增强项，失败不阻塞阅读 */
     } finally {
         db.close();
     }
@@ -1725,29 +1883,26 @@ const BUILTIN_STUDY_BOOKS: Array<{
 // 修复历史脏 id：早期 uuid() 的非 HTTPS 降级分支写错（HEX 只有 16 个字符却用整字节索引），
 // 在 http://<IP> 下会生成 "undefinedundefined-…" 这种 140 字符的假 id，且碰撞率极高
 // （实测 5000 次只有 1268 个唯一值）。id 重复会让练习进度按 id 匹配时互相覆盖。
-// 这里给所有书重新发号，box / reviews / dueDate 等学习进度原样保留。
-const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
+// 这里给整本书（章节 + 条目，跨章一起去重）重新发号，box / reviews / dueDate 等进度原样保留。
 const repairBookIds = (book: StudyBook): StudyBook | null => {
-    let changed = false;
-    const seen = new Set<string>();
-    const chapters = book.chapters.map((c) => {
-        let cid = c.id;
-        if (!UUID_V4_RE.test(cid) || seen.has(cid)) { cid = uuid(); changed = true; }
-        seen.add(cid);
-        const items = c.items.map((it) => {
-            if (!UUID_V4_RE.test(it.id) || seen.has(it.id)) {
-                changed = true;
-                const nid = uuid();
-                seen.add(nid);
-                return { ...it, id: nid };
-            }
-            seen.add(it.id);
-            return it;
-        });
-        return { ...c, id: cid, items };
+    const sizes: number[] = [];
+    const flat: StudyItem[] = [];
+    for (const c of book.chapters) {
+        sizes.push(c.items.length);
+        flat.push(...c.items);
+    }
+    const items = repairIds(flat);
+    const chapters = repairIds(book.chapters.map((c) => ({ id: c.id })));
+    if (!items.changed && !chapters.changed) return null;
+
+    let cursor = 0;
+    const nextChapters = book.chapters.map((c, i) => {
+        const n = sizes[i];
+        const nextItems = items.list.slice(cursor, cursor + n);
+        cursor += n;
+        return { ...c, id: chapters.list[i].id, items: nextItems };
     });
-    return changed ? { ...book, chapters } : null;
+    return { ...book, chapters: nextChapters };
 };
 
 // 首次加载自动 seed 内置学习书。动态 import 内置书数据（懒加载，避免首屏变大）；
