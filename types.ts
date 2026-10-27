@@ -381,6 +381,17 @@ export interface UserContent {
 }
 
 // 书架：一本书/短篇小说，导入后自动分页，逐页打字练习（对齐 TypeLit 的 Pages 体验）
+export interface BookVideo {
+  /** B 站视频号：bvid（BV 开头）与 aid（av 号数字）二选一 */
+  bvid?: string;
+  aid?: string;
+  /** 分 P，默认 1 */
+  page?: number;
+  /** 用户自定义标题（可选） */
+  title?: string;
+  addedAt: number;
+}
+
 export interface Book {
   id: string;
   title: string;
@@ -391,6 +402,10 @@ export interface Book {
   currentPage: number;  // 阅读进度（0-based）
   createdAt: number;
   lastReadAt?: number;
+  /** 分页算法版本：缺失/1 = 旧的「1500 字符裸切」；2 = 句子边界 + 一屏一页（见 paginateText） */
+  paginationVersion?: number;
+  /** 用户为这本书挂的 B 站视频（0..n），在阅读工作台左侧播放 */
+  videos?: BookVideo[];
 }
 
 export interface VocabularyItem {
