@@ -118,7 +118,7 @@ const ErrorBookView: React.FC<ErrorBookViewProps> = ({ user, onUpdateUser, initi
       {viewMode === 'review' && (
         <div className="max-w-2xl mx-auto w-full">
           {queue.length > 0 ? (
-            <div className="glass-panel rounded-2xl p-8 text-center">
+            <div className="glass-panel rounded-2xl p-4 md:p-8 text-center">
               <div className="flex justify-between items-center mb-4 text-xs text-muted">
                 <span>复习进度 {reviewDone}/{queue.length}</span>
                   <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10">

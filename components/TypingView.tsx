@@ -2,10 +2,14 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { TypingContent, UserProfile, UserContent, CEFRLevel, VocabularyItem, Book } from '../types';
 import { generateTypingContent, generateSpeech, cancelSpeech, languageToSpeechLang } from '../services/aiService';
+import type { ReadingAssist } from '../services/aiService';
+import { saveSentence } from '../services/sentenceBank';
+import { addBookWord } from '../services/bookVocab';
 import { addActivity, getLibrary, saveLibraryItem, saveVocabularyItem, getTypingLibraryItems, saveTypingLibraryItem, deleteTypingLibraryItem, touchTypingLibraryItem, TypingLibraryItem, updateBookProgress } from '../services/storageService';
 import { TYPING_STAGES, DRILL_TOPICS } from '../constants';
 import { RefreshCw, Play, Keyboard, Eye, EyeOff, BookOpen, Zap, Star, Sparkles, LayoutGrid, Book as BookIcon, Volume2, StopCircle, Mic, Square, Trash2, Ear, Pause, X, Lock, CheckCircle2, Swords, Crown, ShieldAlert, Plus, Check, Bookmark, Library, Repeat, ChevronLeft, ChevronRight } from 'lucide-react';
 import TtsAudioPlayer, { TtsAudioPlayerHandle } from './TtsAudioPlayer';
+import ReadingStudioPanel from './ReadingStudioPanel';
 
 interface TypingViewProps {
   user: UserProfile;
@@ -192,27 +196,42 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData, 
   // 平滑光标定位 + 保持可视：
   // - rAF 节流，每次只测量「当前字符」单个元素（getBoundingClientRect 开销小，非全量测量）
   // - 用 transform 定位覆盖层并配 transition，光标平滑滑到下一字符（对齐 TypeLit 的顺滑感）
-  // - 仅当字符离屏时才滚动容器，滚动后再测一次同步光标位置
+  // - focus 语义：只有「输入推进光标」才把字符滚进视口（followCursor=true）；
+  //   用户手动滚动时只重测覆盖层坐标，绝不抢滚动权 —— 否则光标在第 0 字时
+  //   每次下滑都被 scrollIntoView 拽回顶部，长文/书页永远读不到下面（2026-10-26 修）
   useEffect(() => {
       if (!content || finished) return;
-      const measure = () => {
+      const measure = (followCursor: boolean) => {
           const charEl = currentCharRef.current;
           const contentEl = textContentRef.current;
           const container = textContainerRef.current;
           if (!charEl || !contentEl) return;
           const c = charEl.getBoundingClientRect();
           const b = contentEl.getBoundingClientRect();
-          setCursorPos({ x: c.left - b.left, y: c.top - b.top, w: c.width, h: c.height });
-          if (container) {
+          // 坐标未变就返回同一个对象 → React bail out，避免滚动时整段文本（上千 span）每帧重渲
+          const next = {
+              x: Math.round(c.left - b.left),
+              y: Math.round(c.top - b.top),
+              w: Math.round(c.width),
+              h: Math.round(c.height),
+          };
+          setCursorPos((prev) =>
+              prev && prev.x === next.x && prev.y === next.y && prev.w === next.w && prev.h === next.h ? prev : next
+          );
+          if (followCursor && container) {
+              // 只调容器自身 scrollTop：不用 scrollIntoView，避免连带滚动整页/外层滚动链
               const cb = container.getBoundingClientRect();
-              if (c.top < cb.top || c.bottom > cb.bottom) {
-                  charEl.scrollIntoView({ block: 'nearest' });
+              const pad = 12;
+              if (c.top < cb.top + pad) {
+                  container.scrollTop -= cb.top + pad - c.top;
+              } else if (c.bottom > cb.bottom - pad) {
+                  container.scrollTop += c.bottom - (cb.bottom - pad);
               }
           }
       };
-      const raf = requestAnimationFrame(measure);
+      const raf = requestAnimationFrame(() => measure(true));
       const container = textContainerRef.current;
-      const onScroll = () => requestAnimationFrame(measure);
+      const onScroll = () => requestAnimationFrame(() => measure(false));
       container?.addEventListener('scroll', onScroll, { passive: true });
       window.addEventListener('resize', onScroll);
       return () => {
@@ -351,6 +370,123 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData, 
 
       saveVocabularyItem(newItem);
       setAddedVocabWords(prev => new Set(prev).add(vocabItem.word));
+      // 记一笔「这本书收藏了这个词」，右栏「我的生词」跨天也能看到
+      if (book) {
+          addBookWord(book.id, vocabItem.word, vocabItem.meaning);
+          setCollectRev(v => v + 1);
+      }
+  };
+
+  // --- 右栏宽度 / 折叠（持久化）---
+  const RAIL_MIN = 280;
+  const RAIL_MAX = 560;
+  const [railWidth, setRailWidth] = useState<number>(() => {
+      const saved = Number(localStorage.getItem('linguaflow_rail_width'));
+      return Number.isFinite(saved) && saved >= RAIL_MIN && saved <= RAIL_MAX ? saved : 340;
+  });
+  const [railCollapsed, setRailCollapsed] = useState<boolean>(() => localStorage.getItem('linguaflow_rail_collapsed') === '1');
+  const [isWide, setIsWide] = useState<boolean>(() => window.matchMedia('(min-width: 1280px)').matches);
+  const railWidthRef = useRef(railWidth);
+  railWidthRef.current = railWidth;
+
+  useEffect(() => {
+      const mq = window.matchMedia('(min-width: 1280px)');
+      const onChange = () => setIsWide(mq.matches);
+      mq.addEventListener('change', onChange);
+      return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  const handleRailResizeStart = (e: React.MouseEvent) => {
+      e.preventDefault();
+      const startX = e.clientX;
+      const startW = railWidthRef.current;
+      const onMove = (ev: MouseEvent) => {
+          setRailWidth(Math.min(RAIL_MAX, Math.max(RAIL_MIN, startW - (ev.clientX - startX))));
+      };
+      const onUp = () => {
+          window.removeEventListener('mousemove', onMove);
+          window.removeEventListener('mouseup', onUp);
+          try {
+              localStorage.setItem('linguaflow_rail_width', String(Math.round(railWidthRef.current)));
+          } catch {
+              /* ignore */
+          }
+      };
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+  };
+
+  const toggleRail = () => {
+      setRailCollapsed(prev => {
+          const next = !prev;
+          try {
+              localStorage.setItem('linguaflow_rail_collapsed', next ? '1' : '0');
+          } catch {
+              /* ignore */
+          }
+          return next;
+      });
+  };
+
+  // --- 划词 / 划句收藏（正文里选中文本 → 浮出操作） ---
+  const [selChip, setSelChip] = useState<{ text: string; single: boolean; x: number; y: number } | null>(null);
+  const [collectRev, setCollectRev] = useState(0);
+  const textCardRef = useRef<HTMLDivElement | null>(null);
+  // 当前页 AI 提取结果（用于划词时补上释义/词性），不参与渲染
+  const assistRef = useRef<ReadingAssist | null>(null);
+
+  const clearSelection = () => {
+      window.getSelection()?.removeAllRanges();
+      setSelChip(null);
+  };
+
+  const handleTextSelect = () => {
+      const sel = window.getSelection();
+      const card = textCardRef.current;
+      const container = textContainerRef.current;
+      if (!sel || !card || !container || sel.isCollapsed || sel.rangeCount === 0) {
+          setSelChip(null);
+          return;
+      }
+      const range = sel.getRangeAt(0);
+      if (!container.contains(range.commonAncestorContainer)) {
+          setSelChip(null);
+          return;
+      }
+      const text = sel.toString().replace(/\s+/g, ' ').trim();
+      if (!text || text.length > 240) {
+          setSelChip(null);
+          return;
+      }
+      const rect = range.getBoundingClientRect();
+      const cardRect = card.getBoundingClientRect();
+      setSelChip({
+          text,
+          single: !/\s/.test(text) && text.length <= 32,
+          x: Math.min(Math.max(rect.left - cardRect.left + rect.width / 2, 96), Math.max(96, cardRect.width - 96)),
+          y: Math.max(44, rect.top - cardRect.top - 8),
+      });
+  };
+
+  const handleSaveSelectedWord = (word: string) => {
+      const clean = word.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+      if (!clean) return;
+      const known = assistRef.current?.words.find(w => w.word.toLowerCase() === clean.toLowerCase());
+      handleAddVocabulary({ word: clean, meaning: known?.meaning ?? '', partOfSpeech: known?.pos ?? '' });
+      clearSelection();
+  };
+
+  const handleSaveSelectedSentence = (text: string) => {
+      if (!book) return;
+      saveSentence({
+          text,
+          language: book.language,
+          bookId: book.id,
+          bookTitle: book.title,
+          page: bookPage,
+      });
+      setCollectRev(v => v + 1);
+      clearSelection();
   };
 
 
@@ -921,8 +1057,12 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData, 
   // --- Strict Mode Logic ---
   const isStrictMode = activeTab === 'campaign';
 
+  // 书籍模式（阅读工作台）：左栏放配套视频 + 意群/难词，右栏是正文。
+  // 只在「正在读书页」时生效；设置页/关卡模式保持原单栏布局。
+  const bookMode = !!book && !!content && !isLoading;
+
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className={`mx-auto space-y-6 ${bookMode ? 'max-w-none' : 'max-w-4xl'}`}>
       
       {/* HEADER CONTROLS (Only visible when drilling) */}
       {content && (
@@ -955,7 +1095,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData, 
             <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-3 min-w-0">
                     <span className="px-3 py-1 rounded-full bg-neon/15 text-violet-300 text-sm font-bold border border-neon/30 shadow-glow-sm shrink-0">
-                        {activeStage ? activeStage.cefr : "练习"}
+                        {book ? '阅读' : activeStage ? activeStage.cefr : "练习"}
                     </span>
                     <div className="min-w-0">
                         <h2 className="text-sm md:text-base font-bold text-white truncate">{content.topic}</h2>
@@ -974,6 +1114,16 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData, 
                         <span className="text-xs text-muted">准确率</span>
                         <span className="text-base md:text-lg font-bold text-white tabular-nums">{accuracy}%</span>
                     </div>
+                    {book && (
+                      <button
+                        onClick={toggleRail}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-3 hover:bg-surface-3 text-white rounded-lg transition-colors text-sm font-medium"
+                        title={railCollapsed ? '显示右侧面板' : '收起右侧面板'}
+                      >
+                        {railCollapsed ? <Eye size={14} /> : <EyeOff size={14} />}
+                        <span className="hidden sm:inline">{railCollapsed ? '面板' : '收起'}</span>
+                      </button>
+                    )}
                     <button
                         onClick={() => { if (book) { onExitBook?.(); } else { setContent(null); } }}
                         disabled={isLoading}
@@ -1071,7 +1221,35 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData, 
       )}
 
       {/* Main Content / Setup Area */}
-      <div className="relative">
+      <div
+        className={bookMode ? 'grid items-start gap-5' : 'relative'}
+        style={bookMode && isWide ? { gridTemplateColumns: railCollapsed ? 'minmax(0,1fr)' : `minmax(0,1fr) ${railWidth}px` } : undefined}
+      >
+      {bookMode && book && content && !railCollapsed && (
+        <div className="relative order-2 min-w-0">
+          {/* 拖动分隔条调右栏宽度（宽度写进 localStorage） */}
+          {isWide && (
+            <div
+              onMouseDown={handleRailResizeStart}
+              className="absolute -left-3 top-0 hidden h-full w-1.5 cursor-col-resize rounded-full transition-colors hover:bg-neon/40 xl:block"
+              title="拖动调整面板宽度"
+            />
+          )}
+          <ReadingStudioPanel
+            book={book}
+            pageIndex={bookPage}
+            text={content.text}
+            nextPageText={book.pages[bookPage + 1]}
+            nativeLanguage={user.nativeLanguage}
+            cefrLevel={activeStage?.cefr || 'B1'}
+            addedWords={addedVocabWords}
+            collectRev={collectRev}
+            onAssist={(a) => { assistRef.current = a; }}
+            onAddWord={handleAddVocabulary}
+          />
+        </div>
+      )}
+      <div className={`min-w-0 ${bookMode ? 'order-1' : 'relative'}`}>
       
       {isLoading ? (
           <div className="glass-panel rounded-2xl p-12 shadow-card min-h-[300px] flex items-center justify-center flex-col gap-4">
@@ -1086,7 +1264,7 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData, 
           </div>
         ) : !content ? (
             // Setup Screen
-            <div className="glass-panel rounded-2xl p-6 md:p-8 shadow-card min-h-[400px]">
+            <div className="glass-panel rounded-2xl p-4 md:p-8 shadow-card min-h-[400px]">
                  <div className="text-center mb-8">
                      <h3 className="text-2xl font-bold mb-2 neon-text">打字闯关</h3>
                      <p className="text-muted">选择一种模式开始训练。</p>
@@ -1216,11 +1394,14 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData, 
             </div>
         ) : (
           <div
-            className="glass-panel rounded-2xl p-6 md:p-10 min-h-[260px] cursor-text relative shadow-card transition-shadow duration-500 focus-within:shadow-glow-neon focus-within:border-neon/25"
+            ref={textCardRef}
+            className="glass-panel rounded-2xl p-4 md:p-10 min-h-[260px] cursor-text relative shadow-card transition-shadow duration-500 focus-within:shadow-glow-neon focus-within:border-neon/25"
             onClick={() => inputRef.current?.focus()}
           >
             <div
               ref={textContainerRef}
+              onMouseUp={handleTextSelect}
+              onScroll={() => setSelChip(null)}
               className="relative z-10 max-h-[60vh] overflow-y-auto pr-3 pb-2 custom-scrollbar space-y-5"
             >
                 {/* Phonetic / Input Hint — 仅非拉丁字母语言显示（英语等不需要罗马音辅助） */}
@@ -1254,13 +1435,45 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData, 
               autoCapitalize="off"
               spellCheck="false"
             />
+
+            {/* 划词 / 划句浮层：选中正文后浮在选区上方 */}
+            {selChip && (
+              <div
+                className="absolute z-30 flex -translate-x-1/2 -translate-y-full items-center gap-1 rounded-xl border border-white/10 bg-surface-3/95 p-1 shadow-2xl backdrop-blur"
+                style={{ left: selChip.x, top: selChip.y }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {selChip.single && (
+                  <button
+                    onClick={() => handleSaveSelectedWord(selChip.text)}
+                    className="rounded-lg bg-primary px-2 py-1 text-[11px] font-bold text-white transition hover:brightness-110"
+                  >
+                    加入词库
+                  </button>
+                )}
+                <button
+                  onClick={() => handleSaveSelectedSentence(selChip.text)}
+                  className="rounded-lg bg-neon px-2 py-1 text-[11px] font-bold text-white transition hover:bg-neon/80"
+                >
+                  收藏句子
+                </button>
+                <button
+                  onClick={clearSelection}
+                  className="rounded-lg px-1.5 py-1 text-[11px] text-muted transition hover:text-white"
+                  title="取消"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
           </div>
         )}
+        </div>
       </div>
 
       {/* Success State */}
       {finished && (
-        <div className="glass-panel border-green-400/30 shadow-[0_0_28px_-6px_rgba(74,222,128,0.5)] rounded-xl p-6 flex flex-col md:flex-row items-center justify-between gap-4 animate-in fade-in zoom-in duration-300">
+        <div className="glass-panel border-green-400/30 shadow-[0_0_28px_-6px_rgba(74,222,128,0.5)] rounded-xl p-4 md:p-6 flex flex-col md:flex-row items-center justify-between gap-4 animate-in fade-in zoom-in duration-300">
             <div className="flex items-center gap-4">
                 <div className="p-3 bg-gradient-to-br from-green-400 to-emerald-600 rounded-full text-dark shadow-[0_0_18px_rgba(74,222,128,0.7)] animate-[pop_0.45s_ease-out]">
                     {passedStage ? <Crown size={24} fill="currentColor" /> : <Zap size={24} fill="currentColor" />}

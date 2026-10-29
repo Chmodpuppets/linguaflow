@@ -450,7 +450,7 @@ const SocialView: React.FC<SocialViewProps> = ({ user }) => {
           )}
 
           {/* 学习卡片 */}
-          <div className="rounded-2xl border border-neon/30 bg-gradient-to-br from-neon/20 to-neon-2/10 p-6 shadow-glow-sm">
+          <div className="rounded-2xl border border-neon/30 bg-gradient-to-br from-neon/20 to-neon-2/10 p-4 md:p-6 shadow-glow-sm">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-xl font-bold text-white">{myProfile?.username || user.username}</div>

@@ -252,7 +252,7 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
         </div>
 
         {sessionDone && (
-          <div className="glass-panel rounded-2xl p-8 text-center mb-6 shadow-card page-enter">
+          <div className="glass-panel rounded-2xl p-4 md:p-8 text-center mb-6 shadow-card page-enter">
             <div className="text-3xl mb-2">{stats.correct === stats.reviewed ? '🎉' : '💪'}</div>
             <div className="text-xl font-bold text-white mb-1">本轮完成</div>
             <p className="text-muted text-sm mb-4">
@@ -274,7 +274,7 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
               <button
                 key={g}
                 onClick={() => startGroup(g)}
-                className="glass-panel hover:border-neon/45 hover:shadow-glow-sm hover:-translate-y-0.5 rounded-2xl p-6 text-left transition-all duration-200 group"
+                className="glass-panel hover:border-neon/45 hover:shadow-glow-sm hover:-translate-y-0.5 rounded-2xl p-4 md:p-6 text-left transition-all duration-200 group"
               >
                 <div className="text-lg font-bold text-white mb-1 group-hover:text-violet-300 transition-colors">{g}</div>
                 <div className="text-xs text-muted">{count} 个字形</div>
@@ -321,7 +321,7 @@ const ScriptTrainerView: React.FC<ScriptTrainerViewProps> = ({ user, onUpdateUse
         </div>
       </div>
 
-      <div className="glass-panel rounded-2xl p-8 text-center shadow-card">
+      <div className="glass-panel rounded-2xl p-4 md:p-8 text-center shadow-card">
         <div className="text-xs text-muted mb-2">
           {listenMode
             ? '听音写出对应字形（已隐藏文字线索）'

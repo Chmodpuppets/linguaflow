@@ -537,7 +537,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
                 {/* 自定义剧情弹窗 */}
                 {showCustomForm && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                        <div className="glass-panel border-neon/30 p-6 rounded-2xl shadow-glow-neon w-full max-w-lg max-h-[90vh] overflow-y-auto custom-scrollbar">
+                        <div className="glass-panel border-neon/30 p-4 md:p-6 rounded-2xl shadow-glow-neon w-full max-w-lg max-h-[90vh] overflow-y-auto custom-scrollbar">
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="text-xl font-bold text-white flex items-center gap-2">
                                     <Wand2 size={20} className="text-secondary" /> 创建自定义剧情
@@ -659,7 +659,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
             {/* Exit Confirmation Modal */}
             {showExitConfirm && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                    <div className="bg-card border border-red-900/50 p-6 rounded-2xl shadow-2xl max-w-sm w-full transform transition-all animate-in zoom-in-95">
+                    <div className="bg-card border border-red-900/50 p-4 md:p-6 rounded-2xl shadow-2xl max-w-sm w-full transform transition-all animate-in zoom-in-95">
                         <div className="flex items-center gap-3 text-red-400 mb-3">
                             <AlertTriangle size={32} />
                             <h3 className="text-xl font-bold text-white">退出任务？</h3>
@@ -688,7 +688,7 @@ const RPGView: React.FC<RPGViewProps> = ({ user, onUpdateUser }) => {
             {/* Victory Overlay */}
             {showVictoryModal && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-                    <div className="glass-panel border-neon/40 p-8 rounded-3xl shadow-[0_0_60px_rgba(139,92,246,0.4)] text-center max-w-sm mx-4 transform animate-in zoom-in-95 relative">
+                    <div className="glass-panel border-neon/40 p-4 md:p-8 rounded-3xl shadow-[0_0_60px_rgba(139,92,246,0.4)] text-center max-w-sm mx-4 transform animate-in zoom-in-95 relative">
                         {/* Close button for overlay */}
                         <button 
                             onClick={() => setShowVictoryModal(false)}

@@ -35,7 +35,7 @@ const StudyBookView: React.FC<StudyBookViewProps> = ({ book, onOpenChapter, onBa
       </button>
 
       {/* 书信息 */}
-      <div className="glass-panel border border-white/[0.06] rounded-2xl p-6">
+      <div className="glass-panel border border-white/[0.06] rounded-2xl p-4 md:p-6">
         <div className="flex items-start gap-4">
           <div className="shrink-0 w-20 h-28 rounded-lg overflow-hidden bg-gradient-to-br from-neon/20 to-neon-2/10 border border-white/[0.06] flex items-center justify-center">
             <BookOpen size={30} className="text-neon" />

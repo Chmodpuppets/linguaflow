@@ -161,7 +161,7 @@ const GuidedWritingView: React.FC<GuidedWritingViewProps> = ({ user, onComplete 
       )}
 
       {/* 题目卡 */}
-      <div className="glass-panel rounded-2xl p-6 shadow-card">
+      <div className="glass-panel rounded-2xl p-4 md:p-6 shadow-card">
         {mode === 'scaffold' && (
           template ? (
             <div className="text-center">

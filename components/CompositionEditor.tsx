@@ -149,7 +149,7 @@ const CompositionEditor: React.FC<Props> = ({ node, user, onSave, onComplete, on
   };
 
   return (
-    <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+    <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6">
       <div className="mb-4">
         <div className="text-xs text-muted">
           {node.cefrLevel} · 主题作文 · {GENRE_LABELS[genre]}

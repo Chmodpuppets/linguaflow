@@ -40,7 +40,7 @@ const AuthGate: React.FC<AuthGateProps> = ({ defaultUsername = '', learningLangu
           <img src={brandLogo} alt="LinguaFlow" className="h-12 mb-3" />
           <p className="text-xs text-muted">登录后学习数据存云端，换设备随时取回</p>
         </div>
-        <div className="rounded-2xl border border-white/10 glass-panel p-6 space-y-3">
+        <div className="rounded-2xl border border-white/10 glass-panel p-4 md:p-6 space-y-3">
           <div className="flex rounded-lg bg-white/5 p-1 text-xs font-bold">
             <button
               onClick={() => { setMode('register'); setMsg(null); }}

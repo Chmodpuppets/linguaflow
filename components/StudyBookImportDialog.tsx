@@ -94,7 +94,7 @@ const StudyBookImportDialog: React.FC<StudyBookImportDialogProps> = ({ language,
           </button>
         </div>
 
-        <div className="p-6 space-y-4 overflow-y-auto">
+        <div className="p-4 md:p-6 space-y-4 overflow-y-auto">
           {/* 书名 */}
           <div>
             <label className="block text-xs font-bold text-muted uppercase mb-1">书名</label>

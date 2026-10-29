@@ -176,7 +176,7 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser, ini
       {viewMode === 'review' && (
         <div className="max-w-2xl mx-auto w-full">
           {queue.length > 0 ? (
-            <div className="glass-panel rounded-2xl p-8 text-center">
+            <div className="glass-panel rounded-2xl p-4 md:p-8 text-center">
               <div className="flex justify-between items-center mb-4 text-xs text-muted">
                 <span>复习进度 {reviewDone}/{queue.length}</span>
                 <span className="px-2 py-0.5 rounded-full bg-surface-2 border border-line-strong">
@@ -363,7 +363,7 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser, ini
                       <button onClick={resetForm} className="text-muted hover:text-white"><X size={20} /></button>
                   </div>
                   
-                  <div className="p-6 space-y-4 overflow-y-auto">
+                  <div className="p-4 md:p-6 space-y-4 overflow-y-auto">
                       <div>
                           <label className="block text-xs font-bold text-muted uppercase mb-1">单词</label>
                           <div className="flex gap-2">

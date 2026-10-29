@@ -1007,7 +1007,7 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
         </div>
 
         {sessionFinished ? (
-          <GlassCard className="p-8 text-center space-y-4">
+          <GlassCard className="p-4 md:p-8 text-center space-y-4">
             <div className="text-5xl">🎉</div>
             <h2 className="text-2xl font-bold text-white">全部跟打通过！</h2>
             <p className="text-muted">《{activePack.title}》共 {total} 句，已全部打对。</p>
@@ -1020,7 +1020,7 @@ const SongLabView: React.FC<SongLabViewProps> = ({ user, onUpdateUser: _onUpdate
           </GlassCard>
         ) : (
           line && (
-            <GlassCard className="p-6 space-y-5">
+            <GlassCard className="p-4 md:p-6 space-y-5">
               {/* 进度条 */}
               <div className="h-2 bg-surface-2 rounded-full overflow-hidden">
                 <div

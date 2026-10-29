@@ -602,7 +602,7 @@ const WritingTreeView: React.FC<WritingTreeViewProps> = ({ user, onUpdateUser })
             onExamModeChange={(v) => saveExamMode(active.id, v)}
           />
         ) : (
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6">
             <div className="mb-4">
               <div className="text-xs text-muted">{active.cefrLevel ?? userLevel} · 写作任务{active.register ? ` · ${REGISTER_LABELS[active.register]}语气` : ''}</div>
               {active.spine && active.practiceType && (

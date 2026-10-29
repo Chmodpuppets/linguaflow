@@ -132,7 +132,7 @@ const renderExamPanel = (scores: ExamScores, exam: TargetExam, generalComment: s
   }
 
   return (
-    <div className="glass-panel p-6 rounded-xl shadow-card space-y-4">
+    <div className="glass-panel p-4 md:p-6 rounded-xl shadow-card space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-muted text-sm font-medium">{title}</h3>
@@ -298,7 +298,7 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder={`用 ${user.learningLanguage} 写点什么……`}
-                className="flex-grow w-full bg-dark/50 border border-white/10 rounded-xl p-6 text-lg leading-relaxed text-gray-200 focus:ring-2 focus:ring-neon/40 focus:border-neon/40 focus:shadow-glow-sm outline-none resize-none transition-all duration-300"
+                className="flex-grow w-full bg-dark/50 border border-white/10 rounded-xl p-4 md:p-6 text-lg leading-relaxed text-gray-200 focus:ring-2 focus:ring-neon/40 focus:border-neon/40 focus:shadow-glow-sm outline-none resize-none transition-all duration-300"
             />
             <div className="absolute bottom-4 right-4 text-muted text-sm font-mono">
                 {text.length} 字
@@ -390,7 +390,7 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
                 {feedback.examScores && user.targetExam ? (
                   renderExamPanel(feedback.examScores, user.targetExam, feedback.generalComment, feedback.cefrEstimation)
                 ) : (
-                  <div className="glass-panel p-6 rounded-xl shadow-card flex items-center justify-between">
+                  <div className="glass-panel p-4 md:p-6 rounded-xl shadow-card flex items-center justify-between">
                     <div>
                         <h3 className="text-muted text-sm font-medium">预估等级</h3>
                         <p className="text-3xl font-bold text-white mt-1">{feedback.cefrEstimation}</p>
@@ -414,7 +414,7 @@ const WritingView: React.FC<WritingViewProps> = ({ user, onComplete }) => {
                         <Sparkles size={16} className="text-yellow-400" />
                         AI 润色版
                     </div>
-                    <div className="p-6 text-gray-200 leading-relaxed bg-dark/30">
+                    <div className="p-4 md:p-6 text-gray-200 leading-relaxed bg-dark/30">
                         {feedback.correctedText}
                     </div>
                 </div>

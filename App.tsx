@@ -546,8 +546,8 @@ const App: React.FC = () => {
 
       {/* Main Content */}
       <main className="relative z-10 flex-1 flex flex-col min-h-0 overflow-hidden">
-        {/* Mobile Header */}
-        <header className="md:hidden flex items-center justify-between p-4 border-b border-white/5 glass-panel">
+        {/* Mobile Header —— pt 留出 iPhone 刘海/灵动岛安全区 */}
+        <header className="md:hidden flex items-center justify-between px-4 pb-4 pt-[calc(1rem+env(safe-area-inset-top))] border-b border-white/5 glass-panel">
             <div className="flex items-center gap-2">
                  <img src={brandIcon} alt="LinguaFlow" className="w-8 h-8 rounded-lg" />
                  <span className="font-bold neon-text">LinguaFlow</span>
@@ -557,18 +557,19 @@ const App: React.FC = () => {
             </button>
         </header>
 
-        {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar relative">
+        {/* Content Area —— 底部留出 iPhone home indicator 安全区 */}
+        <div className="flex-1 overflow-y-auto p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:p-8 custom-scrollbar relative">
 
-            {/* Context Badge */}
-            <div className="absolute top-4 right-4 md:top-8 md:right-8 flex items-center gap-2 opacity-50 pointer-events-none">
-                <span className="text-4xl">{currentFlag}</span>
-                <span className="text-6xl font-black text-line select-none uppercase -ml-4 z-[-1] tracking-tighter">{user.learningLanguage}</span>
+            {/* Context Badge：移动端必须缩小 —— text-6xl 的语言名在 390px 宽下
+                会横向压住页面标题（每个模块都吃这个亏）。桌面维持原尺寸。 */}
+            <div className="absolute top-2 right-3 md:top-8 md:right-8 flex items-center gap-1 md:gap-2 opacity-30 md:opacity-50 pointer-events-none">
+                <span className="text-xl md:text-4xl">{currentFlag}</span>
+                <span className="text-2xl md:text-6xl font-black text-line select-none uppercase -ml-1 md:-ml-4 z-[-1] tracking-tighter">{user.learningLanguage}</span>
             </div>
 
             <div className="max-w-6xl mx-auto h-full flex flex-col">
-                <div className="mb-6">
-                    <h2 className="text-2xl font-bold text-white flex items-center gap-2 tracking-tight">
+                <div className="mb-4 md:mb-6">
+                    <h2 className="text-xl md:text-2xl font-bold text-white flex items-center gap-2 tracking-tight">
                         {NAV_ITEMS.find(n => n.id === mode)?.label}
                     </h2>
                     <div className="title-underline w-24 mt-2" />

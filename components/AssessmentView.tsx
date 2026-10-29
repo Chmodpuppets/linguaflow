@@ -34,7 +34,7 @@ const AssessmentView: React.FC<AssessmentViewProps> = ({ language, onLevelSet })
 
   return (
     <div className="max-w-3xl mx-auto space-y-8">
-      <div className="glass-panel p-6 rounded-2xl border border-white/10">
+      <div className="glass-panel p-4 md:p-6 rounded-2xl border border-white/10">
         <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
           <span className="text-neon-2">AI</span> 水平测试
         </h2>
@@ -70,7 +70,7 @@ const AssessmentView: React.FC<AssessmentViewProps> = ({ language, onLevelSet })
       </div>
 
       {result && (
-        <div className="glass-panel p-8 rounded-2xl border border-neon/30 shadow-glow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="glass-panel p-4 md:p-8 rounded-2xl border border-neon/30 shadow-glow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="flex flex-col md:flex-row gap-8 items-center md:items-start">
             <div className="flex-shrink-0 text-center">
               <div className="w-32 h-32 rounded-full border-4 border-neon flex items-center justify-center bg-neon/10 shadow-glow-neon">

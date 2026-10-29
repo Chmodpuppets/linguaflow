@@ -33,7 +33,7 @@ const CustomDirectionModal: React.FC<CustomDirectionModalProps> = ({ lang, level
   if (currentCount >= MAX_CUSTOM_DIRECTIONS) {
     return (
       <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={onClose}>
-        <div className="glass-panel border border-line-strong rounded-2xl p-6 w-full max-w-sm text-center" onClick={(e) => e.stopPropagation()}>
+        <div className="glass-panel border border-line-strong rounded-2xl p-4 md:p-6 w-full max-w-sm text-center" onClick={(e) => e.stopPropagation()}>
           <Sparkles size={28} className="mx-auto mb-3 text-fuchsia-400" />
           <h3 className="font-bold text-white mb-2">自定义方向已达上限</h3>
           <p className="text-sm text-muted mb-4">最多同时保留 {MAX_CUSTOM_DIRECTIONS} 个写作方向，可先删除不用的方向再添加。</p>
@@ -65,7 +65,7 @@ const CustomDirectionModal: React.FC<CustomDirectionModalProps> = ({ lang, level
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in" onClick={creating ? undefined : onClose}>
-      <div className="glass-panel border border-neon/30 rounded-2xl p-6 w-full max-w-lg animate-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
+      <div className="glass-panel border border-neon/30 rounded-2xl p-4 md:p-6 w-full max-w-lg animate-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-1">
           <h3 className="text-lg font-bold text-white flex items-center gap-2">
             <Sparkles size={18} className="text-fuchsia-400" /> 添加我的写作方向

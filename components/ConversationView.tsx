@@ -282,7 +282,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ user, onStartTask, 
             </div>
           )}
 
-          <div className="rounded-2xl border border-white/[0.07] bg-surface-2/60 backdrop-blur-sm p-6">
+          <div className="rounded-2xl border border-white/[0.07] bg-surface-2/60 backdrop-blur-sm p-4 md:p-6">
             <div className="flex items-start gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-neon/15 text-violet-300">
                 <Sparkles size={20} />

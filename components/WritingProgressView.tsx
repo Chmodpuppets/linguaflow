@@ -192,7 +192,7 @@ const WritingProgressView: React.FC<WritingProgressViewProps> = ({ user }) => {
 
           {/* 写作者养成主线（spine）8 分支进度 */}
           {spineBranches.length > 0 && (
-            <div className="glass-panel p-6 rounded-xl border border-white/10">
+            <div className="glass-panel p-4 md:p-6 rounded-xl border border-white/10">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-bold text-white flex items-center gap-2">
                   <PenLine size={16} className="text-violet-300" /> 写作者养成主线
@@ -219,7 +219,7 @@ const WritingProgressView: React.FC<WritingProgressViewProps> = ({ user }) => {
           )}
 
           {/* CEFR 等级趋势（通用，所有语言） */}
-          <div className="glass-panel p-6 rounded-xl border border-white/10">
+          <div className="glass-panel p-4 md:p-6 rounded-xl border border-white/10">
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-bold text-white">CEFR 等级趋势</h3>
               <span className="text-xs text-muted">{firstCefr} → {lastCefr}</span>
@@ -235,7 +235,7 @@ const WritingProgressView: React.FC<WritingProgressViewProps> = ({ user }) => {
 
           {/* 考试总分趋势（仅当启用考试评分且存在记录） */}
           {examValues.length > 0 ? (
-            <div className="glass-panel p-6 rounded-xl border border-white/10">
+            <div className="glass-panel p-4 md:p-6 rounded-xl border border-white/10">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-bold text-white">{examLabel(targetExam)}</h3>
                 <span className="text-xs text-muted">仅含启用考试目标后的记录</span>

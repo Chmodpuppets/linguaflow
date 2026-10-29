@@ -52,8 +52,10 @@ export const NeonButton: React.FC<NeonButtonProps> = ({
   ...rest
 }) => {
   const sizes = {
-    sm: 'px-3 py-1.5 text-xs rounded-lg',
-    md: 'px-5 py-2.5 text-sm rounded-xl',
+    // 移动端加大纵向 padding：手指触摸目标需接近 44px（Apple HIG），
+    // 原来的 py-1.5 只有 ~28px 高，手机上很难点准。
+    sm: 'px-3 py-2.5 sm:py-1.5 text-xs rounded-lg',
+    md: 'px-5 py-3 sm:py-2.5 text-sm rounded-xl',
     lg: 'px-7 py-3.5 text-base rounded-xl',
   };
   const variants = {
@@ -156,7 +158,7 @@ export const SectionTitle: React.FC<SectionTitleProps> = ({
 }) => (
   <div className={`flex items-end justify-between gap-4 ${className}`}>
     <div>
-      <h3 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+      <h3 className="text-base sm:text-lg font-bold text-white tracking-tight flex items-center gap-2">
         {title}
       </h3>
       <div className="title-underline w-16 mt-1.5" />
@@ -191,7 +193,7 @@ export const StatChip: React.FC<StatChipProps> = ({
   return (
     <div
       className={`
-        flex items-center gap-3 px-4 py-3 rounded-xl
+        flex items-center gap-2.5 sm:gap-3 px-3 py-2.5 sm:px-4 sm:py-3 rounded-xl
         bg-surface-2/70 border border-white/[0.06] backdrop-blur-sm
         transition-all duration-300 hover:border-neon/30 hover:shadow-glow-sm
         ${className}

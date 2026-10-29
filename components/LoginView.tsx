@@ -35,7 +35,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-dark text-white p-4">
-      <div className="w-full max-w-3xl glass-panel rounded-3xl p-8 md:p-10 shadow-glow-neon relative overflow-y-auto max-h-[92vh]">
+      <div className="w-full max-w-3xl glass-panel rounded-3xl p-4 md:p-10 shadow-glow-neon relative overflow-y-auto max-h-[92vh]">
         {/* Background blobs */}
         <div className="absolute top-6 right-6 w-32 h-32 bg-neon/20 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-6 left-6 w-32 h-32 bg-neon-2/20 rounded-full blur-3xl pointer-events-none" />

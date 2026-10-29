@@ -511,7 +511,7 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
   }, [handbook, lang]);
 
   if (!activeCard) {
-    return <div className="mx-auto max-w-4xl p-8 text-muted">本赛季还没有写作卡，敬请期待～</div>;
+    return <div className="mx-auto max-w-4xl p-4 md:p-8 text-muted">本赛季还没有写作卡，敬请期待～</div>;
   }
 
   const benchmark = WEEKLY_BENCHMARK[level] ?? 4;
@@ -865,7 +865,7 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
                 <span className="ml-auto text-xs text-muted">{handbook.length}</span>
               </div>
               {handbook.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-line-strong p-6 text-center text-xs text-muted">
+                <div className="rounded-xl border border-dashed border-line-strong p-4 md:p-6 text-center text-xs text-muted">
                   还没有收藏的句子。<br />写完交给教练，挑一句亮点收进来吧～
                 </div>
               ) : (
@@ -902,7 +902,7 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
                 听写模式生成的句子会自动留在这里，可重听、重做，反复磨耳朵。
               </p>
               {listeningLib.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-line-strong p-6 text-center text-xs text-muted">
+                <div className="rounded-xl border border-dashed border-line-strong p-4 md:p-6 text-center text-xs text-muted">
                   还没有听力素材。<br />切到「听写」模式，点「生成听写句」就会自动存进来～
                 </div>
               ) : (
@@ -992,7 +992,7 @@ const InkQuestView: React.FC<InkQuestViewProps> = ({ user, onUpdateUser }) => {
                   {story.text}
                 </div>
               ) : (
-                <div className="rounded-xl border border-dashed border-line-strong p-6 text-center text-xs text-muted">
+                <div className="rounded-xl border border-dashed border-line-strong p-4 md:p-6 text-center text-xs text-muted">
                   还没有故事。<br />收几句亮点进手帐，AI 会把它们织成一段属于你的旅程日记。
                 </div>
               )}

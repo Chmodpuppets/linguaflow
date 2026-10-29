@@ -300,8 +300,8 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout,
     <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
       
       {/* Header Profile Card */}
-      <div className="bg-gradient-to-r from-neon/20 to-neon-2/10 border border-neon/30 p-6 md:p-8 rounded-3xl relative overflow-hidden shadow-glow-neon">
-        <div className="absolute top-0 right-0 p-8 opacity-10">
+      <div className="bg-gradient-to-r from-neon/20 to-neon-2/10 border border-neon/30 p-4 md:p-8 rounded-3xl relative overflow-hidden shadow-glow-neon">
+        <div className="absolute top-0 right-0 p-4 md:p-8 opacity-10">
             <Trophy size={200} />
         </div>
 
@@ -383,7 +383,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout,
             <div className="space-y-6">
                 
                 {/* Multi-Language Stats Card */}
-                <div className="glass-panel border-white/10 rounded-2xl p-6">
+                <div className="glass-panel border-white/10 rounded-2xl p-4 md:p-6">
                     <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                         <Globe size={20} className="text-neon-2" /> 语言进度
                     </h3>
@@ -412,7 +412,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout,
                 </div>
 
                 {/* Calendar */}
-                <div className="glass-panel border-white/10 rounded-2xl p-6">
+                <div className="glass-panel border-white/10 rounded-2xl p-4 md:p-6">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-bold text-white flex items-center gap-2">
                             <Calendar size={20} className="text-neon" /> {analytics.monthName}
@@ -485,7 +485,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout,
                 </div>
 
                 {/* Accuracy Graph (Simple Visual) */}
-                <div className="glass-panel border-white/10 p-6 rounded-2xl">
+                <div className="glass-panel border-white/10 p-4 md:p-6 rounded-2xl">
                     <h3 className="text-lg font-bold text-white mb-6">近期准确率趋势</h3>
                     <div className="h-32 flex items-end justify-between gap-2">
                         {analytics.accuracyTrend.length === 0 ? (
@@ -514,7 +514,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout,
                     </div>
                     <div className="divide-y divide-line-strong max-h-[400px] overflow-y-auto custom-scrollbar">
                         {logs.length === 0 ? (
-                            <div className="p-8 text-center text-muted">还没有活动，开始训练吧！</div>
+                            <div className="p-4 md:p-8 text-center text-muted">还没有活动，开始训练吧！</div>
                         ) : (
                             logs.map(log => (
                                 <div key={log.id} className="p-4 hover:bg-white/5 transition-colors">
@@ -549,7 +549,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout,
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in duration-300">
               
               {/* Language Settings Card */}
-              <div className="glass-panel border-white/10 rounded-2xl p-6 h-fit">
+              <div className="glass-panel border-white/10 rounded-2xl p-4 md:p-6 h-fit">
                   <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
                       <User size={20} className="text-neon-2" /> 语言设置
                   </h3>
@@ -628,7 +628,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout,
               </div>
 
               {/* Personalization Card */}
-              <div className="glass-panel border-white/10 rounded-2xl p-6 h-fit">
+              <div className="glass-panel border-white/10 rounded-2xl p-4 md:p-6 h-fit">
                 <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
                   <User size={20} className="text-neon-2" /> AI 导师与兴趣
                 </h3>
@@ -706,7 +706,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout,
               </div>
 
               {/* Data & Backup Card */}
-              <div className="glass-panel border-white/10 rounded-2xl p-6 h-fit">
+              <div className="glass-panel border-white/10 rounded-2xl p-4 md:p-6 h-fit">
                 <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                   <Database size={20} className="text-neon-2" /> 数据备份与同步
                 </h3>
@@ -756,7 +756,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout,
 
       {activeTab === 'models' && (
           <div className="animate-in fade-in duration-300">
-              <div className="glass-panel border-white/10 rounded-2xl p-6 max-w-4xl mx-auto">
+              <div className="glass-panel border-white/10 rounded-2xl p-4 md:p-6 max-w-4xl mx-auto">
                 <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                   <Cpu size={20} className="text-neon" /> 模型设置
                 </h3>
@@ -875,11 +875,46 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout,
 
                 {/* --- 按任务分配模型 --- */}
                 <div className="border-t border-line-strong pt-4">
-                  <label className="text-sm font-bold text-muted mb-1 flex items-center gap-2">
-                    <Cpu size={16} className="text-neon" /> 按任务分配模型
-                  </label>
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                    <label className="text-sm font-bold text-muted flex items-center gap-2">
+                      <Cpu size={16} className="text-neon" /> 按任务分配模型
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() =>
+                          setModelCfg({
+                            ...modelCfg,
+                            taskRoutes: Object.fromEntries(TASK_CATS.map((c) => [c, 'fast' as TaskTier])),
+                          })
+                        }
+                        className="px-2 py-1 rounded-lg bg-neon-2/15 border border-neon-2/30 text-neon-2 text-[11px] font-bold hover:bg-neon-2/25 transition-colors"
+                        title="所有任务都用快模型（GLM / Qwen）"
+                      >
+                        全部快模型
+                      </button>
+                      <button
+                        onClick={() =>
+                          setModelCfg({
+                            ...modelCfg,
+                            taskRoutes: Object.fromEntries(TASK_CATS.map((c) => [c, 'reason' as TaskTier])),
+                          })
+                        }
+                        className="px-2 py-1 rounded-lg bg-neon/15 border border-neon/30 text-violet-300 text-[11px] font-bold hover:bg-neon/25 transition-colors"
+                        title="所有任务都用高推理模型（OpenRouter）"
+                      >
+                        全部高推理
+                      </button>
+                      <button
+                        onClick={() => setModelCfg({ ...modelCfg, taskRoutes: undefined })}
+                        className="px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-muted text-[11px] font-bold hover:text-white hover:bg-white/10 transition-colors"
+                        title="恢复「按任务类型自动选择」的默认分配"
+                      >
+                        恢复默认
+                      </button>
+                    </div>
+                  </div>
                   <p className="text-xs text-muted mb-3 leading-relaxed">
-                    不同学习环节用不同模型：打字辅助、取词等高频小活走 <b className="text-neon-2">快模型</b>（响应快）；写作批改、错误诊断、考试评分等深推理活走 <b className="text-neon">高推理模型</b>（OpenRouter）。可在每项单独覆盖。
+                    不同学习环节用不同模型：打字辅助、取词等高频小活走 <b className="text-neon-2">快模型</b>（响应快）；写作批改、错误诊断、考试评分等深推理活走 <b className="text-neon">高推理模型</b>（OpenRouter）。可在每项单独覆盖；顶部的三个按钮可一键全量切换，记得点下方「保存」。
                   </p>
                   <div className="space-y-2">
                     {TASK_CATS.map((cat) => (
@@ -941,7 +976,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout,
       {/* Logout confirmation modal */}
       {showLogoutModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-md glass-panel border-white/10 rounded-2xl p-6 shadow-glow-neon">
+          <div className="w-full max-w-md glass-panel border-white/10 rounded-2xl p-4 md:p-6 shadow-glow-neon">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-amber-500/15 flex items-center justify-center shrink-0">
                 <AlertTriangle size={20} className="text-amber-400" />

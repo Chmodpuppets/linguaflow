@@ -64,7 +64,7 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser, onNavigate })
   return (
     <div className="mx-auto max-w-4xl space-y-8">
       {/* Hero：极光渐变 + 玻璃面 */}
-      <section className="relative overflow-hidden rounded-2xl border border-white/[0.07] bg-gradient-to-br from-neon/20 via-surface-2/70 to-surface-2/50 backdrop-blur-sm p-6 md:p-8 shadow-card">
+      <section className="relative overflow-hidden rounded-2xl border border-white/[0.07] bg-gradient-to-br from-neon/20 via-surface-2/70 to-surface-2/50 backdrop-blur-sm p-4 md:p-8 shadow-card">
         <div className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full bg-neon/25 blur-3xl" />
         <div className="pointer-events-none absolute -left-8 -bottom-10 h-36 w-36 rounded-full bg-neon-2/15 blur-3xl" />
         <div className="relative flex flex-wrap items-center justify-between gap-5">

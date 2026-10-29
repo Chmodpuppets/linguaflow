@@ -252,7 +252,7 @@ const StudySessionView: React.FC<StudySessionViewProps> = ({ book, chapterId, us
       </div>
 
       {/* 练习卡 */}
-      <div className="glass-panel rounded-2xl p-8 text-center">
+      <div className="glass-panel rounded-2xl p-4 md:p-8 text-center">
         <span className="inline-block text-xs font-mono text-neon-2 px-2 py-0.5 bg-neon-2/10 rounded-full border border-neon-2/20 mb-4">
           {current.type}
           {current.partOfSpeech ? ` · ${current.partOfSpeech}` : ''}
