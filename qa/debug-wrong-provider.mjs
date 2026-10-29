@@ -1,7 +1,7 @@
 // 验证：Key 填错厂商（智谱 Key 放进 Qwen）时应报「鉴权失败」而不是「限流」
 import { chromium } from 'playwright';
 for (const k of ['HTTP_PROXY','HTTPS_PROXY','http_proxy','https_proxy','ALL_PROXY','all_proxy']) delete process.env[k];
-const BASE_URL = process.env.BASE_URL || 'http://47.107.187.5';
+const BASE_URL = process.env.BASE_URL || 'https://linguaflow.pathmora.cn';
 const KEY = process.env.GLM_TEST_KEY || '';
 const username = `qa_403_${Date.now().toString().slice(-8)}`;
 if (!KEY) { console.error('缺少 GLM_TEST_KEY'); process.exit(2); }

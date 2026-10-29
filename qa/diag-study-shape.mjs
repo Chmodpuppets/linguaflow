@@ -1,7 +1,7 @@
 // dump：seed 后一本书的原始结构（item 是否有 id、是否共享引用）
 import { chromium } from 'playwright';
 for (const k of ['HTTP_PROXY','HTTPS_PROXY','http_proxy','https_proxy','ALL_PROXY','all_proxy']) delete process.env[k];
-const BASE_URL = process.env.BASE_URL || 'http://47.107.187.5';
+const BASE_URL = process.env.BASE_URL || 'https://linguaflow.pathmora.cn';
 const USER = process.env.QA_REUSE_USER || '';
 const browser = await chromium.launch({ channel: 'chrome', args: ['--no-proxy-server'] });
 const page = await (await browser.newContext()).newPage();

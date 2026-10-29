@@ -1,7 +1,7 @@
 // 诊断：浏览器里直接打 /llm/chat，看到底是 CORS、401 还是别的问题
 import { chromium } from 'playwright';
 for (const k of ['HTTP_PROXY','HTTPS_PROXY','http_proxy','https_proxy','ALL_PROXY','all_proxy']) delete process.env[k];
-const BASE_URL = process.env.BASE_URL || 'http://47.107.187.5';
+const BASE_URL = process.env.BASE_URL || 'https://linguaflow.pathmora.cn';
 const KEY = process.env.GLM_TEST_KEY || '';
 const username = `qa_dbg_${Date.now().toString().slice(-8)}`;
 
@@ -25,7 +25,7 @@ console.log('本地自定义 server:', info.server || '(空，走内置地址)')
 
 const result = await page.evaluate(async (key) => {
   const token = localStorage.getItem('linguaflow_sync_token') || '';
-  const base = 'http://47.107.187.5:8787';
+  const base = 'https://linguaflow.pathmora.cn/api';
   try {
     const res = await fetch(`${base}/llm/chat`, {
       method: 'POST',

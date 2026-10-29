@@ -2,7 +2,7 @@ import { chromium } from 'playwright';
 for (const k of ['HTTP_PROXY','HTTPS_PROXY','http_proxy','https_proxy','ALL_PROXY','all_proxy']) delete process.env[k];
 const b = await chromium.launch({ channel: 'chrome', args: ['--no-proxy-server'] });
 const p = await (await b.newContext()).newPage();
-await p.goto('http://47.107.187.5', { waitUntil: 'domcontentloaded' });
+await p.goto('https://linguaflow.pathmora.cn', { waitUntil: 'domcontentloaded' });
 await p.waitForTimeout(1500);
 await p.getByPlaceholder('用户名').fill(process.env.U);
 await p.getByPlaceholder(/密码/).fill('qa-test-123456');

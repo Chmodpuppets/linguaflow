@@ -1,5 +1,5 @@
 // 线上端到端验证：AuthGate 注册 → 登录 → 错误密码拒绝。
-// 用法：BASE_URL=http://47.107.187.5 node qa/e2e-auth.mjs
+// 用法：BASE_URL=https://linguaflow.pathmora.cn node qa/e2e-auth.mjs
 // 会创建临时测试用户（qa_probe_<时间戳>）。
 
 import { chromium } from 'playwright';
@@ -8,7 +8,7 @@ for (const k of ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'ALL_
   delete process.env[k];
 }
 
-const BASE_URL = process.env.BASE_URL || 'http://47.107.187.5';
+const BASE_URL = process.env.BASE_URL || 'https://linguaflow.pathmora.cn';
 const username = `qa_probe_${Date.now().toString().slice(-8)}`;
 const password = 'qa-test-123456';
 

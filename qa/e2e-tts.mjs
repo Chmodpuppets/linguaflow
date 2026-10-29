@@ -1,7 +1,7 @@
 // TTS 验证：配置 Qwen Key 后点「试听这个声音」，应不再报 401
 import { chromium } from 'playwright';
 for (const k of ['HTTP_PROXY','HTTPS_PROXY','http_proxy','https_proxy','ALL_PROXY','all_proxy']) delete process.env[k];
-const BASE_URL = process.env.BASE_URL || 'http://47.107.187.5';
+const BASE_URL = process.env.BASE_URL || 'https://linguaflow.pathmora.cn';
 const KEY = process.env.QWEN_TEST_KEY || '';
 const username = `qa_tts_${Date.now().toString().slice(-8)}`;
 if (!KEY) { console.error('缺少 QWEN_TEST_KEY'); process.exit(2); }

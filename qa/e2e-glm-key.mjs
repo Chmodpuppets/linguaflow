@@ -2,7 +2,7 @@
 // 用法：GLM_TEST_KEY=xxxx.yyyy node qa/e2e-glm-key.mjs
 import { chromium } from 'playwright';
 for (const k of ['HTTP_PROXY','HTTPS_PROXY','http_proxy','https_proxy','ALL_PROXY','all_proxy']) delete process.env[k];
-const BASE_URL = process.env.BASE_URL || 'http://47.107.187.5';
+const BASE_URL = process.env.BASE_URL || 'https://linguaflow.pathmora.cn';
 const KEY = process.env.GLM_TEST_KEY || '';
 const username = `qa_glm_${Date.now().toString().slice(-8)}`;
 if (!KEY) { console.error('缺少 GLM_TEST_KEY'); process.exit(2); }

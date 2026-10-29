@@ -1,7 +1,7 @@
 // 复现任务系统两个 bug：
 //   1) 点「完成」无反应（期望：弹出 1–3 星通关评价 → 打星后任务标记完成）
 //   2) 词汇任务点「开始」无反应（期望：跳转到词汇界面）
-// 用法：BASE_URL=http://47.107.187.5 node qa/repro-tasks.mjs
+// 用法：BASE_URL=https://linguaflow.pathmora.cn node qa/repro-tasks.mjs
 // 会注册临时用户 qa_task_<时间戳>。
 
 import { chromium } from 'playwright';
@@ -10,7 +10,7 @@ for (const k of ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'ALL_
   delete process.env[k];
 }
 
-const BASE_URL = process.env.BASE_URL || 'http://47.107.187.5';
+const BASE_URL = process.env.BASE_URL || 'https://linguaflow.pathmora.cn';
 const username = `qa_task_${Date.now().toString().slice(-8)}`;
 const password = 'qa-test-123456';
 const SHOT = (n) => `qa-screenshots/repro-tasks-${n}.png`;

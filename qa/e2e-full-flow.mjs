@@ -8,7 +8,7 @@ import fs from 'fs';
 import path from 'path';
 for (const k of ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy', 'ALL_PROXY', 'all_proxy']) delete process.env[k];
 
-const BASE_URL = process.env.BASE_URL || 'http://47.107.187.5';
+const BASE_URL = process.env.BASE_URL || 'https://linguaflow.pathmora.cn';
 const STAGE = process.argv[2] || 'all';
 const ROOT = path.resolve(import.meta.dirname, '..');
 

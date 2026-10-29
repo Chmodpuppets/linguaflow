@@ -2,7 +2,7 @@
 // 用法：TEST_PROVIDER=glm|qwen|deepseek|openrouter TEST_KEY=xxx [TEST_MODEL=xxx] node qa/e2e-provider-key.mjs
 import { chromium } from 'playwright';
 for (const k of ['HTTP_PROXY','HTTPS_PROXY','http_proxy','https_proxy','ALL_PROXY','all_proxy']) delete process.env[k];
-const BASE_URL = process.env.BASE_URL || 'http://47.107.187.5';
+const BASE_URL = process.env.BASE_URL || 'https://linguaflow.pathmora.cn';
 const PROVIDER = process.env.TEST_PROVIDER || 'glm';
 const KEY = process.env.TEST_KEY || '';
 const MODEL = process.env.TEST_MODEL || '';

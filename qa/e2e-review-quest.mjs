@@ -4,7 +4,7 @@
 // 用法：node qa/e2e-review-quest.mjs
 import { chromium } from 'playwright';
 for (const k of ['HTTP_PROXY','HTTPS_PROXY','http_proxy','https_proxy','ALL_PROXY','all_proxy']) delete process.env[k];
-const BASE_URL = process.env.BASE_URL || 'http://47.107.187.5';
+const BASE_URL = process.env.BASE_URL || 'https://linguaflow.pathmora.cn';
 const username = `qa_rq_${Date.now().toString().slice(-8)}`;
 
 const browser = await chromium.launch({ channel: 'chrome', args: ['--no-proxy-server'] });

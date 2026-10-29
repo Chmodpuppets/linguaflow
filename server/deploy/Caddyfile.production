@@ -1,30 +1,50 @@
-# LinguaFlow 线上版 — 生产 Caddyfile（前端静态托管 + API 反代，自动 HTTPS）
-# 备案通过、域名就绪后使用。把 example.com 换成你的域名。
+# LinguaFlow 线上版 — 生产 Caddyfile（前端静态托管 + API 同源反代，自动 HTTPS）
 #
-# DNS 需要两条 A 记录都指向本机公网 IP：
-#   @   → 47.107.187.5   （前端 https://example.com）
-#   api → 47.107.187.5   （API   https://api.example.com）
+# 实际在用的方案（2026-10-29 上线）：**单域名同源**。
+#   https://linguaflow.pathmora.cn/        → 前端静态（SPA）
+#   https://linguaflow.pathmora.cn/api/*   → 剥掉 /api 前缀后反代到 127.0.0.1:8787
+#
+# 为什么同源而不是 api. 子域：
+#   - 只需一条 DNS 记录、一个证书
+#   - 前端与 API 同源 → 不涉及 CORS（少一类线上 bug）
+#   - 服务端因此可以安全地 HOST=127.0.0.1，只走反代、公网不可直连
+#
+# DNS：linguaflow.pathmora.cn → A → 47.107.187.5
+# 前置：安全组放行 80/tcp + 443/tcp
 #
 # 切生产时同步要改的两处：
-#   1. 前端 .env.online 的 COMMUNITY_URL → https://api.example.com（重新 build:online）
-#   2. 服务器 /opt/linguaflow-server/.env 的 HOST=127.0.0.1（收口回环，只走 Caddy 反代）
-#      + CORS_ORIGIN=https://example.com
+#   1. 前端 .env.online 的 COMMUNITY_URL → https://linguaflow.pathmora.cn/api（重新 build:online）
+#   2. 服务器 /opt/linguaflow-server/.env：
+#        HOST=127.0.0.1
+#        CORS_ORIGIN=https://linguaflow.pathmora.cn
+#      改完 systemctl restart linguaflow-sync
+#
+# 部署：把本文件内容写到 /etc/caddy/Caddyfile → caddy validate → systemctl reload caddy
 
-# www 统一跳转到裸域
-www.example.com {
-    redir https://example.com{uri} permanent
-}
-
-# 前端：静态托管（SPA）
-example.com {
+# 兜底：IP 直连（纯 HTTP）。域名或证书出问题时仍能打开页面。
+# 注意：从这里打开时，前端调 https://<域名>/api 属跨域，社区/AI 中转会被 CORS 拦 —— 仅作应急。
+http://47.107.187.5 {
     root * /opt/linguaflow-web
     encode gzip
     try_files {path} /index.html
     file_server
 }
 
-# API：反代到本机 Node（127.0.0.1:8787，不对外直连）
-api.example.com {
-    reverse_proxy 127.0.0.1:8787
+# 正式站点
+linguaflow.pathmora.cn {
     encode gzip
+
+    # API：handle_path 会剥掉 /api 前缀再转发
+    #   /api/sync      → 127.0.0.1:8787/sync
+    #   /api/llm/chat  → 127.0.0.1:8787/llm/chat
+    handle_path /api/* {
+        reverse_proxy 127.0.0.1:8787
+    }
+
+    # 前端 SPA
+    handle {
+        root * /opt/linguaflow-web
+        try_files {path} /index.html
+        file_server
+    }
 }

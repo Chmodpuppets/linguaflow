@@ -1,7 +1,7 @@
 // 端到端：注入历史脏 id → 进模块 → 验证是否被修复（唯一 + 合法 + 业务字段不变）
 import { chromium } from 'playwright';
 for (const k of ['HTTP_PROXY','HTTPS_PROXY','http_proxy','https_proxy','ALL_PROXY','all_proxy']) delete process.env[k];
-const BASE_URL = process.env.BASE_URL || 'http://47.107.187.5';
+const BASE_URL = process.env.BASE_URL || 'https://linguaflow.pathmora.cn';
 const USER = process.env.QA_REUSE_USER || '';
 const PASS = 'qa-test-123456';
 const BAD = 'undefinedundefinedundefinedundefined-undefinedundefined';
