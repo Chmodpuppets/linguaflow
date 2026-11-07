@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { UserProfile, AppMode, QuestKind, ActivityLog, DailyFlywheel, FlywheelStep } from '../types';
 import { getDueVocabulary, getLogs, getDailyFlywheel, commitDailyStreak } from '../services/storageService';
 import { getScriptPackForLanguage } from '../data/scriptPacks';
+import { SUPPORTED_LANGUAGES } from '../constants';
 import { Flame, Shield, CheckCircle2, ArrowRight, Sparkles, Target, BookOpen, MessageSquare, PenTool, Type, Trophy, PenLine, Feather, Headphones } from 'lucide-react';
 import { GlassCard, NeonButton, NeonBadge, SectionTitle } from './ui';
 
@@ -51,7 +52,7 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser, onNavigate })
     const out = weekLogs.reduce((acc, l) => acc + (l.details.wordCount || 0), 0);
     setWeeklyOutput(out);
     setDoneCount(user.dailyQuests.filter((q) => q.completed).length);
-    const fw = getDailyFlywheel();
+    const fw = getDailyFlywheel(user.learningLanguage);
     setFlywheel(fw);
     // 若今日产出线已完成但连胜尚未计入，补记（commitDailyStreak 内部防重）
     if (fw && fw.allDone && user.lastStreakDate !== todayStr()) {
@@ -60,6 +61,8 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser, onNavigate })
   }, [user]);
 
   const questsCompletedAll = user.dailyQuests.length > 0 && user.dailyQuests.every((q) => q.completed);
+  // 产出线按语言独立，标题要点名当前语言，避免「刚才明明做完了怎么又 0/3」的困惑
+  const flywheelLang = SUPPORTED_LANGUAGES.find((l) => l.id === user.learningLanguage);
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
@@ -101,7 +104,7 @@ const DailyView: React.FC<DailyViewProps> = ({ user, onUpdateUser, onNavigate })
       <section className="page-enter" style={{ animationDelay: '40ms' }}>
         <SectionTitle
           className="mb-3"
-          title={<span className="flex items-center gap-2"><Sparkles size={18} className="text-neon" />今日产出线</span>}
+          title={<span className="flex items-center gap-2"><Sparkles size={18} className="text-neon" />今日产出线<span className="text-xs font-medium text-faint">· {flywheelLang ? `${flywheelLang.flag} ${flywheelLang.label}` : user.learningLanguage}</span></span>}
           right={<NeonBadge tone={flywheel?.allDone ? 'cyan' : 'neon'}>{flywheel ? `${flywheelDone}/${flywheelTotal} 完成` : '—'}</NeonBadge>}
         />
         {flywheel && (

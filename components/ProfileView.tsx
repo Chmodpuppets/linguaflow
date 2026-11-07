@@ -1,10 +1,11 @@
 
-import React, { useMemo, useState, useRef } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { UserProfile, ActivityLog, Language, LanguageProgress, CEFRLevel, MentorPersona, TargetExam } from '../types';
 import { getLogs, ensureLanguageProgress, saveUser, getAIConfig, saveAIConfig, clearAllLearningData, AIConfig, getLevelInfo, TaskCategory, TaskTier, TASK_CATEGORY_LABELS, DEFAULT_TASK_ROUTES, exportAllData, importAllData } from '../services/storageService';
 import { testModelConnection, GLM_ENV_API_KEY, TTS_VOICES, previewVoice } from '../services/aiService';
-import { Trophy, Flame, Calendar, Clock, PenTool, Type, Zap, TrendingUp, TrendingDown, Activity, Check, Globe, Settings, GraduationCap, ChevronDown, User, LogOut, Download, Upload, Database, Crown, AlertTriangle, Volume2, Cpu } from 'lucide-react';
-import { SUPPORTED_LANGUAGES, MENTOR_PERSONAS, TOPIC_PACKAGES } from '../constants';
+import { Trophy, Flame, Calendar, Clock, PenTool, Type, Zap, TrendingUp, TrendingDown, Activity, Check, Globe, Settings, GraduationCap, ChevronDown, User, LogOut, Download, Upload, Database, Crown, AlertTriangle, Volume2, Cpu, ShieldCheck } from 'lucide-react';
+import { SUPPORTED_LANGUAGES, MENTOR_PERSONAS, TOPIC_PACKAGES, EXAM_LANGUAGE_MAP } from '../constants';
+import { getAiConsentState, setAiConsent, AiConsentState, AI_CONSENT_CHANGED_EVENT } from '../services/aiConsent';
 import AssessmentView from './AssessmentView';
 
 interface ProfileViewProps {
@@ -15,16 +16,7 @@ interface ProfileViewProps {
   initialTab?: 'overview' | 'settings' | 'models';
 }
 
-// 考试目标 ↔ 语言 映射（用于下拉筛选与切换语言时自动回落）
-const EXAM_LANGUAGE_MAP: Record<TargetExam, Language | null> = {
-  none: null,
-  IELTS: Language.English,
-  TOEFL: Language.English,
-  JLPT: Language.Japanese,
-  TOPIK: Language.Korean,
-  DELE: Language.Spanish,
-};
-
+// 考试目标 ↔ 语言 映射来自 constants（与顶栏语言切换器共用）
 const EXAM_OPTIONS: { value: TargetExam; label: string; lang: Language | null }[] = [
   { value: 'none', label: '无（通用 CEFR 反馈）', lang: null },
   { value: 'IELTS', label: '雅思 IELTS（英语）', lang: Language.English },
@@ -44,6 +36,14 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout,
   const [modelCfg, setModelCfg] = useState<AIConfig>(() => getAIConfig());
   const [modelTest, setModelTest] = useState<{ status: 'idle' | 'testing' | 'ok' | 'error'; msg: string }>({ status: 'idle', msg: '' });
   const [voiceTest, setVoiceTest] = useState<{ status: 'idle' | 'playing' | 'error'; msg: string }>({ status: 'idle', msg: '' });
+
+  // AI 调用授权：与全局弹窗共用同一份本地状态（弹窗里改这里也会同步）
+  const [aiConsent, setAiConsentState] = useState<AiConsentState>(() => getAiConsentState());
+  useEffect(() => {
+    const sync = () => setAiConsentState(getAiConsentState());
+    window.addEventListener(AI_CONSENT_CHANGED_EVENT, sync);
+    return () => window.removeEventListener(AI_CONSENT_CHANGED_EVENT, sync);
+  }, []);
 
   // 任务级模型路由：供「按任务分配模型」面板使用
   const TIER_OPTIONS: { value: TaskTier; label: string }[] = [
@@ -763,6 +763,38 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout,
                 <p className="text-xs text-muted mb-4 leading-relaxed">
                   切换驱动 AI 的底层模型。「当前模型」是默认全局选择；下方「按任务分配模型」可让不同学习环节用不同模型（高频小活走快模型、深推理活走高推理模型）。
                 </p>
+
+                {/* AI 调用授权：全站总开关，所有 AI 请求（含自动触发）都受它控制 */}
+                <div className={`mb-5 rounded-xl border p-4 ${aiConsent === 'granted' ? 'border-neon/30 bg-neon/[0.06]' : 'border-white/10 bg-white/[0.03]'}`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${aiConsent === 'granted' ? 'bg-neon/15 text-neon' : 'bg-white/5 text-muted'}`}>
+                      <ShieldCheck size={18} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-bold text-white">AI 调用授权</div>
+                      <div className="mt-0.5 text-[11px] leading-snug text-muted">
+                        {aiConsent === 'granted'
+                          ? '已允许 · 使用你自己的 API Key'
+                          : aiConsent === 'denied'
+                            ? '已关闭 · 全部 AI 功能改用本地兜底'
+                            : '尚未选择 · 首次调用 AI 时会先询问你'}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={aiConsent === 'granted'}
+                      aria-label="允许调用 AI"
+                      onClick={() => setAiConsent(aiConsent === 'granted' ? 'denied' : 'granted')}
+                      className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors ${aiConsent === 'granted' ? 'border-neon/40 bg-neon/60' : 'border-white/15 bg-white/10'}`}
+                    >
+                      <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${aiConsent === 'granted' ? 'left-[22px]' : 'left-0.5'}`} />
+                    </button>
+                  </div>
+                  <p className="mt-3 text-[11px] leading-relaxed text-faint">
+                    所有 AI 请求都经过这道开关（含自动生成的今日任务、阅读意群、语音朗读）。应用与服务器均不内置密钥；开启云端同步时模型配置（含 Key）会随备份同步到你的账号；线上版为绕过跨域限制会经本站服务器中转（域名白名单、不存储 Key）；AI 对话内容按合规要求留痕 180 天。
+                  </p>
+                </div>
 
                 <label className="text-sm font-bold text-muted mb-2 block">当前模型</label>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">

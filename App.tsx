@@ -5,6 +5,8 @@ import { SUPPORTED_LANGUAGES, NAV_ITEMS } from './constants';
 import { getUser, saveUser, ensureLanguageProgress, logoutUser, checkStreakOnLoad, rolloverDailyQuests, getDueErrorCards, getLevelInfo } from './services/storageService';
 import { startAutoSync, getAppEdition, isRegistered } from './services/communityService';
 import AuthGate from './components/AuthGate';
+import LanguageSwitcher from './components/LanguageSwitcher';
+import AiConsentDialog from './components/AiConsentDialog';
 import { ChevronDown, Menu, Flame, Star, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import brandLogo from './assets/brand/linguaflow-logo.png';
 import brandIcon from './assets/brand/linguaflow-icon.png';
@@ -196,6 +198,13 @@ const App: React.FC = () => {
     setActiveBook(null);
     setTaskContext(module);
     setMode(modeMap[module]);
+    setIsMenuOpen(false);
+  };
+
+  // 语言切换器底部「＋ 添加语言」：直接落到「我的资料 → 设置」的语言设置卡
+  const goToLanguageSettings = () => {
+    setProfileInitialTab('settings');
+    setMode(AppMode.Profile);
     setIsMenuOpen(false);
   };
 
@@ -401,6 +410,9 @@ const App: React.FC = () => {
   return (
     <div className="relative min-h-screen bg-dark text-body flex flex-col md:flex-row font-sans selection:bg-neon/30 selection:text-white">
 
+      {/* 全局 AI 调用授权弹窗：由 aiService 网络出口在首次调用时唤起 */}
+      <AiConsentDialog />
+
       {/* 暗夜氛围背景：极光漂移 + 细网格（纯装饰） */}
       <div className="ambient-bg" aria-hidden="true">
         <div className="aurora aurora-a" />
@@ -420,12 +432,16 @@ const App: React.FC = () => {
           {isSidebarCollapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
         </button>
 
-        <div className={`px-5 py-6 border-b border-white/5 flex items-center gap-3 ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''}`}>
-            {isSidebarCollapsed ? (
-              <img src={brandIcon} alt="LinguaFlow" className="w-10 h-10 rounded-xl shadow-lg transition-transform duration-300 hover:scale-110" />
-            ) : (
-              <img src={brandLogo} alt="LinguaFlow" className="w-full h-auto max-h-14 object-contain" />
-            )}
+        {/* 品牌 + 语言切换：左上角常驻，切语言不必再进「我的资料 → 设置」 */}
+        <div className={`relative border-b border-white/5 flex flex-col gap-3 ${isSidebarCollapsed ? 'px-5 py-4 md:px-2 md:py-4' : 'px-5 py-4'}`}>
+            <div className={`flex items-center ${isSidebarCollapsed ? 'md:justify-center' : ''}`}>
+              {isSidebarCollapsed ? (
+                <img src={brandIcon} alt="LinguaFlow" className="w-10 h-10 rounded-xl shadow-lg transition-transform duration-300 hover:scale-110" />
+              ) : (
+                <img src={brandLogo} alt="LinguaFlow" className="w-full h-auto max-h-14 object-contain" />
+              )}
+            </div>
+            <LanguageSwitcher user={user} onUpdateUser={handleUserUpdate} collapsed={isSidebarCollapsed} onManageLanguages={goToLanguageSettings} />
         </div>
 
         {/* Mini User Profile in Sidebar */}
@@ -547,14 +563,18 @@ const App: React.FC = () => {
       {/* Main Content */}
       <main className="relative z-10 flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* Mobile Header —— pt 留出 iPhone 刘海/灵动岛安全区 */}
-        <header className="md:hidden flex items-center justify-between px-4 pb-4 pt-[calc(1rem+env(safe-area-inset-top))] border-b border-white/5 glass-panel">
+        <header className="md:hidden relative z-30 flex items-center justify-between px-4 pb-4 pt-[calc(1rem+env(safe-area-inset-top))] border-b border-white/5 glass-panel">
             <div className="flex items-center gap-2">
                  <img src={brandIcon} alt="LinguaFlow" className="w-8 h-8 rounded-lg" />
                  <span className="font-bold neon-text">LinguaFlow</span>
             </div>
-            <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="text-white p-2 rounded-lg hover:bg-white/5 transition-colors">
-                <Menu size={24} />
-            </button>
+            <div className="flex items-center gap-1.5">
+                {/* 移动端顶栏同样可切语言：抽屉里的选择器不用先打开菜单 */}
+                <LanguageSwitcher user={user} onUpdateUser={handleUserUpdate} iconOnly align="right" onManageLanguages={goToLanguageSettings} />
+                <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="text-white p-2 rounded-lg hover:bg-white/5 transition-colors">
+                    <Menu size={24} />
+                </button>
+            </div>
         </header>
 
         {/* Content Area —— 底部留出 iPhone home indicator 安全区 */}
@@ -578,8 +598,10 @@ const App: React.FC = () => {
                     </p>
                 </div>
 
-                {/* 页面切换：mode 作为 key，触发霓虹渐入过渡 */}
-                <div key={mode} className="page-enter flex-1">
+                {/* 页面切换：mode 作为 key，触发霓虹渐入过渡
+                    语言也算 key 的一部分 —— 切语言后整个视图重新挂载，
+                    否则打字/阅读等页面会继续显示旧语言的本地内容。 */}
+                <div key={`${mode}-${user.learningLanguage}`} className="page-enter flex-1">
                     <Suspense fallback={<ViewFallback />}>
                         {renderContent()}
                     </Suspense>

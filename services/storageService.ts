@@ -324,27 +324,72 @@ const pickFlywheelTheme = (date: string): FlywheelTheme => {
   return FLYWHEEL_THEMES[h % FLYWHEEL_THEMES.length];
 };
 
-export const getDailyFlywheel = (): DailyFlywheel | null => {
-  const data = localStorage.getItem(STORAGE_KEY_FLYWHEEL);
-  return data ? JSON.parse(data) : null;
+// 今日产出线：按「日期 + 语言」两层键保存。
+// 旧实现是全局单份 → 日语写完/听写完再切英语，三步仍显示已完成。
+// 口径 A：每门语言各自一套 steps；每门语言再次完成都正常给 XP（XP 由 addActivity 按次发放，
+// 不在这里），连胜由 commitDailyStreak 的「当天防重」保证一天只记一次。
+interface FlywheelStore {
+  date: string;
+  byLang: Record<string, DailyFlywheel>;
+}
+
+const resolveFlywheelLang = (lang?: Language): string => {
+  if (lang) return String(lang);
+  try {
+    const u = getUser();
+    if (u?.learningLanguage) return String(u.learningLanguage);
+  } catch {}
+  return 'unknown';
 };
 
-export const ensureDailyFlywheel = (): DailyFlywheel => {
+const readFlywheelStore = (lang: string): FlywheelStore => {
   const today = getTodayString();
-  const existing = getDailyFlywheel();
-  if (existing && existing.date === today) return existing;
-  const th = pickFlywheelTheme(today);
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_FLYWHEEL);
+    const d = raw ? JSON.parse(raw) : null;
+    if (d && d.date === today && d.byLang && typeof d.byLang === 'object') {
+      return { date: d.date, byLang: d.byLang };
+    }
+    // 旧格式（单份、只按日期）：迁移到「当前语言」，不抹掉用户今天已经写完的产出。
+    // 该记录当天午夜自动过期，归属即使偶有偏差也只影响今天。
+    if (d && d.date === today && d.steps) {
+      const store: FlywheelStore = { date: today, byLang: { [lang]: d as DailyFlywheel } };
+      localStorage.setItem(STORAGE_KEY_FLYWHEEL, JSON.stringify(store));
+      return store;
+    }
+  } catch {}
+  return { date: today, byLang: {} };
+};
+
+const writeFlywheelStore = (byLang: Record<string, DailyFlywheel>): void => {
+  localStorage.setItem(STORAGE_KEY_FLYWHEEL, JSON.stringify({ date: getTodayString(), byLang }));
+};
+
+const ensureFlywheelForKey = (lang: string): DailyFlywheel => {
+  const store = readFlywheelStore(lang);
+  const existing = store.byLang[lang];
+  if (existing && existing.date === store.date) return existing;
+  const th = pickFlywheelTheme(store.date);
   const fw: DailyFlywheel = {
-    date: today,
+    date: store.date,
     themeId: th.id,
     theme: th.theme,
     themePrompt: th.prompt,
     steps: { writing: false, dictation: false, script: false },
     allDone: false,
   };
-  localStorage.setItem(STORAGE_KEY_FLYWHEEL, JSON.stringify(fw));
+  store.byLang[lang] = fw;
+  writeFlywheelStore(store.byLang);
   return fw;
 };
+
+export const getDailyFlywheel = (lang?: Language): DailyFlywheel | null => {
+  const key = resolveFlywheelLang(lang);
+  return readFlywheelStore(key).byLang[key] || null;
+};
+
+export const ensureDailyFlywheel = (lang?: Language): DailyFlywheel =>
+  ensureFlywheelForKey(resolveFlywheelLang(lang));
 
 const buildFlywheelReflection = (lang: Language): string => {
   const top = getTopErrorPatterns(lang, 1)[0];
@@ -353,14 +398,18 @@ const buildFlywheelReflection = (lang: Language): string => {
 };
 
 export const markFlywheelStep = (step: FlywheelStep, lang?: Language): DailyFlywheel => {
-  const fw = ensureDailyFlywheel();
+  const key = resolveFlywheelLang(lang);
+  const fw = ensureFlywheelForKey(key);
   fw.steps[step] = true;
   // 无字形包的语言（EN/ES/FR/DE/IT/ZH 等）不应被 script 步卡住：该步视为已满足，仅需写作 + 听写即可完成飞轮
   const needsScript = lang ? !!getScriptPackForLanguage(lang) : true;
   const allDone = fw.steps.writing && fw.steps.dictation && (!needsScript || fw.steps.script);
   fw.allDone = allDone;
   if (allDone) fw.reflection = lang ? buildFlywheelReflection(lang) : '今日产出线完成 🎉';
-  localStorage.setItem(STORAGE_KEY_FLYWHEEL, JSON.stringify(fw));
+  // 读-改-写：只覆盖当前语言那份，其它语言的今日进度保留
+  const store = readFlywheelStore(key);
+  store.byLang[key] = fw;
+  writeFlywheelStore(store.byLang);
   return fw;
 };
 
@@ -768,8 +817,8 @@ export const rolloverDailyQuests = (user: UserProfile): UserProfile => {
         user.lastQuestDate = today;
         saveUser(user);
     }
-    // 确保今日产出飞轮存在（跨天刷新时重置为新主题）
-    ensureDailyFlywheel();
+    // 确保今日产出飞轮存在（跨天刷新时重置为新主题）；按当前语言各自一份
+    ensureDailyFlywheel(user.learningLanguage);
     return user;
 };
 

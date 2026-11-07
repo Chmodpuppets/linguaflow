@@ -4,6 +4,7 @@ import { streamChatCompletion, buildTutorSystemPrompt, generateDailyTasks, hasUs
 import { addActivity, getLevelInfo } from '../services/storageService';
 import { Send, Sparkles, ArrowRight, CheckCircle2, Flame, Gift, Share2 } from 'lucide-react';
 import { GlassCard, NeonButton, NeonBadge, AIBadge } from './ui';
+import { isAiDisabledError, AI_DISABLED_MESSAGE } from '../services/aiConsent';
 import { Markdown } from './ui/Markdown';
 import AchievementCard from './AchievementCard';
 
@@ -37,9 +38,9 @@ const MODULE_TO_ACTIVITY: Record<DailyTask['module'], 'vocabulary' | 'typing' | 
   errorbook: 'vocabulary',
 };
 
+// 今日任务缓存：按「日期 + 语言」两层键。
+// 早期只按日期缓存 → 多语言账号切语言后仍显示上一门语言的任务（日语任务挂在英语账号下）。
 const TASKS_KEY = 'linguaflow_daily_tasks';
-const DONE_KEY = 'linguaflow_daily_tasks_done';
-const CHEST_KEY = 'linguaflow_daily_chest';
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
 // 通关评价：自评完成质量 1–3 星，XP 按倍率加成
@@ -47,36 +48,44 @@ const QUALITY_MULT: Record<number, number> = { 1: 1, 2: 1.5, 3: 2 };
 const qualityXp = (task: DailyTask, q: number) => Math.round(task.xp * QUALITY_MULT[q]);
 const QUALITY_LABEL: Record<number, string> = { 1: '已完成', 2: '认真完成', 3: '完美通关' };
 
-const loadCachedTasks = (): DailyTask[] | null => {
-  try {
-    const data = JSON.parse(localStorage.getItem(TASKS_KEY) || 'null');
-    if (data?.date === todayStr() && Array.isArray(data.tasks)) return data.tasks;
-  } catch {}
-  return null;
-};
+interface LangDayState {
+  tasks: DailyTask[];
+  done: Record<string, number>;
+  chest: { opened: boolean; reward: number | null };
+}
+interface DayStore {
+  date: string;
+  byLang: Record<string, LangDayState>;
+}
 
-const loadDone = (): Record<string, number> => {
+const EMPTY_DAY: LangDayState = { tasks: [], done: {}, chest: { opened: false, reward: null } };
+
+// 旧格式（{date, tasks} / 旧的 done、chest 两个 key）没有语言标记，无法判断属于哪门语言 → 直接丢弃，
+// 当天重新生成一次即可（比把日语任务当成英语任务显示安全）。
+const readStore = (): DayStore => {
   try {
-    const data = JSON.parse(localStorage.getItem(DONE_KEY) || 'null');
-    if (data?.date === todayStr()) {
-      if (data.done && typeof data.done === 'object' && !Array.isArray(data.done)) return data.done;
-      // 旧格式（仅 doneIds，无质量）→ 记为 1 星通关
-      if (Array.isArray(data.doneIds)) {
-        const map: Record<string, number> = {};
-        data.doneIds.forEach((id: string) => { map[id] = 1; });
-        return map;
-      }
+    const d = JSON.parse(localStorage.getItem(TASKS_KEY) || 'null');
+    if (d?.date === todayStr() && d.byLang && typeof d.byLang === 'object') {
+      return { date: d.date, byLang: d.byLang };
     }
   } catch {}
-  return {};
+  return { date: todayStr(), byLang: {} };
 };
 
-const loadChest = (): { opened: boolean; reward: number | null } => {
-  try {
-    const data = JSON.parse(localStorage.getItem(CHEST_KEY) || 'null');
-    if (data?.date === todayStr() && data.opened) return { opened: true, reward: data.reward ?? null };
-  } catch {}
-  return { opened: false, reward: null };
+const loadDay = (lang: string): LangDayState | null => {
+  const day = readStore().byLang[lang];
+  return day && Array.isArray(day.tasks) && day.tasks.length ? { ...EMPTY_DAY, ...day } : null;
+};
+
+// 读-改-写：只覆盖当前语言那份，其它语言的今日进度保留
+const saveDay = (lang: string, patch: Partial<LangDayState>) => {
+  const store = readStore();
+  const prev = store.byLang[lang] || EMPTY_DAY;
+  const next: DayStore = {
+    date: todayStr(),
+    byLang: { ...store.byLang, [lang]: { ...prev, ...patch } },
+  };
+  try { localStorage.setItem(TASKS_KEY, JSON.stringify(next)); } catch {}
 };
 
 const ConversationView: React.FC<ConversationViewProps> = ({ user, onStartTask, onUpdateUser, onGoToModelSettings }) => {
@@ -85,9 +94,13 @@ const ConversationView: React.FC<ConversationViewProps> = ({ user, onStartTask, 
   const [streaming, setStreaming] = useState(false);
   const [dailyTasks, setDailyTasks] = useState<DailyTask[]>([]);
   const [tasksLoading, setTasksLoading] = useState(true);
-  const [doneMap, setDoneMap] = useState<Record<string, number>>(() => loadDone());
+  const [doneMap, setDoneMap] = useState<Record<string, number>>(
+    () => loadDay(user.learningLanguage)?.done || {}
+  );
   const [ratingFor, setRatingFor] = useState<string | null>(null);
-  const [chest, setChest] = useState<{ opened: boolean; reward: number | null }>(() => loadChest());
+  const [chest, setChest] = useState<{ opened: boolean; reward: number | null }>(
+    () => loadDay(user.learningLanguage)?.chest || { opened: false, reward: null }
+  );
   const [showAchievement, setShowAchievement] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -96,26 +109,33 @@ const ConversationView: React.FC<ConversationViewProps> = ({ user, onStartTask, 
     bottomRef.current?.scrollIntoView({ block: 'end' });
   }, [messages, streaming]);
 
-  // 今日任务：当天缓存优先，避免每次进入重新生成（保证完成态 id 稳定）
+  // 今日任务：按「日期 + 语言」取缓存，语言一变立刻换成该语言自己的任务与完成态
+  // （旧实现只按日期缓存，多语言账号切语言后仍显示日语任务 —— 这是 bug）
   useEffect(() => {
-    const cached = loadCachedTasks();
-    if (cached) {
-      setDailyTasks(cached);
+    const lang = user.learningLanguage;
+    const day = loadDay(lang);
+    setDoneMap(day?.done || {});
+    setChest(day?.chest || { opened: false, reward: null });
+    if (day) {
+      setDailyTasks(day.tasks);
       setTasksLoading(false);
       return;
     }
     let cancelled = false;
+    setDailyTasks([]);
     setTasksLoading(true);
     generateDailyTasks(user)
       .then((tasks) => {
         if (cancelled) return;
         setDailyTasks(tasks);
-        try { localStorage.setItem(TASKS_KEY, JSON.stringify({ date: todayStr(), tasks })); } catch {}
+        saveDay(lang, { tasks });
       })
       .catch(() => { if (!cancelled) setDailyTasks([]); })
       .finally(() => { if (!cancelled) setTasksLoading(false); });
     return () => { cancelled = true; };
-  }, [user]);
+    // 只跟语言走：等级/XP 变化不需要重新生成（同日同语言结果保持稳定）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.learningLanguage]);
 
   // 完成任务（带通关质量）：+XP 按质量加成计入现有等级，持久化完成态
   const completeTask = (task: DailyTask, quality: 1 | 2 | 3) => {
@@ -135,7 +155,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ user, onStartTask, 
     onUpdateUser(updated);
     setDoneMap(nextDone);
     setRatingFor(null);
-    try { localStorage.setItem(DONE_KEY, JSON.stringify({ date: todayStr(), done: nextDone })); } catch {}
+    saveDay(user.learningLanguage, { done: nextDone });
   };
 
   // 开今日宝箱：随机 50–150 XP 额外奖励，当天仅一次
@@ -158,7 +178,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ user, onStartTask, 
     };
     onUpdateUser(updated);
     setChest({ opened: true, reward });
-    try { localStorage.setItem(CHEST_KEY, JSON.stringify({ date: todayStr(), opened: true, reward })); } catch {}
+    saveDay(lang, { chest: { opened: true, reward } });
   };
 
   const send = async (text: string) => {
@@ -193,8 +213,9 @@ const ConversationView: React.FC<ConversationViewProps> = ({ user, onStartTask, 
     } catch (e) {
       // 按真实原因给不同提示（别把所有失败都说成「没配 Key」）
       const raw = e instanceof Error ? e.message : String(e);
-      const friendly =
-        /未配置 API Key|尚未配置 API Key/.test(raw)
+      const friendly = isAiDisabledError(e)
+        ? AI_DISABLED_MESSAGE
+        : /未配置 API Key|尚未配置 API Key/.test(raw)
           ? '本站不内置 API Key —— 请先到「我的资料 → 模型设置」填写你自己的密钥。'
           : /限流|429|402|Quota|rate.?limit/i.test(raw)
             ? 'AI 暂时被限流或额度不足（免费模型有每分钟 / 并发限制），请等 10–30 秒再试，或在「模型设置」换一个模型 / 厂商。'

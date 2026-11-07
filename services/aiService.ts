@@ -3,10 +3,11 @@ import { uuid } from '../utils/uuid';
 
 import { Language, CEFRLevel, AssessmentResult, TypingContent, WritingFeedback, WritingRevisionFeedback, GuidedWritingFeedback, GuidedMode, WritingNode, NodeType, ReadingReflection, RPGScenario, RPGTurnResult, UserProfile, ScenarioDef, TargetExam, WritingRegister, CompositionGenre, GENRE_LABELS, ReferenceEssay, WritingPracticeType, WritingCycleStage, CustomDirectionLeafSeed, DailyTask, StudyBook, StudyChapter, StudyItem, StudyItemQuality, StudyBookType, StudyItemType } from '../types';
 import { MENTOR_PERSONAS } from '../constants';
-import { getAIConfig, AIConfig, TaskCategory, TaskTier, DEFAULT_TASK_ROUTES, recomputeStudyBookStats } from './storageService';
+import { getAIConfig, AIConfig, TaskCategory, TaskTier, DEFAULT_TASK_ROUTES, TASK_CATEGORY_LABELS, recomputeStudyBookStats } from './storageService';
 import { pickLocalTasks } from '../data/dailyTasks';
 import { logChat } from './chatLogService';
 import { moderate } from './moderationService';
+import { assertAiAllowed } from './aiConsent';
 
 // --- Qwen (DashScope) + OpenRouter configuration ---
 // Primary LLM provider: Alibaba Cloud DashScope "Qwen" via its OpenAI-compatible
@@ -163,6 +164,12 @@ const requireProviders = (): LLMProvider[] => {
 // 是否至少配好了一个可用的 provider（用于新用户引导/提示）
 export const hasUsableProvider = (): boolean => buildProviders().length > 0;
 
+/** 当前会被实际调用的模型（provider · model），用于界面提示与排障 */
+export const getActiveModelLabel = (): string => {
+  const p = buildProviders()[0];
+  return p ? `${p.name} · ${p.model}` : '未配置模型';
+};
+
 // Surface the active configuration so users always know which model is in use.
 console.info(
   `[LinguaFlow] LLM providers (env): qwen → ${QWEN_LLM_MODEL}` +
@@ -246,7 +253,21 @@ const serverError = (name: string, status: number, detail = ''): ChatError => {
 const userPromptText = (messages: { role: string; content: string }[]): string =>
   messages.filter((m) => m.role === 'user').map((m) => m.content).join('\n');
 
+// 授权弹窗里显示的「本次是哪个功能要调 AI」。
+// 由各 AI 入口在发起调用前打一次标记，callProvider 在出口处「读一次即消费」——
+// 不做跨 await 上下文，避免并发串味；没打标记的入口回落到通用名。
+let aiFeatureHint = 'AI 内容生成';
+const markAiFeature = (label: string): void => { aiFeatureHint = label || 'AI 内容生成'; };
+const consumeAiFeature = (): string => {
+  const label = aiFeatureHint;
+  aiFeatureHint = 'AI 内容生成';
+  return label;
+};
+
 const callProvider = async (p: LLMProvider, messages: { role: string; content: string }[], temperature?: number): Promise<string> => {
+    // 统一授权闸门：所有非流式 AI 请求都从这里过（含自动触发的今日任务 / 阅读预取 / 批改等）。
+    // 未授权时 await 用户决定；点「允许」后这次请求直接继续，不需要用户重新操作。
+    await assertAiAllowed(consumeAiFeature(), `${p.name} · ${p.model}`);
     // 内容安全（输入）：发送前拦截不合规输入
     const lastUserForCheck = [...messages].reverse().find((m) => m.role === "user")?.content || "";
     const inCheck = await moderate(lastUserForCheck, "input");
@@ -290,7 +311,10 @@ const callProvider = async (p: LLMProvider, messages: { role: string; content: s
     }
 
     const data = await res.json();
-    const rawContent = data?.choices?.[0]?.message?.content ?? "";
+    // 推理模型（glm-4.5/4.7-flash、qwen3 思考模式等）常把正文放进 reasoning_content，
+    // content 为空 → 以前直接当「AI 没返回内容」，现在回落取 reasoning_content。
+    const msg = data?.choices?.[0]?.message || {};
+    const rawContent = (msg.content || msg.reasoning_content || "").toString();
     // 内容安全（输出）：不合规输出替换为提示，不返回原文
     const outCheck = await moderate(rawContent, "output");
     const content = outCheck.ok ? rawContent : (outCheck.reason || "AI 生成内容未通过安全检查，已拦截。");
@@ -341,6 +365,8 @@ const callProviderStream = async (
   temperature: number | undefined,
   onDelta: (delta: string) => void
 ): Promise<string> => {
+  // 统一授权闸门（流式）：与 callProvider 共用同一次弹窗与同一个等待 Promise
+  await assertAiAllowed(consumeAiFeature(), `${p.name} · ${p.model}`);
   // 内容安全（输入）：流式无法事后撤回，必须在发送前拦截
   const lastUserForCheck = [...messages].reverse().find((m) => m.role === "user")?.content || "";
   const inCheck = await moderate(lastUserForCheck, "input");
@@ -437,6 +463,7 @@ export const streamChatCompletion = async (
   onDelta: (delta: string) => void,
   temperature?: number
 ): Promise<string> => {
+  markAiFeature('AI 对话');
   const fullMessages = [
     { role: "system", content: system },
     ...messages,
@@ -482,6 +509,7 @@ const sanitizeTasks = (arr: any[]): DailyTask[] => {
 };
 
 export const generateDailyTasks = async (user: UserProfile): Promise<DailyTask[]> => {
+  markAiFeature('今日任务规划');
   const lp = user.progress[user.learningLanguage];
   const cefr: string = lp?.cefrLevel || 'A1';
   const weak = user.aiMemory?.weakPoints || [];
@@ -531,6 +559,7 @@ export const getProviderForTask = (category: TaskCategory): LLMProvider | null =
 
 // 按任务类别选模型：先走路由到的 provider，失败（限流/网络）再回落全局 provider 链。
 const chatCompletionForTask = async (category: TaskCategory, prompt: string, temperature?: number): Promise<string> => {
+  markAiFeature(TASK_CATEGORY_LABELS[category] || category);
   const primary = getProviderForTask(category);
   const rest = buildProviders().filter((p) => p.name !== primary?.name);
   const chain = primary ? [primary, ...rest] : buildProviders();
@@ -548,6 +577,7 @@ const chatCompletionForTask = async (category: TaskCategory, prompt: string, tem
 };
 
 const chatCompletionWithSystemForTask = async (category: TaskCategory, system: string, prompt: string, temperature?: number): Promise<string> => {
+  markAiFeature(TASK_CATEGORY_LABELS[category] || category);
   const primary = getProviderForTask(category);
   const rest = buildProviders().filter((p) => p.name !== primary?.name);
   const chain = primary ? [primary, ...rest] : buildProviders();
@@ -656,6 +686,7 @@ export const translateTextsBatch = async (texts: string[], srcLang: Language, ds
 // One-off connectivity test using the given (or currently stored) config's
 // primary provider. Returns the raw model reply (e.g. "OK") on success.
 export const testModelConnection = async (config?: AIConfig): Promise<string> => {
+  markAiFeature('模型连接测试');
   const providers = buildProviders(config);
   if (!providers.length) throw new Error("没有可用的模型配置");
   return await callProvider(providers[0], [
@@ -879,6 +910,7 @@ function normalizeTypingContent(
 }
 
 export const generateTypingContent = async (targetLang: Language, nativeLang: Language, level: CEFRLevel, topic?: string, instructions?: string): Promise<TypingContent> => {
+  markAiFeature('打字内容生成');
   const safeTopic = topic || "a random interesting daily life topic";
   const extraInstructions = instructions || "";
 
@@ -1116,6 +1148,7 @@ export const analyzeWriting = async (
   register?: WritingRegister,
   topic?: string
 ): Promise<WritingFeedback> => {
+  markAiFeature('作文批改');
   // 考试评分：仅当 (目标考试 ↔ 学习语言) 匹配且已实现对才启用，绝不污染其他语言。
   // 传入 topic，让 TR/Development 等维度对照真实任务评分（而非盲评）。
   const exam = buildExamScoring(targetLanguage, nativeLanguage, targetExam, topic);
@@ -1387,6 +1420,103 @@ export const selectVocabularyWords = async (
 };
 
 
+// --- 阅读工作台：一次调用同时提取「核心意群」+「难词」---
+// 意群 = 承载句意的多词块（动宾搭配 / 固定短语 / 介词块），帮学习者按语义单元读，而不是逐词读；
+// 难词 = 该水平大概率不认识的词（低频、书面、进阶）。两者合并成一次请求，省一次往返。
+// 失败返回空结构，由调用方回落到本地启发式（只给生词候选，无释义）。
+export interface ReadingChunk {
+  text: string;
+  meaning: string;
+}
+
+export interface ReadingWord {
+  word: string;
+  ipa?: string;
+  meaning: string;
+  pos?: string;
+  example?: string;
+}
+
+export interface ReadingAssist {
+  chunks: ReadingChunk[];
+  words: ReadingWord[];
+  /** 失败原因（用于在 UI 里如实显示，而不是静默降级） */
+  error?: string;
+}
+
+export const extractReadingAssist = async (params: {
+  text: string;
+  targetLang: Language;
+  nativeLang: Language;
+  cefrLevel?: string;
+}): Promise<ReadingAssist> => {
+  markAiFeature('阅读意群 / 难词提取');
+  const { text, targetLang, nativeLang } = params;
+  const level = params.cefrLevel || 'B1';
+  const empty: ReadingAssist = { chunks: [], words: [] };
+  if (!text.trim()) return empty;
+  if (buildProviders().length === 0) return { ...empty, error: NO_KEY_MSG };
+
+  const system =
+    `You are a reading coach for a ${level} learner of ${targetLang}.\n` +
+    `Given ONE page of a book, return exactly two lists:\n` +
+    `1) "chunks" — 4 core sense groups: multi-word spans that carry the sentence's meaning (verb+object collocations, fixed phrases, prepositional chunks). Copy them VERBATIM from the page, without trailing punctuation. Give a concise ${nativeLang} gloss (≤ 12 characters).\n` +
+    `2) "words" — 6 difficult words a ${level} learner probably does not know: low-frequency, literary or advanced vocabulary. For each give the pronunciation (IPA for English, romaji for Japanese, pinyin for Chinese, Revised Romanization for Korean, otherwise a readable Latin transliteration), a concise ${nativeLang} meaning (≤ 10 characters), a part of speech abbreviation, and ONE short example sentence in ${targetLang}.\n` +
+    `Rules:\n` +
+    `- Everything must literally appear in the passage; never invent text.\n` +
+    `- Skip proper nouns, names, brands and function words.\n` +
+    `- No duplicates: a chunk is a phrase, a word is a single token.\n` +
+    `- Be terse: no explanation, no extra keys.\n` +
+    `Return ONLY valid JSON, no Markdown, no code fence, all on one line:\n` +
+    `{"chunks":[{"text":"...","meaning":"..."}],"words":[{"word":"...","ipa":"...","meaning":"...","pos":"...","example":"..."}]}`;
+
+  const prompt = `Page (${targetLang}):\n"""\n${text.slice(0, 3000)}\n"""`;
+  try {
+    const raw = await chatCompletionWithSystemForTask('vocabExtract', system, prompt, 0.3);
+    if (!raw || !raw.trim()) {
+      const model = buildProviders()[0]?.model || '当前模型';
+      return { ...empty, error: `${model} 返回为空（推理模型常见：答案落在 reasoning_content 或被限流），换一个模型或稍后重试` };
+    }
+    // 模型有时会在 JSON 前后裹一段解释，抠出第一个 { 到最后一个 }
+    const a = raw.indexOf('{');
+    const b = raw.lastIndexOf('}');
+    const jsonText = a >= 0 && b > a ? raw.slice(a, b + 1) : raw;
+    const parsed = parseAIJSON<ReadingAssist>(jsonText, empty);
+    const chunks: ReadingChunk[] = Array.isArray(parsed?.chunks)
+      ? parsed.chunks
+          .filter((c) => c && typeof c.text === 'string' && c.text.trim())
+          .slice(0, 6)
+          .map((c) => ({ text: c.text.trim(), meaning: (c.meaning || '').trim() }))
+      : [];
+    const words: ReadingWord[] = Array.isArray(parsed?.words)
+      ? parsed.words
+          .filter((w) => w && typeof w.word === 'string' && w.word.trim())
+          .slice(0, 10)
+          .map((w) => ({
+            word: w.word.trim(),
+            ipa: (w.ipa || '').trim(),
+            meaning: (w.meaning || '').trim(),
+            pos: (w.pos || '').trim(),
+            example: (w.example || '').trim(),
+          }))
+      : [];
+    if (chunks.length === 0 && words.length === 0) {
+      return { ...empty, error: `模型返回了内容但解析不出意群/难词（原始 ${raw.length} 字）：${raw.slice(0, 80).replace(/\s+/g, ' ')}` };
+    }
+    return { chunks, words };
+  } catch (e) {
+    console.warn('[LinguaFlow] extractReadingAssist failed:', e);
+    const msg = e instanceof Error ? e.message : String(e);
+    // 线上版最容易踩的坑：没登录 → 没有中转 token → 浏览器直连被 CORS 拦
+    const hint =
+      LLM_PROXY_BASE && !getProxyToken()
+        ? '未登录社区账号：线上版 AI 需登录后走服务端中转（右上角登录）'
+        : msg;
+    return { ...empty, error: hint.slice(0, 180) };
+  }
+};
+
+
 // 引导式微写作：按模式上下文校验学习者的一句话/短文
 // mode='scaffold': context = { template, hint }  句型填空
 // mode='wordchain': context = { words: [{word,meaning}] }  看词造句
@@ -1595,6 +1725,8 @@ export const hasPausedSpeech = (): boolean => {
 async function fetchQwenTtsUrl(text: string, voice: string): Promise<string> {
   const key = getQwenKey();
   if (!key) throw new Error("未配置 Qwen（DashScope）API Key：请到「我的资料 → 模型设置 → Qwen」填写后重试。");
+  // TTS 同样是 AI 服务（Qwen DashScope），也走同一道授权闸门
+  await assertAiAllowed('语音朗读 (Qwen TTS)', QWEN_TTS_MODEL);
   const res = await fetch(`${QWEN_HOST}/api/v1/services/aigc/multimodal-generation/generation`, {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },

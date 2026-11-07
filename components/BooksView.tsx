@@ -3,9 +3,9 @@ import { uuid } from '../utils/uuid';
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { UserProfile, Book } from '../types';
-import { getBooks, saveBook, deleteBook, paginateText } from '../services/storageService';
+import { getBooks, saveBook, deleteBook, paginateText, repairBookPagination, BOOK_PAGINATION_VERSION } from '../services/storageService';
 import { parseEpub, parsePdf } from '../services/bookImport';
-import { LibraryBig, Plus, Trash2, X, Book as BookIcon, ArrowRight, FileText, BookPlus, Upload, Loader2 } from 'lucide-react';
+import { LibraryBig, Plus, Trash2, X, Book as BookIcon, ArrowRight, FileText, BookPlus, Upload, Loader2, Video } from 'lucide-react';
 
 interface BooksViewProps {
   user: UserProfile;
@@ -24,9 +24,23 @@ const BooksView: React.FC<BooksViewProps> = ({ user, onOpenBook }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // IndexedDB 异步加载书架（含 localStorage 旧数据迁移）
+  // 顺带做一次旧分页修复：老书是按 1500 字符裸切的，会在单词中间断开，
+  // 这里就地重新分页（等价于删掉重导，但保留阅读进度）。
   useEffect(() => {
     let alive = true;
-    getBooks(user.learningLanguage).then((list) => { if (alive) setBooks(list); });
+    (async () => {
+      const list = await getBooks(user.learningLanguage);
+      const fixed = list.map((b) => repairBookPagination(b)).filter((b): b is Book => b !== null);
+      if (fixed.length === 0) {
+        if (alive) setBooks(list);
+        return;
+      }
+      for (const b of fixed) await saveBook(b);
+      const fresh = await getBooks(user.learningLanguage);
+      if (alive) setBooks(fresh);
+    })().catch(() => {
+      getBooks(user.learningLanguage).then((list) => { if (alive) setBooks(list); });
+    });
     return () => { alive = false; };
   }, [user.learningLanguage]);
 
@@ -51,6 +65,7 @@ const BooksView: React.FC<BooksViewProps> = ({ user, onOpenBook }) => {
       pages,
       currentPage: 0,
       createdAt: Date.now(),
+      paginationVersion: BOOK_PAGINATION_VERSION,
     };
     setBooks(await saveBook(book));
     setTitle('');
@@ -110,7 +125,7 @@ const BooksView: React.FC<BooksViewProps> = ({ user, onOpenBook }) => {
             <LibraryBig size={22} className="text-neon" /> 书架
           </h1>
           <p className="text-muted text-sm mt-1">
-            导入一本书或短篇小说，自动分页，像读一本真正的书一样逐页打字练习。
+            导入一本书或短篇小说，自动分页，像读一本真正的书一样逐页打字练习；阅读页可挂 B 站讲解视频，并自动提取本页意群与难词。
           </p>
         </div>
         <button
@@ -170,9 +185,9 @@ const BooksView: React.FC<BooksViewProps> = ({ user, onOpenBook }) => {
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted">
               {text.trim() ? (
-                <>约 <b className="text-white">{pagePreview}</b> 页（每页约 1500 字符）</>
+                <>约 <b className="text-white">{pagePreview}</b> 页（一屏一页，约 550 字符）</>
               ) : (
-                '正文会按段落边界自动分页，不切断段落'
+                '正文会按句子/段落边界自动分页，一页约一屏'
               )}
             </span>
             <button
@@ -243,6 +258,16 @@ const BooksView: React.FC<BooksViewProps> = ({ user, onOpenBook }) => {
                   <p className="text-xs text-muted mt-1">
                     {total} 页 · {done ? '已读完' : started ? `已读到第 ${progress} 页` : '未开始'}
                   </p>
+                  {(book.videos?.length ?? 0) > 0 && (
+                    <span className="mt-1 inline-flex w-fit items-center gap-1 rounded-full border border-neon-2/25 bg-neon-2/10 px-1.5 py-0.5 text-[10px] text-neon-2">
+                      <Video size={10} /> 已挂 {book.videos!.length} 个视频
+                    </span>
+                  )}
+                  {(book.videos?.length ?? 0) === 0 && (
+                    <span className="mt-1 inline-flex w-fit items-center gap-1 rounded-full border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] text-faint">
+                      <Video size={10} /> 可挂 B 站视频
+                    </span>
+                  )}
 
                   <div className="w-full h-1.5 bg-line/70 rounded-full overflow-hidden mt-2">
                     <div className="h-full bg-gradient-to-r from-neon to-neon-2 rounded-full transition-[width] duration-500" style={{ width: `${pct}%` }} />

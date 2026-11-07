@@ -1,5 +1,5 @@
 
-import { Language, CEFRLevel, MentorPersona } from './types';
+import { Language, CEFRLevel, MentorPersona, TargetExam } from './types';
 import {
   Globe,
   Type,
@@ -41,6 +41,17 @@ export const SUPPORTED_LANGUAGES = [
   { id: Language.Greek, label: 'Ελληνικά', flag: '🇬🇷', code: 'el-GR' },
   { id: Language.Arabic, label: 'العربية', flag: '🇸🇦', code: 'ar-SA' },
 ];
+
+// 考试目标 ↔ 语言 映射：切换语言时若考试目标不匹配则回落到通用 CEFR
+// （顶栏语言切换器与「我的资料 → 设置」共用同一张表，避免两处口径漂移）
+export const EXAM_LANGUAGE_MAP: Record<TargetExam, Language | null> = {
+  none: null,
+  IELTS: Language.English,
+  TOEFL: Language.English,
+  JLPT: Language.Japanese,
+  TOPIK: Language.Korean,
+  DELE: Language.Spanish,
+};
 
 export const DRILL_TOPICS = [
   { id: 'daily', label: '日常生活', icon: '☕' },
