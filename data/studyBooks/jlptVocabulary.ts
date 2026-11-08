@@ -20,7 +20,7 @@ interface RawChapter {
   items: RawItem[];
 }
 
-const RAW_CHAPTERS: RawChapter[] = [
+export const RAW_CHAPTERS: RawChapter[] = [
   {
     title: 'Unit 1 · 时间',
     items: [

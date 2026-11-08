@@ -2,7 +2,7 @@ import { ScriptPack, ScriptItem, Language } from '../types';
 import { romajiToKana } from '../services/romajiKana';
 
 // 日语五十音基础（罗马字表记，覆盖 46 个基础音）
-const BASIC_ROMAJI = [
+export const BASIC_ROMAJI = [
   'a', 'i', 'u', 'e', 'o',
   'ka', 'ki', 'ku', 'ke', 'ko',
   'sa', 'shi', 'su', 'se', 'so',
@@ -16,7 +16,7 @@ const BASIC_ROMAJI = [
 ];
 
 // 拗音（yōon）：き/し/ち/に/ひ/み/り 行 + 小やゆよ
-const YOON_ROMAJI = [
+export const YOON_ROMAJI = [
   'kya', 'kyu', 'kyo',
   'sha', 'shu', 'sho',
   'cha', 'chu', 'cho',
@@ -27,7 +27,7 @@ const YOON_ROMAJI = [
 ];
 
 // 浊音 / 半浊音（dakuon / handakuon）
-const DAKUON_ROMAJI = [
+export const DAKUON_ROMAJI = [
   'ga', 'gi', 'gu', 'ge', 'go',
   'za', 'ji', 'zu', 'ze', 'zo',
   'da', 'di', 'du', 'de', 'do',

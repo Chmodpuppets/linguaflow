@@ -3,7 +3,13 @@ import { uuid } from '../utils/uuid';
 
 import { Language, CEFRLevel, AssessmentResult, TypingContent, WritingFeedback, WritingRevisionFeedback, GuidedWritingFeedback, GuidedMode, WritingNode, NodeType, ReadingReflection, RPGScenario, RPGTurnResult, UserProfile, ScenarioDef, TargetExam, WritingRegister, CompositionGenre, GENRE_LABELS, ReferenceEssay, WritingPracticeType, WritingCycleStage, CustomDirectionLeafSeed, DailyTask, StudyBook, StudyChapter, StudyItem, StudyItemQuality, StudyBookType, StudyItemType } from '../types';
 import { MENTOR_PERSONAS } from '../constants';
-import { getAIConfig, AIConfig, TaskCategory, TaskTier, DEFAULT_TASK_ROUTES, TASK_CATEGORY_LABELS, recomputeStudyBookStats } from './storageService';
+import { getAIConfig, AIConfig, TaskCategory, TaskTier, DEFAULT_TASK_ROUTES, TASK_CATEGORY_LABELS, recomputeStudyBookStats, getVocabularyCount } from './storageService';
+import { getScriptPackForLanguage } from '../data/scriptPacks';
+import { getStarterVocab } from '../data/starterVocab';
+import { getCachedTtsUrl, setCachedTtsUrl } from './ttsCache';
+import {
+  getTtsBlob, putTtsBlob, putTtsUrl, getTtsUrl, ttsBlobKey, ttsBlobToObjectUrl,
+} from './ttsBlobCache';
 import { pickLocalTasks } from '../data/dailyTasks';
 import { logChat } from './chatLogService';
 import { moderate } from './moderationService';
@@ -495,6 +501,7 @@ const sanitizeTasks = (arr: any[]): DailyTask[] => {
     if (star < 1 || star > 5) continue;
     if (typeof t.title !== 'string' || !t.title.trim()) continue;
     const durationMin = Math.max(3, Math.round(Number(t.durationMin) || 10));
+    const target = t.target === 'kana' || t.target === 'starter_vocab' ? t.target : undefined;
     out.push({
       module: t.module as DailyTask['module'],
       star: star as DailyTask['star'],
@@ -503,10 +510,43 @@ const sanitizeTasks = (arr: any[]): DailyTask[] => {
       title: t.title.trim(),
       detail: typeof t.detail === 'string' ? t.detail : '',
       id: `ai-${t.module}-${star}-${Date.now()}-${out.length}`,
+      ...(target ? { target } : {}),
     });
   }
   return out;
 };
+
+/**
+ * 落地校正：AI（或本地兜底）生成的任务必须对应到真实存在的内容。
+ * 光靠 prompt 约束不够 —— 模型会凭空写「复习 10 个 A1 词汇」「五十音打字」，
+ * 而新人词库是空的、非日语也没有假名关卡。这里做一次确定性兜底。
+ */
+export const reconcileDailyTasks = (
+  tasks: DailyTask[],
+  ctx: { vocabCount: number; hasScript: boolean; hasStarterVocab: boolean }
+): DailyTask[] =>
+  tasks.map((t) => {
+    // 词库为空：词汇任务不能再叫「复习 / 闪卡」，改指向「导入起步词」
+    if (t.module === 'vocabulary' && ctx.vocabCount === 0) {
+      return {
+        ...t,
+        target: 'starter_vocab' as const,
+        title: ctx.hasStarterVocab ? '导入并认识 A1 起步词' : '添加第一批生词',
+        detail: ctx.hasStarterVocab
+          ? '一键导入内置 A1 高频词，完成第一次闪卡复习。'
+          : '该语言暂无内置起步词，先手动添加几个生词再开始复习。',
+      };
+    }
+    // 有字形包的语言：假名/五十音类打字任务直达静态专项关卡
+    if (t.module === 'typing' && ctx.hasScript && /五十音|假名|かな|カナ|kana|文字特训/i.test(`${t.title}${t.detail}`)) {
+      return { ...t, target: 'kana' as const };
+    }
+    // 没有字形包却提了假名 → 去掉误导性文案
+    if (t.module === 'typing' && !ctx.hasScript && /五十音|假名|かな|カナ/i.test(`${t.title}${t.detail}`)) {
+      return { ...t, title: '基础短句打字练习', detail: '用当前语言打一段 A1 短句，练键盘熟练度。', target: undefined };
+    }
+    return t;
+  });
 
 export const generateDailyTasks = async (user: UserProfile): Promise<DailyTask[]> => {
   markAiFeature('今日任务规划');
@@ -515,22 +555,36 @@ export const generateDailyTasks = async (user: UserProfile): Promise<DailyTask[]
   const weak = user.aiMemory?.weakPoints || [];
   const goals = user.aiMemory?.goals || [];
 
+  // 让任务规划器知道「当前到底有什么可练的」，而不是凭空承诺不存在的内容
+  let vocabCount = 0;
+  try { vocabCount = getVocabularyCount(user.learningLanguage); } catch { /* storage 不可用时按空词库处理 */ }
+  const hasScript = !!getScriptPackForLanguage(user.learningLanguage);
+  const hasStarterVocab = getStarterVocab(user.learningLanguage).length > 0;
+  const ctx = { vocabCount, hasScript, hasStarterVocab };
+  const reconcile = (list: DailyTask[]) => reconcileDailyTasks(list, ctx);
+
   const system = `你是 LinguaFlow 的学习任务规划器。根据学生的 CEFR 等级、薄弱点与目标，生成今日 3 个练习任务：1 个轻量（5-10 分钟）、1 个中等（15-20 分钟）、1 个重度（25-45 分钟）。
 只输出 JSON 数组，不要任何解释或代码块标记，格式：
-[{"module":"vocabulary|typing|writing|errorbook","star":1,"durationMin":5,"xp":10,"title":"任务标题","detail":"一句话说明"}]
-规则：module 只能四选一（vocabulary/typing/writing/errorbook）；star 对应难度时长 1=5min、2=10min、3=15-20min、4=30min、5=45min+；xp 大致为 durationMin 的 1-2 倍；三个任务的 module 尽量不同。`;
+[{"module":"vocabulary|typing|writing|errorbook","star":1,"durationMin":5,"xp":10,"title":"任务标题","detail":"一句话说明","target":"可选"}]
+规则：module 只能四选一（vocabulary/typing/writing/errorbook）；star 对应难度时长 1=5min、2=10min、3=15-20min、4=30min、5=45min+；xp 大致为 durationMin 的 1-2 倍；三个任务的 module 尽量不同。
+target 只有两种合法值："kana"（五十音/假名打字专项）、"starter_vocab"（词库为空时从零导入起步词）。没有合适落点时省略该字段。`;
 
-  const prompt = `学生正在学 ${user.learningLanguage}，当前 CEFR ${cefr}。薄弱点：${weak.length ? weak.join('、') : '暂无记录'}。目标：${goals.length ? goals.join('、') : '通用提升'}。请生成今日 3 个任务。`;
+  const prompt = `学生正在学 ${user.learningLanguage}，当前 CEFR ${cefr}。薄弱点：${weak.length ? weak.join('、') : '暂无记录'}。目标：${goals.length ? goals.join('、') : '通用提升'}。
+当前可用内容（必须严格遵守，不要推荐不存在的内容）：
+- 词库现有 ${vocabCount} 个词条。${vocabCount === 0 ? '词库是空的，禁止出「复习/闪卡/拼写已有词」类任务；词汇任务只能写「导入并认识 A1 起步词」这种从零开始的动作，并标记 target:"starter_vocab"。' : '可以出复习/闪卡类词汇任务。'}
+- 该语言${hasScript ? '有' : '没有'}内置的假名/字形打字专项内容。${hasScript ? '可以出五十音打字任务，并标记 target:"kana"。' : '禁止出五十音/假名/かな 相关任务。'}
+- 该语言${hasStarterVocab ? '有' : '没有'}内置 A1 起步词可一键导入。
+请生成今日 3 个任务。`;
 
   try {
     const raw = await chatCompletionWithSystem(system, prompt, 0.3);
     const parsed = parseAIJSON<DailyTask[]>(raw, []);
     const valid = Array.isArray(parsed) ? sanitizeTasks(parsed) : [];
-    if (valid.length >= 3) return valid.slice(0, 3);
-    return pickLocalTasks(cefr);
+    if (valid.length >= 3) return reconcile(valid.slice(0, 3));
+    return reconcile(pickLocalTasks(cefr));
   } catch (e) {
     console.error('[LinguaFlow] generateDailyTasks failed, fallback to local pool', e);
-    return pickLocalTasks(cefr);
+    return reconcile(pickLocalTasks(cefr));
   }
 };
 
@@ -1722,10 +1776,48 @@ export const hasPausedSpeech = (): boolean => {
  * 返回的 URL 是 DashScope OSS 上的预签名 URL（24h 内有效），可重复播放直到过期。
  * 错误抛异常；调用方负责缓存与回退。
  */
+/**
+ * 把首次合成的音频落盘。优先抓成 Blob（永不过期）；
+ * Qwen 的 OSS CDN 不返回 CORS 头时浏览器抓不到 → 退存 URL + expires_at，
+ * 由 getTtsUrl 按官方过期时间自动失效重合成。整条链路失败也不阻断播放。
+ */
+const persistTtsAudio = async (key: string, url: string, expiresAt?: number): Promise<void> => {
+  try {
+    const res = await fetch(url);
+    if (res.ok && typeof res.blob === 'function') {
+      const blob = await res.blob();
+      if (blob.size > 0 && await putTtsBlob(key, blob)) return;
+    }
+  } catch { /* CDN 跨域被拦，走下面的 URL 兜底 */ }
+  await putTtsUrl(key, url, expiresAt);
+};
+
 async function fetchQwenTtsUrl(text: string, voice: string): Promise<string> {
   const key = getQwenKey();
   if (!key) throw new Error("未配置 Qwen（DashScope）API Key：请到「我的资料 → 模型设置 → Qwen」填写后重试。");
-  // TTS 同样是 AI 服务（Qwen DashScope），也走同一道授权闸门
+  // ① 会话内内存缓存（0 请求）
+  const cached = getCachedTtsUrl(text, voice);
+  if (cached) return cached;
+
+  // ② 跨会话持久化（IndexedDB，刷新后仍命中）
+  const blobKey = ttsBlobKey(text, voice);
+  const blob = await getTtsBlob(blobKey);
+  if (blob) {
+    const objUrl = ttsBlobToObjectUrl(blobKey, blob);
+    if (objUrl) {
+      setCachedTtsUrl(text, voice, objUrl);
+      return objUrl;
+    }
+  }
+  // ②-b 只存了 URL（CDN 无 CORS 的情况）：未过期就直接用，<audio> 播放跨域媒体不需要 CORS
+  const persistedUrl = await getTtsUrl(blobKey);
+  if (persistedUrl) {
+    setCachedTtsUrl(text, voice, persistedUrl);
+    return persistedUrl;
+  }
+
+  // ③ 真正调用 Qwen —— 只有这一条路径才需要 AI 授权
+  // （内存 / Blob 命中都不产生新的 AI 调用，用户关掉 AI 后仍可重播本地音频）
   await assertAiAllowed('语音朗读 (Qwen TTS)', QWEN_TTS_MODEL);
   const res = await fetch(`${QWEN_HOST}/api/v1/services/aigc/multimodal-generation/generation`, {
     method: "POST",
@@ -1741,9 +1833,21 @@ async function fetchQwenTtsUrl(text: string, voice: string): Promise<string> {
   }
   const url = data?.output?.audio?.url;
   const b64 = data?.output?.audio?.data;
-  if (url) return url;
-  if (b64) return `data:audio/wav;base64,${b64}`;
-  throw new Error(`No audio returned from Qwen TTS: ${data?.message || "unknown"}`);
+  const audioUrl = url
+    ? String(url)
+    : b64
+      ? `data:audio/wav;base64,${b64}`
+      : '';
+  if (!audioUrl) throw new Error(`No audio returned from Qwen TTS: ${data?.message || "unknown"}`);
+  setCachedTtsUrl(text, voice, audioUrl);
+  // 官方 expires_at 是秒级时间戳；留 10 分钟余量，避免临界点拿到刚好过期的链接
+  const expiresSec = Number(data?.output?.audio?.expires_at);
+  const expiresAt = Number.isFinite(expiresSec) && expiresSec > 0
+    ? expiresSec * 1000 - 10 * 60 * 1000
+    : Date.now() + 23 * 60 * 60 * 1000;
+  // 后台落盘，不阻塞本次播放；下次（含刷新后）直接命中 IndexedDB
+  void persistTtsAudio(blobKey, audioUrl, expiresAt);
+  return audioUrl;
 }
 
 /** 当前生效音色：用户在「模型设置」里选的，回落到 .env，再回落到 Cherry。 */
@@ -1754,6 +1858,9 @@ function currentTtsVoice(): string {
     return process.env.QWEN_TTS_VOICE || "Cherry";
   }
 }
+
+/** 供 UI 层算缓存 key：必须和 fetchQwenTtsUrl 实际使用的音色一致，否则删除失效条目会删错 key */
+export const getEffectiveTtsVoice = (voice?: string): string => voice || currentTtsVoice();
 
 /** 供设置页试听用：直接指定音色朗读一段样例。 */
 export const previewVoice = (voice: string, text: string): Promise<void> => {
@@ -1888,7 +1995,9 @@ export const playCachedSpeech = async (
   } catch (e) {
     console.warn("[TTS] 缓存模块加载失败，跳过硬缓存直接走网络", e);
   }
-  const hit = cacheMod?.getCachedTtsUrl(text, opts?.voice);
+  // 统一用「实际生效音色」做 key，和底层 fetchQwenTtsUrl 共用同一份缓存，避免同文本存两份
+  const effectiveVoice = opts?.voice || currentTtsVoice();
+  const hit = cacheMod?.getCachedTtsUrl(text, effectiveVoice);
   if (hit) {
     playQwenAudio(hit, opts);
     return;
@@ -1901,13 +2010,13 @@ export const playCachedSpeech = async (
     return;
   }
 
-  fetchQwenTtsUrl(text, opts?.voice || currentTtsVoice())
+  fetchQwenTtsUrl(text, effectiveVoice)
     .then((url) => {
       if (!url) {
         playWebSpeech(text, { ...opts, lang: contentLang });
         return;
       }
-      cacheMod?.setCachedTtsUrl(text, opts?.voice, url);
+      // 缓存由 fetchQwenTtsUrl 统一写入，这里只负责播放
       playQwenAudio(url, opts);
     })
     .catch((e) => {

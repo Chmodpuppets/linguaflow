@@ -3,6 +3,72 @@
 All notable changes to LinguaFlow are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] - 2026-11-09
+
+Largest update since `0.1.0`: production deployment, the reading studio,
+full multi-language account support, an explicit AI consent gate, first-run
+learning content, and a persistent TTS cache.
+
+### Added
+- **Production deployment**: `https://linguaflow.pathmora.cn` on a single origin —
+  Caddy serves the SPA and reverse-proxies `/api/*` to the local Hono + SQLite
+  service. Let's Encrypt certificate, automated atomic web deploys.
+- **Two editions, one repo**: `npm run build` (open-source, no community URL) and
+  `npm run build:online` (reads `.env.online`, injects `COMMUNITY_URL` / `APP_EDITION`).
+  Optional light backend provides cloud sync, an authenticated LLM relay with an
+  upstream host allowlist, and compliance chat logging. **No API key is embedded
+  in any production build**; all providers (GLM / Qwen / OpenRouter / DeepSeek /
+  custom) are configured by the user in-app.
+- **Reading Studio (book mode)**: right-hand rail with Bilibili companion video
+  (float / drag / resize), AI-extracted sense groups & difficult words with IPA,
+  one-tap vocab & sentence collection, adjustable and collapsible rail, and
+  cross-day book vocabulary. Book pagination now splits on sentence boundaries
+  (~550 chars/page) with a versioned migration for existing books.
+- **Language switcher**: one-click switching from the sidebar header (plus
+  collapsed and mobile variants). Only languages already started are listed;
+  "Add language" jumps straight to settings. Switching remounts the view with the
+  new language.
+- **AI consent gate**: a one-time disclosure dialog plus a persistent toggle in
+  Model Settings. Enforced at the single AI network boundary (`callProvider`,
+  `callProviderStream`, `fetchQwenTtsUrl`) so **automatically triggered** calls
+  are covered too. The dialog names the triggering feature and model, and discloses
+  key ownership, data sent, the online relay, and the 180-day chat log. Granting
+  resumes the pending call automatically; denying falls back to local content.
+- **First-run content**: one-click A1 starter vocabulary (Japanese / Korean derived
+  from built-in study books, plus an English list), and a Japanese kana typing
+  specialty with 8 drills built from the shared romaji table — **zero AI calls,
+  zero API key**. Daily tasks are now reconciled against actually available
+  content, so an empty vocabulary no longer produces "review 10 words" tasks.
+- **Persistent TTS cache**: in-memory URL LRU plus IndexedDB audio storage
+  (200 entries / 20 MB). Blob storage when the audio can be fetched, otherwise
+  URL + official `expires_at` fallback (Qwen's OSS CDN sends no CORS header).
+  The same word is synthesized once — and still hits cache after a page reload.
+- **QA suite**: Playwright E2E and Node unit scripts covering consent, language
+  switching, per-language task cache & flywheel, newcomer content, and both TTS
+  persistence paths. Unit tests bundle the real TypeScript sources with esbuild.
+
+### Changed
+- Daily task cache and daily output flywheel are now keyed by **date × language**.
+  Flywheel: the second language completed in a day grants XP again, while
+  `commitDailyStreak` keeps the streak to one increment per day.
+- `playWord` / `generateSpeech` prefer Qwen TTS for all languages and fall back to
+  Web Speech; `reasoning_content` is used when a reasoning model returns empty
+  `content`.
+- LLM stream responses use `c.body()` so CORS headers survive the relay.
+- `package.json` version bumped to `0.2.0`; README, setup, AI/voice docs and this
+  changelog synchronized with the code.
+
+### Fixed
+- Switching language no longer shows the previous language's daily tasks or a
+  completed flywheel from another language.
+- `TtsAudioPlayer` cache-key mismatch that prevented stale audio URLs from being
+  evicted (it used an undefined voice while the underlying writer used the
+  effective one).
+- STT / Paraformer removed from code and docs (the feature is intentionally not
+  being restored).
+
+[0.2.0]: https://github.com/Chmodpuppets/linguaflow/releases/tag/v0.2.0
+
 ## [0.1.1] - 2026-08-26
 
 Documentation and licensing follow-up to the `0.1.0` milestone. No code /

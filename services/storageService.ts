@@ -4,6 +4,7 @@ import { repairIds, repairTreeIds } from '../utils/idRepair';
 
 import { UserProfile, ActivityLog, Language, CEFRLevel, UserContent, LanguageProgress, WritingNode, VocabularyItem, DailyQuest, QuestKind, MentorPersona, AIMemory, ScriptItem, ScriptCardProgress, ErrorCard, WritingScoreRecord, TypingContent, ErrorPattern, ErrorPatternType, ERROR_PATTERN_LABELS, FlywheelStep, DailyFlywheel, SongPack, Book, BookVideo, StudyBook, StudyItem, StudyItemQuality } from '../types';
 import { getScriptPackForLanguage } from '../data/scriptPacks';
+import type { StarterWord } from '../data/starterVocab';
 
 const STORAGE_KEY_USER = 'linguaflow_user';
 const STORAGE_KEY_LOGS = 'linguaflow_logs';
@@ -1127,6 +1128,32 @@ export const deleteVocabularyItem = (id: string) => {
     const items = getVocabulary().filter(i => i.id !== id);
     localStorage.setItem(STORAGE_KEY_VOCAB, JSON.stringify(items));
 };
+
+/**
+ * 一键导入 A1 起步词（词库为空时由用户主动触发，不自动写入）。
+ * 按「词 + 语言」去重，返回实际新增条数；已存在的词不会被覆盖。
+ */
+export const importStarterVocab = (lang: Language, words: StarterWord[]): number => {
+    const existing = getVocabulary();
+    let added = 0;
+    for (const w of words) {
+        if (existing.some(i => i.language === lang && i.word.toLowerCase() === w.word.toLowerCase())) continue;
+        saveVocabularyItem({
+            id: uuid(),
+            word: w.word,
+            definition: w.pronunciation ? `${w.pronunciation} · ${w.definition}` : w.definition,
+            exampleSentence: w.example,
+            partOfSpeech: w.partOfSpeech,
+            language: lang,
+            createdAt: Date.now(),
+        });
+        added++;
+    }
+    return added;
+};
+
+export const getVocabularyCount = (lang: Language): number =>
+    getVocabulary().filter(i => i.language === lang).length;
 
 // --- Script / Alphabet Production Trainer SRS ---
 // 复用 Leitner 间隔重复逻辑（与词汇一致）：答错回 box 1、答对冲高 box，间隔变长。

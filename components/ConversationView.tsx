@@ -16,7 +16,7 @@ interface ChatMessage {
 
 interface ConversationViewProps {
   user: UserProfile;
-  onStartTask: (module: DailyTask['module']) => void;
+  onStartTask: (task: DailyTask) => void;
   onUpdateUser: (u: UserProfile) => void;
   /** 一键跳到「我的资料 → 模型设置」（新用户未配 API Key 时的引导） */
   onGoToModelSettings?: () => void;
@@ -345,7 +345,7 @@ const ConversationView: React.FC<ConversationViewProps> = ({ user, onStartTask, 
                   done={t.id in doneMap}
                   quality={doneMap[t.id] || 0}
                   ratingOpen={ratingFor === t.id}
-                  onStart={() => onStartTask(t.module)}
+                  onStart={() => onStartTask(t)}
                   onOpenRating={() => setRatingFor(t.id)}
                   onRate={(q) => completeTask(t, q)}
                   onCancelRating={() => setRatingFor(null)}

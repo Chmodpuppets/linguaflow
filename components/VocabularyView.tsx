@@ -3,9 +3,10 @@ import { uuid } from '../utils/uuid';
 
 import React, { useState, useEffect } from 'react';
 import { UserProfile, VocabularyItem } from '../types';
-import { getVocabulary, saveVocabularyItem, deleteVocabularyItem, addActivity, getDueVocabulary, updateVocabularyItem, reviewVocabulary } from '../services/storageService';
+import { getVocabulary, saveVocabularyItem, deleteVocabularyItem, addActivity, getDueVocabulary, updateVocabularyItem, reviewVocabulary, importStarterVocab } from '../services/storageService';
 import { generateWordDetails, playWord } from '../services/aiService';
-import { BookA, Plus, Search, Trash2, Sparkles, Volume2, Tag, Loader2, Save, X, Repeat, Check, XCircle, Layers } from 'lucide-react';
+import { getStarterVocab, getStarterVocabLabel } from '../data/starterVocab';
+import { BookA, Plus, Search, Trash2, Sparkles, Volume2, Tag, Loader2, Save, X, Repeat, Check, XCircle, Layers, Download } from 'lucide-react';
 
 interface VocabularyViewProps {
   user: UserProfile;
@@ -34,6 +35,44 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser, ini
   const [isGenerating, setIsGenerating] = useState(false);
   // 英文单词发音口音（有道 dictvoice：uk=英式 type=2 / us=美式 type=1）；雅思默认英式
   const [accent, setAccent] = useState<'uk' | 'us'>('uk');
+  // 新人起步词：词库为空时一键导入内置 A1 词（不自动写入用户数据）
+  const [importMsg, setImportMsg] = useState<string | null>(null);
+  const starterWords = getStarterVocab(user.learningLanguage);
+
+  useEffect(() => { setImportMsg(null); }, [user.learningLanguage]);
+
+  const handleImportStarter = () => {
+    const n = importStarterVocab(user.learningLanguage, starterWords);
+    setItems(getVocabulary().filter(v => v.language === user.learningLanguage));
+    setDueCount(getDueVocabulary().filter(v => v.language === user.learningLanguage).length);
+    setImportMsg(n > 0 ? `已导入 ${n} 个起步词，可以开始复习了` : '这些词已经在词库里了');
+  };
+
+  // 两处空状态共用的导入入口
+  const starterImportButton = (
+    <div className="flex flex-col items-center gap-2">
+      {starterWords.length > 0 && (
+        <>
+          <button
+            onClick={handleImportStarter}
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-neon text-white font-bold hover:bg-neon/80 shadow-glow-neon"
+          >
+            <Download size={16} /> 导入 {starterWords.length} 个 A1 起步词
+          </button>
+          <span className="text-[11px] text-faint">
+            {getStarterVocabLabel(user.learningLanguage)} · 静态内容，无需 AI
+          </span>
+        </>
+      )}
+      <button
+        onClick={() => { setViewMode('browse'); setIsAdding(true); }}
+        className="text-xs text-muted hover:text-white transition-colors"
+      >
+        {starterWords.length > 0 ? '或手动添加单词' : '去添加单词'}
+      </button>
+      {importMsg && <p className="text-xs text-emerald-300 mt-1">{importMsg}</p>}
+    </div>
+  );
 
   useEffect(() => {
     // Filter items by current learning language
@@ -248,13 +287,8 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser, ini
             <div className="glass-panel rounded-2xl p-10 text-center">
               <BookA size={40} className="text-neon-2 mx-auto mb-4" />
               <div className="text-xl font-bold text-white mb-1">词库还是空的</div>
-              <p className="text-muted text-sm mb-6">先添加几个单词，才能开始间隔复习和拼写练习。</p>
-              <button
-                onClick={() => { setViewMode('browse'); setIsAdding(true); }}
-                className="px-6 py-3 rounded-xl bg-neon text-white font-bold hover:bg-neon/80 shadow-glow-neon"
-              >
-                去添加单词
-              </button>
+              <p className="text-muted text-sm mb-6">先导入一批 {getStarterVocabLabel(user.learningLanguage)}，就能立刻开始间隔复习和拼写练习。</p>
+              {starterImportButton}
             </div>
           ) : reviewDone === 0 ? (
             <div className="glass-panel rounded-2xl p-10 text-center">
@@ -302,10 +336,10 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser, ini
 
           <div className="flex-1 overflow-y-auto custom-scrollbar p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 content-start">
               {items.length === 0 ? (
-                  <div className="col-span-full flex flex-col items-center justify-center h-64 text-muted">
-                      <BookA size={48} className="mb-4 opacity-30" />
+                  <div className="col-span-full flex flex-col items-center justify-center h-64 text-muted gap-3">
+                      <BookA size={48} className="mb-1 opacity-30" />
                       <p>还没有保存单词。</p>
-                      <button onClick={() => setIsAdding(true)} className="text-neon-2 hover:underline mt-2">添加第一个单词</button>
+                      {starterImportButton}
                   </div>
               ) : filteredItems.length === 0 ? (
                   <div className="col-span-full text-center text-muted py-12">没有找到匹配项。</div>

@@ -7,7 +7,7 @@
 ## 环境要求
 - Node.js 18+（推荐 22）
 - **推荐**：一个智谱 GLM 的免费 API Key（[open.bigmodel.cn](https://open.bigmodel.cn/) 注册即送），用于大模型（对话 / 生成 / 批改）
-- **若需要中文朗读或录音转写**：额外需要阿里云百炼（DashScope）Key 并开通 **Sambert（TTS）+ Paraformer（STT）** 服务——因为语音接口走的是 DashScope
+- **若需要云端 TTS 朗读**：额外需要阿里云百炼（DashScope）Key 并开通 **Qwen3-TTS**（默认 `qwen3-tts-flash`）；未配时自动回落到浏览器原生语音
 
 ## 安装与运行
 
@@ -112,7 +112,7 @@ linguaflow/
 │   ├── WritingLanguageGate.tsx# 写作语言门控（待开发语言提示）
 │   └── ProfileView.tsx        # 我的资料
 ├── services/
-│   ├── aiService.ts        # AI 能力封装（LLM / TTS / STT / playWord 语种门控）
+│   ├── aiService.ts        # AI 能力封装（LLM / TTS / playWord 语种门控 / 缓存）
 │   ├── bookImport.ts       # EPUB/PDF 解析与封面提取
 │   └── storageService.ts   # localStorage 读写（含 IndexedDB 书库）
 └── ...
@@ -129,16 +129,16 @@ linguaflow/
 | `VITE_GLM_API_KEY` | 否* | 智谱 GLM Key，**默认大模型 provider**；留空则不影响（默认大模型即智谱 GLM） |
 | `VITE_GLM_BASE_URL` | 否 | GLM 接口地址，默认 `https://open.bigmodel.cn/api/paas/v4` |
 | `VITE_GLM_MODEL` | 否 | GLM 模型名，默认 `glm-4-flash`（`GLM-4.7-Flash` 是推理模型，短输出正文为空，勿用） |
-| `QWEN_API_KEY` | 否** | 阿里云百炼 Key，**仅当你需要中文朗读（TTS）/ 录音转写（STT）时才必填** |
+| `QWEN_API_KEY` | 否** | 阿里云百炼 Key，**仅当你需要云端 TTS 朗读或 Qwen 大模型时才必填** |
 | `QWEN_BASE_URL` | 否 | 默认 `https://dashscope.aliyuncs.com/compatible-mode/v1` |
 | `QWEN_MODEL` | 否 | Qwen 大模型名，默认 `qwen3.8-flash`（如 `qwen-max`、`qwen-turbo`） |
 | `QWEN_TTS_MODEL` | 否 | TTS 语音模型，默认 `qwen3-tts-flash`（Qwen3-TTS 多语种；如 `qwen-audio-3.0-tts-flash`、`cosyvoice-v1`） |
-| `QWEN_STT_MODEL` | 否 | STT 语音识别模型，默认 `paraformer-v2`（如 `paraformer-realtime-v2`） |
+| `QWEN_TTS_VOICE` | 否 | 默认音色 `Cherry`，可在「模型设置」里切换 |
 | `OPENROUTER_API_KEY` | 否 | OpenRouter Key，**深推理任务优先 provider**（如写作批改/考试评分）；留空则不启用 |
 | `OPENROUTER_MODEL` | 否 | OpenRouter 模型名，默认 `z-ai/glm-5.3-flash`（如 `google/gemini-2.5-flash`、`openai/gpt-4o-mini`） |
 
 > \* 若只填了 GLM Key，大模型即走 GLM 免费模型，无需其他 Key。
-> \** 若只用 GLM + 非中文朗读，可完全不填 `QWEN_API_KEY`（非中文朗读走浏览器原生语音，免 Key）；只有中文朗读 / 录音转写才需要它。
+> \** 若只用 GLM 大模型 + 浏览器语音，可完全不填 `QWEN_API_KEY`；想让 TTS 走 Qwen 云端音质才需要它。STT / 录音转写功能已移除，不再恢复。
 > 所有变量留空都会回退到上表中的默认值。改完 `.env` 需重启 `npm run dev` 才生效。
 > `.env.example` 是模板，请勿把真实 Key 提交到 Git。
 

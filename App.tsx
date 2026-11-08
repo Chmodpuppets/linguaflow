@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
-import { Language, CEFRLevel, AppMode, UserProfile, Book, DailyTaskModule } from './types';
+import { Language, CEFRLevel, AppMode, UserProfile, Book, DailyTaskModule, DailyTask } from './types';
 import { SUPPORTED_LANGUAGES, NAV_ITEMS } from './constants';
+import { DEFAULT_KANA_DRILL_ID } from './data/kanaDrills';
 import { getUser, saveUser, ensureLanguageProgress, logoutUser, checkStreakOnLoad, rolloverDailyQuests, getDueErrorCards, getLevelInfo } from './services/storageService';
 import { startAutoSync, getAppEdition, isRegistered } from './services/communityService';
 import AuthGate from './components/AuthGate';
@@ -63,6 +64,8 @@ const App: React.FC = () => {
   const [typingInitialData, setTypingInitialData] = useState<{text: string; title: string; notes?: string} | null>(null);
   const [activeBook, setActiveBook] = useState<Book | null>(null);
   const [taskContext, setTaskContext] = useState<DailyTaskModule | null>(null);
+  // 从「今日任务 → 五十音打字」直达时预置的关卡 id（TypingView 挂载即开始）
+  const [typingInitialKana, setTypingInitialKana] = useState<string | null>(null);
   const [stars, setStars] = useState<number>(FALLBACK_STARS);
   // 侧栏折叠：整栏收成图标轨 + 分组单独收起
   // 默认：侧栏展开，「精进」「资源」「社区」三组收起（手风琴），仅「学习」展开
@@ -162,6 +165,7 @@ const App: React.FC = () => {
   const handlePracticeFromLibrary = (content: {text: string; title: string; notes?: string}) => {
     setActiveBook(null);
     setTypingInitialData(content);
+    setTypingInitialKana(null);
     setMode(AppMode.Typing);
   };
 
@@ -169,6 +173,7 @@ const App: React.FC = () => {
   const handleOpenBook = (book: Book) => {
     setTypingInitialData(null);
     setActiveBook(book);
+    setTypingInitialKana(null);
     setMode(AppMode.Typing);
   };
 
@@ -177,6 +182,7 @@ const App: React.FC = () => {
         setTypingInitialData(null); // Clear custom data if leaving typing or switching explicitly
         setActiveBook(null);
     }
+    setTypingInitialKana(null); // 普通导航一律不带任务预置（只有 handleStartTask 会设置）
     setTaskContext(null); // 普通导航清除「开始任务」的预置上下文
     if (window.__importProcessing && newMode !== AppMode.Import) {
       const ok = window.confirm('正在抓取/处理内容，切换页面将中断当前操作。确定要离开吗？');
@@ -186,8 +192,9 @@ const App: React.FC = () => {
     setIsMenuOpen(false);
   };
 
-  // 对话台「开始」：按任务模块跳转并预置目标子视图（词汇/错题 → 复习模式）
-  const handleStartTask = (module: DailyTaskModule) => {
+  // 对话台「开始」：按任务模块跳转，并按 target 预置真正有内容的子视图
+  // （词库为空 → 浏览态 + 一键导入；五十音 → 直接进静态假名关卡）
+  const handleStartTask = (task: DailyTask) => {
     const modeMap: Record<DailyTaskModule, AppMode> = {
       vocabulary: AppMode.Vocabulary,
       typing: AppMode.Typing,
@@ -196,8 +203,10 @@ const App: React.FC = () => {
     };
     setTypingInitialData(null);
     setActiveBook(null);
-    setTaskContext(module);
-    setMode(modeMap[module]);
+    setTypingInitialKana(task.target === 'kana' ? DEFAULT_KANA_DRILL_ID : null);
+    // starter_vocab 时不进复习态（新人没有到期词），让空状态的导入按钮直接可见
+    setTaskContext(task.target === 'starter_vocab' ? null : task.module);
+    setMode(modeMap[task.module]);
     setIsMenuOpen(false);
   };
 
@@ -250,6 +259,7 @@ const App: React.FC = () => {
                 onComplete={handleUserUpdate}
                 initialData={typingInitialData}
                 book={activeBook}
+                initialKana={typingInitialKana}
                 onExitBook={() => { setActiveBook(null); setMode(AppMode.Books); }}
             />
         );

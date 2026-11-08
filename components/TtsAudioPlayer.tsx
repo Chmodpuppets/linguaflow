@@ -8,7 +8,7 @@ import React, {
   useState,
 } from "react";
 import { Play, Pause, Square, Repeat, Scissors, X, Loader2 } from "lucide-react";
-import { fetchSpeechUrl } from "../services/aiService";
+import { fetchSpeechUrl, getEffectiveTtsVoice } from "../services/aiService";
 import { getCachedTtsUrl, setCachedTtsUrl, deleteCachedTtsUrl } from "../services/ttsCache";
 
 /**
@@ -60,6 +60,8 @@ const TtsAudioPlayer = forwardRef<TtsAudioPlayerHandle, TtsAudioPlayerProps>(fun
 ) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   // 缓存由 services/ttsCache 提供（应用内共享：TypingView 与 RPGView 同段文本互免调用）
+  // key 必须和 fetchQwenTtsUrl 实际用的音色一致，否则 URL 失效时 deleteCachedTtsUrl 删不掉死链
+  const cacheVoice = useMemo(() => getEffectiveTtsVoice(voice), [voice]);
   const wsUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -79,7 +81,7 @@ const TtsAudioPlayer = forwardRef<TtsAudioPlayerHandle, TtsAudioPlayerProps>(fun
   // 复用共享缓存：text prop 变化时，先看 ttsCache 里有同段文本的 URL 没
   useEffect(() => {
     setError(null);
-    const cached = getCachedTtsUrl(text, voice);
+    const cached = getCachedTtsUrl(text, cacheVoice);
     if (cached) {
       setAudioUrl(cached);
     } else {
@@ -89,7 +91,7 @@ const TtsAudioPlayer = forwardRef<TtsAudioPlayerHandle, TtsAudioPlayerProps>(fun
       setPointA(null);
       setPointB(null);
     }
-  }, [text]);
+  }, [text, cacheVoice]);
 
   // 切速：写到 audio / utterance
   useEffect(() => {
@@ -119,7 +121,7 @@ const TtsAudioPlayer = forwardRef<TtsAudioPlayerHandle, TtsAudioPlayerProps>(fun
 
   const fetchAndSet = useCallback(async (): Promise<string | null> => {
     // 已有就直返
-    const cached = getCachedTtsUrl(text, voice);
+    const cached = getCachedTtsUrl(text, cacheVoice);
     if (cached) {
       setAudioUrl(cached);
       return cached;
@@ -131,7 +133,7 @@ const TtsAudioPlayer = forwardRef<TtsAudioPlayerHandle, TtsAudioPlayerProps>(fun
     if (loadingForTextRef.current !== text) return null; // 用户已经切走
 
     if (url) {
-      setCachedTtsUrl(text, voice, url);
+      setCachedTtsUrl(text, cacheVoice, url);
       setAudioUrl(url);
       setLoading(false);
       return url;
@@ -139,7 +141,7 @@ const TtsAudioPlayer = forwardRef<TtsAudioPlayerHandle, TtsAudioPlayerProps>(fun
     setLoading(false);
     setError("Qwen TTS 不可用，已回落到浏览器语音（不可设 AB/进度）");
     return null;
-  }, [text, voice]);
+  }, [text, voice, cacheVoice]);
 
   const playWithWebSpeech = useCallback(() => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
@@ -308,7 +310,7 @@ const TtsAudioPlayer = forwardRef<TtsAudioPlayerHandle, TtsAudioPlayerProps>(fun
           onError={() => {
             // 预签名 URL 过期 / 网络抖动 → 清掉这帧缓存让用户重试时重新合成。
             // 共享缓存按 (text, voice) 键删；不打断当前 UI。
-            deleteCachedTtsUrl(text, voice);
+            deleteCachedTtsUrl(text, cacheVoice);
             setError("音频加载失败，可能 URL 已过期。下次点播放会自动重新合成。");
           }}
         />

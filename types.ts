@@ -140,6 +140,9 @@ export interface ChatCard {
 export type DailyTaskModule = 'vocabulary' | 'typing' | 'writing' | 'errorbook';
 export type StarLevel = 1 | 2 | 3 | 4 | 5;
 
+/** 今日任务的精确落点（可选）：让「开始」跳到确实有内容的地方，而不是空模块 */
+export type DailyTaskTarget = 'kana' | 'starter_vocab';
+
 export interface DailyTask {
   id: string;
   module: DailyTaskModule;
@@ -148,6 +151,7 @@ export interface DailyTask {
   xp: number;
   title: string;
   detail: string;
+  target?: DailyTaskTarget;
 }
 
 // --- Personalization (Phase 2/3) ---

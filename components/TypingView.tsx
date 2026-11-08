@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { TypingContent, UserProfile, UserContent, CEFRLevel, VocabularyItem, Book } from '../types';
+import { TypingContent, UserProfile, UserContent, CEFRLevel, VocabularyItem, Book, Language } from '../types';
+import { KANA_DRILLS, buildKanaContent } from '../data/kanaDrills';
 import { generateTypingContent, generateSpeech, cancelSpeech, languageToSpeechLang } from '../services/aiService';
 import type { ReadingAssist } from '../services/aiService';
 import { saveSentence } from '../services/sentenceBank';
@@ -17,6 +18,8 @@ interface TypingViewProps {
   initialData?: { text: string; title: string; notes?: string } | null;
   book?: Book | null;
   onExitBook?: () => void;
+  /** 从「今日任务 → 五十音练习」直达时预置的关卡 id */
+  initialKana?: string | null;
 }
 
 // --- Helper: Safe ID Generation ---
@@ -94,7 +97,7 @@ const parseNotes = (notes: string) => {
 
 // --- Audio: AI TTS now uses the browser's Web Speech API (see generateSpeech) ---
 
-const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData, book, onExitBook }) => {
+const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData, book, onExitBook, initialKana }) => {
   const [content, setContent] = useState<TypingContent | null>(null);
   const [activeStage, setActiveStage] = useState<typeof TYPING_STAGES[0] | null>(null);
   // 书架分页模式：当前页索引
@@ -805,6 +808,36 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData, 
         setTimeout(() => inputRef.current?.focus(), 100);
   };
 
+  // 五十音专项：纯静态内容，不走 AI、不需要 Key。
+  // 复用现有打字引擎（setContent + activeStage=null + isAISource=false），
+  // 完成时照常发 XP，但不会把练习文本误存进记忆库。
+  const startKanaDrill = (id: string) => {
+      const data = buildKanaContent(id);
+      if (!data) return;
+      stopAudio();
+      setContent(data);
+      setActiveStage(null);
+      setIsAISource(false);
+      setIsLoading(false);
+      setErrorMsg(null);
+      // 五十音是专项练习而非硬核闯关：切到 practice 让罗马字提示 / 译文可见
+      setActiveTab('practice');
+      setInputValue('');
+      setStartTime(null);
+      setWpm(0);
+      setFinished(false);
+      setPassedStage(false);
+      setSavedToLibrary(false);
+      setAddedVocabWords(new Set());
+      setTimeout(() => inputRef.current?.focus(), 100);
+  };
+
+  // 从每日任务「开始」直达对应五十音关卡
+  useEffect(() => {
+      if (initialKana) startKanaDrill(initialKana);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialKana]);
+
   // 渲染单个 text token（不含 \n）：run 合并 + RunSpan 记忆化 + 非阻塞错字逐字渲染。
   // offset = 该 token 在「可见字符」中的全局起始索引（不含 \n），与 inputValue 索引对齐。
   // cursorHere / localPos = 光标是否在本 token 及其局部位置（localPos === text.length 表示末尾空光标）。
@@ -984,6 +1017,32 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData, 
       
       return (
           <div className="flex flex-col items-center pb-12">
+              {/* 日语专属：五十音打字特训（静态内容，零 AI 依赖，新人第一天就能练） */}
+              {user.learningLanguage === Language.Japanese && (
+                  <div className="w-full max-w-lg mb-6 rounded-xl border border-neon/25 bg-neon/[0.06] p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                          <Sparkles size={16} className="text-neon" />
+                          <span className="text-sm font-bold text-white">五十音打字特训</span>
+                          <span className="ml-auto text-[10px] font-medium text-faint">免 AI · 免 Key</span>
+                      </div>
+                      <p className="text-xs text-muted mb-3">
+                          看假名，用罗马字输入法依次打出。下方关卡内容全部内置，没配模型也能练；专项练习会显示罗马字提示，不受闯关硬核模式限制。
+                      </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          {KANA_DRILLS.map((d) => (
+                              <button
+                                  key={d.id}
+                                  onClick={() => startKanaDrill(d.id)}
+                                  title={d.hint}
+                                  className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-2 text-left text-xs text-muted transition-colors hover:border-neon/40 hover:bg-white/10 hover:text-white"
+                              >
+                                  <div className="font-semibold truncate">{d.label}</div>
+                                  <div className="mt-0.5 truncate text-[10px] text-faint">{d.romaji.length} 音</div>
+                              </button>
+                          ))}
+                      </div>
+                  </div>
+              )}
               <div className="bg-surface-2/50 p-4 rounded-xl border border-line-strong mb-8 max-w-lg w-full text-center">
                   <div className="flex items-center justify-center gap-2 text-yellow-500 mb-2">
                       <ShieldAlert size={20} />
