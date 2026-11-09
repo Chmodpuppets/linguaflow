@@ -5,6 +5,7 @@ import { bilibiliEmbedUrl, bilibiliLabel, bilibiliWatchUrl, isB23ShortLink, pars
 import { updateBookVideos } from '../services/storageService';
 import { extractReadingAssist, getReadingAssistModelLabel, hasUsableProvider, ReadingAssist, ReadingWord } from '../services/aiService';
 import { deleteSentence, getSentences, SentenceItem } from '../services/sentenceBank';
+import { enrichWords } from '../services/dictionary';
 import { BookWord, getBookWords } from '../services/bookVocab';
 import { Bookmark, Check, ExternalLink, Layers, Loader2, Minimize2, PanelRight, Plus, RefreshCw, Sparkles, Trash2, Video } from 'lucide-react';
 
@@ -293,6 +294,21 @@ const ReadingStudioPanel: React.FC<ReadingStudioPanelProps> = ({
   const chunks = assist?.chunks ?? [];
   const words = assist?.words ?? [];
 
+  // 本地词典补释义：AI 失败兜底 / 手动「只看本地候选」时，用离线词库补上意思，
+  // 这些词就不再逐个问 AI 了（词典查不到的词保持空白）。
+  useEffect(() => {
+    if (!assist || !assist.words.length) return;
+    if (!assist.words.some((w) => !w.meaning)) return;
+    let alive = true;
+    void enrichWords(assist.words, book.language).then((next) => {
+      if (!alive || next === assist.words) return;
+      const value: ReadingAssist = { ...assist, words: next };
+      setAssist(value);
+      ASSIST_CACHE.set(cacheKey, value);
+    });
+    return () => { alive = false; };
+  }, [assist, book.language, cacheKey]);
+
   // --- 我的收藏：句子库按书过滤，collectRev 变化即重读 ---
   const [sentences, setSentences] = useState<SentenceItem[]>(() => getSentences({ bookId: book.id }));
   const [bookWords, setBookWords] = useState<BookWord[]>(() => getBookWords(book.id));
@@ -561,7 +577,7 @@ const ReadingStudioPanel: React.FC<ReadingStudioPanelProps> = ({
             {words.length > 0 && (
               <div>
                 <p className="text-[10px] uppercase tracking-wider text-faint mb-1">
-                  {fallback ? '生词候选（本地·无释义）' : '难词'}
+                  {fallback ? (words.some((w) => w.meaning) ? '生词候选（本地词典）' : '生词候选（本地·无释义）') : '难词'}
                 </p>
                 <div className="divide-y divide-white/5">
                   {words.map((w, i) => {

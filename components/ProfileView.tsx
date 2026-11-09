@@ -7,6 +7,7 @@ import { Trophy, Flame, Calendar, Clock, PenTool, Type, Zap, TrendingUp, Trendin
 import { SUPPORTED_LANGUAGES, MENTOR_PERSONAS, TOPIC_PACKAGES, EXAM_LANGUAGE_MAP } from '../constants';
 import { getAiConsentState, setAiConsent, AiConsentState, AI_CONSENT_CHANGED_EVENT } from '../services/aiConsent';
 import AssessmentView from './AssessmentView';
+import DictionarySettingsCard from './DictionarySettingsCard';
 
 interface ProfileViewProps {
   user: UserProfile;
@@ -986,6 +987,11 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout,
                     {modelTest.msg}
                   </p>
                 )}
+              </div>
+
+              {/* 本地词典：把查词从「每词一次 AI」换成离线词库 */}
+              <div className="max-w-4xl mx-auto">
+                <DictionarySettingsCard />
               </div>
           </div>
       )}

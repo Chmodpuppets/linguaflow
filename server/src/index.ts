@@ -33,6 +33,7 @@ import {
   type UserRow,
 } from './db';
 import { registerTtsRoutes, ttsProxyEnabled, ossEnabled } from './tts';
+import { registerDictRoutes, dictEnabled } from './dict';
 
 type Env = { Variables: { user: UserRow } };
 
@@ -308,6 +309,9 @@ setInterval(() => {
 
 registerTtsRoutes(app, { auth, clientIp, rateLimited: rateLimitedTts });
 
+// 在线词典（公开只读）：查词不再调大模型；数据来自 scripts/build-dict-db.mjs
+registerDictRoutes(app, { clientIp });
+
 // 连胜排行榜（公开，无需鉴权）：按 streak 降序
 app.get('/leaderboard', (c) => {
   const raw = Number(c.req.query('limit') || '20');
@@ -497,4 +501,9 @@ serve({ fetch: app.fetch, port, hostname }, (info) => {
   } else {
     console.log('TTS 音频代理：已启用（仅转发字节，未配置 OSS → 不落盘）');
   }
+  console.log(
+    dictEnabled()
+      ? '在线词典：已就绪（GET /dict/lookup?w=word）'
+      : '在线词典：未安装（把 en.db 放到 data/dict/ 下即可，见 scripts/build-dict-db.mjs）'
+  );
 });

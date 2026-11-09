@@ -4,6 +4,7 @@ import { TypingContent, UserProfile, UserContent, CEFRLevel, VocabularyItem, Boo
 import { KANA_DRILLS, buildKanaContent } from '../data/kanaDrills';
 import { generateTypingContent, generateSpeech, cancelSpeech, languageToSpeechLang } from '../services/aiService';
 import type { ReadingAssist } from '../services/aiService';
+import { lookupWord, type DictEntry } from '../services/dictionary';
 import { saveSentence } from '../services/sentenceBank';
 import { addBookWord } from '../services/bookVocab';
 import { addActivity, getLibrary, saveLibraryItem, saveVocabularyItem, getTypingLibraryItems, saveTypingLibraryItem, deleteTypingLibraryItem, touchTypingLibraryItem, TypingLibraryItem, updateBookProgress } from '../services/storageService';
@@ -437,6 +438,18 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData, 
   const textCardRef = useRef<HTMLDivElement | null>(null);
   // 当前页 AI 提取结果（用于划词时补上释义/词性），不参与渲染
   const assistRef = useRef<ReadingAssist | null>(null);
+  // 划词释义：本地 / 服务器词典，不调用 AI
+  const [selGloss, setSelGloss] = useState<DictEntry | null>(null);
+
+  useEffect(() => {
+      setSelGloss(null);
+      if (!selChip?.single) return;
+      let alive = true;
+      void lookupWord(selChip.text, book?.language || user.learningLanguage).then((hit) => {
+          if (alive) setSelGloss(hit);
+      });
+      return () => { alive = false; };
+  }, [selChip?.text, selChip?.single, book?.language, user.learningLanguage]);
 
   const clearSelection = () => {
       window.getSelection()?.removeAllRanges();
@@ -471,11 +484,21 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData, 
       });
   };
 
-  const handleSaveSelectedWord = (word: string) => {
+  const handleSaveSelectedWord = async (word: string) => {
       const clean = word.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
       if (!clean) return;
       const known = assistRef.current?.words.find(w => w.word.toLowerCase() === clean.toLowerCase());
-      handleAddVocabulary({ word: clean, meaning: known?.meaning ?? '', partOfSpeech: known?.pos ?? '' });
+      let meaning = known?.meaning ?? '';
+      let partOfSpeech = known?.pos ?? '';
+      // 当前页没有 AI 结果 / 没释义：先问词典（本地包 → 服务器），仍然没有才留空
+      if (!meaning) {
+          const hit = selGloss || await lookupWord(clean, book?.language || user.learningLanguage);
+          if (hit) {
+              meaning = hit.meaning;
+              partOfSpeech = partOfSpeech || hit.pos;
+          }
+      }
+      handleAddVocabulary({ word: clean, meaning, partOfSpeech });
       clearSelection();
   };
 
@@ -1497,31 +1520,47 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData, 
             {/* 划词 / 划句浮层：选中正文后浮在选区上方 */}
             {selChip && (
               <div
-                className="absolute z-30 flex -translate-x-1/2 -translate-y-full items-center gap-1 rounded-xl border border-white/10 bg-surface-3/95 p-1 shadow-2xl backdrop-blur"
+                className="absolute z-30 flex -translate-x-1/2 -translate-y-full flex-col gap-1 rounded-xl border border-white/10 bg-surface-3/95 p-1.5 shadow-2xl backdrop-blur"
                 style={{ left: selChip.x, top: selChip.y }}
                 onClick={(e) => e.stopPropagation()}
               >
-                {selChip.single && (
-                  <button
-                    onClick={() => handleSaveSelectedWord(selChip.text)}
-                    className="rounded-lg bg-primary px-2 py-1 text-[11px] font-bold text-white transition hover:brightness-110"
-                  >
-                    加入词库
-                  </button>
+                {selChip.single && selGloss && (
+                  <div className="max-w-[260px] border-b border-white/10 pb-1.5">
+                    <div className="flex flex-wrap items-baseline gap-x-1.5">
+                      <span className="text-xs font-bold text-white">{selGloss.word}</span>
+                      {selGloss.phonetic && (
+                        <span className="font-mono text-[10px] text-neon-2">
+                          {selGloss.phonetic.startsWith('/') ? selGloss.phonetic : `/${selGloss.phonetic}/`}
+                        </span>
+                      )}
+                      {selGloss.pos && <span className="text-[10px] uppercase text-faint">{selGloss.pos}</span>}
+                    </div>
+                    <p className="mt-0.5 text-[11px] leading-snug text-gray-300 line-clamp-3">{selGloss.meaning}</p>
+                  </div>
                 )}
-                <button
-                  onClick={() => handleSaveSelectedSentence(selChip.text)}
-                  className="rounded-lg bg-neon px-2 py-1 text-[11px] font-bold text-white transition hover:bg-neon/80"
-                >
-                  收藏句子
-                </button>
-                <button
-                  onClick={clearSelection}
-                  className="rounded-lg px-1.5 py-1 text-[11px] text-muted transition hover:text-white"
-                  title="取消"
-                >
-                  ✕
-                </button>
+                <div className="flex items-center gap-1">
+                  {selChip.single && (
+                    <button
+                      onClick={() => handleSaveSelectedWord(selChip.text)}
+                      className="rounded-lg bg-primary px-2 py-1 text-[11px] font-bold text-white transition hover:brightness-110"
+                    >
+                      加入词库
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleSaveSelectedSentence(selChip.text)}
+                    className="rounded-lg bg-neon px-2 py-1 text-[11px] font-bold text-white transition hover:bg-neon/80"
+                  >
+                    收藏句子
+                  </button>
+                  <button
+                    onClick={clearSelection}
+                    className="rounded-lg px-1.5 py-1 text-[11px] text-muted transition hover:text-white"
+                    title="取消"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
             )}
           </div>

@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { UserProfile, VocabularyItem } from '../types';
 import { getVocabulary, saveVocabularyItem, deleteVocabularyItem, addActivity, getDueVocabulary, updateVocabularyItem, reviewVocabulary, importStarterVocab } from '../services/storageService';
 import { generateWordDetails, playWord } from '../services/aiService';
+import { lookupWord } from '../services/dictionary';
 import { getStarterVocab, getStarterVocabLabel } from '../data/starterVocab';
 import { BookA, Plus, Search, Trash2, Sparkles, Volume2, Tag, Loader2, Save, X, Repeat, Check, XCircle, Layers, Download } from 'lucide-react';
 
@@ -118,6 +119,17 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser, ini
     if (!newWord.trim()) return;
     setIsGenerating(true);
     try {
+      // 先查本地 / 服务器词典（不花 AI 额度、无需授权）；查不到才退回 AI 补例句
+      // 目标语不是英语时，拉丁字母单词再补一次英语词典（学日语的人也会记英语单词）
+      let hit = await lookupWord(newWord, user.learningLanguage);
+      if (!hit && user.learningLanguage !== 'en' && /^[a-z][a-z' -]*$/i.test(newWord.trim())) {
+        hit = await lookupWord(newWord, 'en');
+      }
+      if (hit) {
+        setDefinition(hit.meaning);
+        setPartOfSpeech(hit.pos || '');
+        return;
+      }
       const details = await generateWordDetails(newWord, user.learningLanguage, user.nativeLanguage);
       setDefinition(details.definition);
       setExample(details.example);
@@ -413,7 +425,7 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser, ini
                                   onClick={handleAIAutoFill}
                                   disabled={!newWord || isGenerating}
                                   className="bg-neon/20 hover:bg-neon/30 text-neon border border-neon/50 px-3 py-2 rounded-lg transition-colors"
-                                  title="用 AI 自动填充释义"
+                                  title="自动填充释义（本地词典优先，查不到才用 AI）"
                               >
                                   {isGenerating ? <Loader2 size={20} className="animate-spin" /> : <Sparkles size={20} />}
                               </button>

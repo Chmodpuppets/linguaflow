@@ -1,0 +1,38 @@
+{
+  "lang": "en",
+  "name": "英汉词典（ECDICT 精简版）",
+  "version": "2026-11-09",
+  "generatedAt": "2026-11-09T18:56:41.604Z",
+  "entries": 57134,
+  "forms": 32383,
+  "bytes": 2014428,
+  "rawBytes": 3840983,
+  "parts": [
+    {
+      "file": "part-0.json.gz",
+      "words": 14284,
+      "forms": 8505,
+      "bytes": 493595
+    },
+    {
+      "file": "part-1.json.gz",
+      "words": 14284,
+      "forms": 7777,
+      "bytes": 494660
+    },
+    {
+      "file": "part-2.json.gz",
+      "words": 14284,
+      "forms": 8179,
+      "bytes": 513164
+    },
+    {
+      "file": "part-3.json.gz",
+      "words": 14282,
+      "forms": 7922,
+      "bytes": 513009
+    }
+  ],
+  "source": "ECDICT — https://github.com/skywind3000/ECDICT",
+  "license": "MIT"
+}
