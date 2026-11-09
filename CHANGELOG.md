@@ -13,8 +13,14 @@ All notable changes to LinguaFlow are documented here. This project adheres to
   Blob (cached forever in IndexedDB) and the server PUTs the audio into an Aliyun OSS
   bucket. Object keys are content-addressed (`sha256("v1|<voice>|<text>")`), so the
   same word resolves to the same address on every device without any coordination.
-  Works without OSS configured (relay only, no persistence); SSRF-guarded by an
-  upstream host allowlist; authenticated and rate-limited per IP.
+  SSRF-guarded by an upstream host allowlist; authenticated and rate-limited per IP.
+  **Editions are hard-separated**: the open-source server ships with
+  `TTS_PROXY_ENABLED=0` (endpoints answer 503) so a fork can never write into someone
+  else's bucket — self-hosters opt in with their *own* OSS. No bucket name or
+  credential exists anywhere in the repo. On the web side `COMMUNITY_URL` is empty in
+  open-source builds, which constant-folds the whole server path into dead code that
+  the bundler tree-shakes away — the open-source bundle contains **zero** occurrences
+  of `/tts/audio`.
 - **`services/serverBridge.ts`**: single source of truth for "is the online relay
   usable" (`COMMUNITY_URL` + sync token). Previously duplicated inline, where a
   missed check silently degraded AI calls to browser-direct and got blocked by CORS.

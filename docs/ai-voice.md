@@ -16,7 +16,7 @@
 | **降级逻辑** | 当前 provider 命中 429/402/限流 / **5xx / 上游不可达** 时自动跳到下一个；所选 provider 缺 Key 时回落首个可用 provider | 硬错误（参数 / 鉴权）直接报错，不盲目重试 |
 | **线上版 LLM 中转** | `POST {COMMUNITY_URL}/llm/chat` | 为绕过浏览器 CORS 而设：带账号 token、上游域名白名单防 SSRF、SSE 原样透传。**服务器不内置也不存储你的 Key**（Key 由请求体带上去转发给厂商）；对话内容按合规要求留痕 180 天 |
 | **文字转语音 TTS** | `qwen3-tts-flash` 优先（多语种），失败 / 无 Key → 浏览器 Web Speech；英文单词走有道 `dictvoice`；日语单词固定 Web Speech | 详见下方「语音 API 说明」 |
-| **线上版 TTS 音频代理** | `GET/POST {COMMUNITY_URL}/tts/audio` | 解决 DashScope 音频 CDN 不给 CORS 的问题：同源转发音频字节，并落阿里云 OSS（内容寻址，跨设备复用一样只合成一次）。未配置 OSS 时退化为「只转发不落盘」 |
+| **线上版 TTS 音频代理** | `GET/POST {COMMUNITY_URL}/tts/audio` | 解决 DashScope 音频 CDN 不给 CORS 的问题：同源转发音频字节，并落**该部署自己的**阿里云 OSS（内容寻址，跨设备复用一样只合成一次）。**开源版默认关闭**（`TTS_PROXY_ENABLED=0`），不启用时前端自动退回本地缓存 |
 | **AI 调用授权** | 首次调用弹窗 + 模型设置常驻开关 | 统一拦在 AI 网络出口（`callProvider` / `callProviderStream` / `fetchQwenTtsUrl`），覆盖自动触发的调用；关闭后相关功能走本地兜底 |
 
 > **模型切换**：默认走 GLM · `glm-4-flash`。选 OpenRouter 时模型取 `OPENROUTER_MODEL`。降级依次尝试当前 provider → 备选 provider。
@@ -64,13 +64,19 @@
 
 ### 服务端音频代理（`/tts/audio`）
 
+> **两个发行版在这里是分开的。**
+> - **开源版**：服务端 `TTS_PROXY_ENABLED` 默认 `0`，`/tts/audio` 返回 503；前端 `COMMUNITY_URL` 为空，
+>   根本不会去请求它。仓库里不含任何真实 OSS 凭证或 bucket 名。自建者想用就填**自己的** OSS 再置 1。
+> - **线上版**：只有 `linguaflow.pathmora.cn` 那台服务器的 `.env` 里有凭证且置了 `TTS_PROXY_ENABLED=1`。
+>   换句话说，**这套 OSS 只服务于线上版**，fork 本仓库不会碰到它。
+
 | 端点 | 方法 | 行为 |
 | --- | --- | --- |
-| `/tts/audio?text=&voice=` | GET | 命中 → 音频字节（`Cache-Control: immutable`）；未命中 → `404 {error:'not cached'}` |
+| `/tts/audio?text=&voice=` | GET | 命中 → 音频字节（`Cache-Control: immutable`）；未命中 → `404 {error:'not cached'}`；未启用 → `503` |
 | `/tts/audio` | POST | body `{text, voice, src}` 或 `{text, voice, data, contentType}` → 抓上游/解码 → 落 OSS → **回传音频字节**，响应头 `X-Tts-Stored: 1/0` |
 
 - **对象 key 内容寻址**：`sha256("v1|<voice>|<text>")` → `tts/v1/<前2位>/<hash>`，所以任何设备算出的地址都一样，不需要先查库再决定要不要合成。
-- **OSS 未配置也能用**：此时只做转发不落盘，前端照样拿到 Blob 存本地，只是不跨设备共享。
+- **启用但没配 OSS**：只做转发不落盘，前端照样拿到 Blob 存本地，只是不跨设备共享。
 - **防 SSRF**：`TTS_ALLOW_HOSTS` 默认只放行 `.aliyuncs.com`；内网地址、非白名单域名一律 400。
 - **鉴权与限流**：需要 `Authorization: Bearer <token>`；单 IP 每小时 `TTS_RATE_LIMIT`（默认 1200）次。
 

@@ -19,7 +19,12 @@ import { isServerReady, serverApi, authHeaders } from './serverBridge';
 /** 单条音频上限，与服务端 TTS_MAX_BYTES 对齐 */
 const MAX_AUDIO_BYTES = 5 * 1024 * 1024;
 
-/** 服务端音频缓存是否可用（开源版 / 未登录 = false，全部降级为纯本地） */
+/** 服务端音频缓存是否可用。
+ *  **两个发行版在这里天然分开**：
+ *  - 开源版构建时 `COMMUNITY_URL` 为空 → `SERVER_BASE` 为 `''` → 恒 false，
+ *    整套服务端路径（含 OSS）根本不会被请求，全部退回本地 IndexedDB 缓存；
+ *  - 线上版才注入地址，且未登录（无 token）时同样退回本地。
+ *  换句话说，服务端那套 OSS 只服务于线上版，fork 本仓库碰不到它。 */
 export const isTtsServerEnabled = (): boolean => isServerReady();
 
 /** 同源永久音频地址；未命中返回 404，调用方据此去合成 */

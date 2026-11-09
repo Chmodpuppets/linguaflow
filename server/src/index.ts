@@ -32,7 +32,7 @@ import {
   anonymizeChatLogs,
   type UserRow,
 } from './db';
-import { registerTtsRoutes } from './tts';
+import { registerTtsRoutes, ttsProxyEnabled, ossEnabled } from './tts';
 
 type Env = { Variables: { user: UserRow } };
 
@@ -489,4 +489,12 @@ const port = Number(process.env.PORT || 8787);
 const hostname = process.env.HOST || '127.0.0.1';
 serve({ fetch: app.fetch, port, hostname }, (info) => {
   console.log(`LinguaFlow sync server listening on http://${hostname}:${info.port}`);
+  // 启动就把「这个部署到底用不用音频代理 / 用谁的 bucket」说清楚，避免 silent 误用
+  if (!ttsProxyEnabled()) {
+    console.log('TTS 音频代理：未启用（开源版默认关闭，可用 TTS_PROXY_ENABLED=1 打开并配自己的 OSS）');
+  } else if (ossEnabled()) {
+    console.log(`TTS 音频代理：已启用，音频落 OSS bucket「${process.env.OSS_BUCKET}」`);
+  } else {
+    console.log('TTS 音频代理：已启用（仅转发字节，未配置 OSS → 不落盘）');
+  }
 });

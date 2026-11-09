@@ -39,16 +39,26 @@ node scripts/smoke.mjs            # 默认打 http://127.0.0.1:8787
 | `/tts/audio` | GET | TTS 音频代理：按 `text` + `voice` 读缓存（命中回音频字节，未命中 404） |
 | `/tts/audio` | POST | 把刚合成的音频落 OSS 并回传字节（`src` = 上游地址，或 `data` = base64） |
 
-### TTS 音频代理（可选，需配 OSS）
+### TTS 音频代理（**开源版默认关闭**）
+
+> **这套能力绑定「某个部署自己的 OSS」，所以开源发行版默认不开**（`TTS_PROXY_ENABLED=0`，
+> 此时 `/tts/audio` 直接 503）。不启用也完全不缺功能：前端会自动退回
+> 「浏览器直连 Qwen + 本地 IndexedDB 缓存」，只是不跨设备共享音频。
+>
+> 想启用就用**你自己的** OSS 填 `OSS_*`，再把 `TTS_PROXY_ENABLED` 改成 `1`。
+> **绝不要填别人的 bucket / AccessKey** —— 凭证只属于你这台服务器。
+>
+> 线上版（`linguaflow.pathmora.cn`）是另一套：它自己的 `.env` 里置 `TTS_PROXY_ENABLED=1`
+> 并配自己的 bucket，仓库与开源源码里不含任何真实凭证或 bucket 名。
 
 Qwen3-TTS 把音频放在 `dashscope-result-bj.oss-cn-beijing.aliyuncs.com`，
 那个 CDN **不返回 `Access-Control-Allow-Origin`** —— `<audio src>` 能播，
 但浏览器 `fetch()` 抓不到字节，也就存不进 IndexedDB，只能记住 24h 预签名 URL，过期重新合成。
 
-同源中转解决两件事：① 前端能拿到 Blob（永不过期）；② 顺手把音频存进你的 OSS（跨设备、跨用户复用）。
+同源中转解决两件事：① 前端能拿到 Blob（永不过期）；② 顺手把音频存进你自己的 OSS（跨设备、跨用户复用）。
 
 对象 key 是**内容寻址**的：`sha256("v1|<voice>|<text>")`，所以同一个词在任何设备上算出来都是同一个地址，
-不需要任何协商。配置见 `.env.example` 的 `OSS_*` 段；**不配也能跑**，只是不落盘。
+不需要任何协商。
 
 ```bash
 # 冒烟：写入一段 base64 音频（需要先注册拿 token）

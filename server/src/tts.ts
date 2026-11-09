@@ -39,6 +39,19 @@ const ALLOW_HOSTS = (process.env.TTS_ALLOW_HOSTS || '.aliyuncs.com')
 
 export const ossEnabled = (): boolean => !!(BUCKET && AK && SK);
 
+/**
+ * 是否启用音频代理端点本身。
+ *
+ * **开源发行版默认 0（关闭）**：`/tts/audio` 直接 503。
+ * 因为这套能力绑定「某个部署自己的 OSS bucket」，不该跟着代码默认打开 ——
+ * 否则 fork 的人可能在毫无察觉的情况下，把音频写进别人的 bucket。
+ *
+ * 线上部署（`linguaflow.pathmora.cn`）在它自己的 `.env` 里显式置 1，
+ * 凭证也只存在那台机器上。自建者要用，就填**自己的** OSS 再把这里置 1。
+ */
+const PROXY_ENABLED = /^(1|true|yes|on)$/i.test((process.env.TTS_PROXY_ENABLED || '0').trim());
+export const ttsProxyEnabled = (): boolean => PROXY_ENABLED;
+
 /** OSS V1 签名（无 sub-resource、无 x-oss-* 头，StringToSign 简化为 5 行） */
 const authHeaders = (method: string, key: string, contentType = ''): Record<string, string> => {
   const date = new Date().toUTCString();
@@ -145,6 +158,7 @@ export const storeTtsAudio = async (
   contentType: string
 ): Promise<{ key: string; stored: boolean }> => {
   const key = ttsObjectKey(text, voice);
+  if (!PROXY_ENABLED) return { key, stored: false };
   memSet(key, buf, contentType);
   const stored = await ossPut(key, buf, contentType);
   return { key, stored };
@@ -188,6 +202,11 @@ export const decodeBase64Audio = (data: string, contentType?: string): TtsAudio 
 
 // ==================== 路由 ====================
 
+const DISABLED_MSG =
+  '本部署未启用 TTS 音频代理（开源版默认关闭）。' +
+  '自建者请配置**你自己的** OSS（OSS_BUCKET / OSS_ACCESS_KEY_ID / OSS_ACCESS_KEY_SECRET），' +
+  '并把 TTS_PROXY_ENABLED 置为 1。';
+
 // Hono 的 Data 类型只写了 string | ArrayBuffer | ReadableStream，
 // 但 Response 本身接受 Uint8Array —— 这里直接给字节，不必多包一层。
 const audioResponse = <C extends Context<any, any, any>>(c: C, audio: TtsAudio) =>
@@ -213,6 +232,7 @@ export interface TtsRouteDeps {
  */
 export const registerTtsRoutes = (app: Hono<any>, deps: TtsRouteDeps): void => {
   app.get('/tts/audio', deps.auth, async (c) => {
+    if (!PROXY_ENABLED) return c.json({ error: DISABLED_MSG }, 503);
     if (deps.rateLimited(deps.clientIp(c))) return c.json({ error: 'too many requests' }, 429);
     const text = String(c.req.query('text') || '').slice(0, 500);
     const voice = String(c.req.query('voice') || '').slice(0, 32);
@@ -224,6 +244,7 @@ export const registerTtsRoutes = (app: Hono<any>, deps: TtsRouteDeps): void => {
   });
 
   app.post('/tts/audio', deps.auth, async (c) => {
+    if (!PROXY_ENABLED) return c.json({ error: DISABLED_MSG }, 503);
     if (deps.rateLimited(deps.clientIp(c))) return c.json({ error: 'too many requests' }, 429);
     const body = await c.req.json().catch(() => null);
     const text = String(body?.text || '').slice(0, 500);

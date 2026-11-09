@@ -9,7 +9,16 @@
  * 注意：开源版构建时 `process.env.COMMUNITY_URL` 为空 → `isServerReady()` 恒 false，
  * 所有服务端能力自动降级为纯本地，不需要在每个调用点再判发行版。
  */
-export const SERVER_BASE = (process.env.COMMUNITY_URL || '').trim().replace(/\/+$/, '');
+const RAW_SERVER = process.env.COMMUNITY_URL || '';
+
+/**
+ * 线上轻后端的基地址（含 `/api`）。
+ *
+ * 写成 `RAW_SERVER ? ... : ''` 而不是直接链式调用，是为了让打包器能把开源版
+ * （构建时 `COMMUNITY_URL` 被替换为空串）整段折叠成 `''` —— 于是所有依赖它的
+ * 服务端路径都会变成不可达死代码被摇掉，**开源版产物里连 `/tts/audio` 这个字符串都不存在**。
+ */
+export const SERVER_BASE = RAW_SERVER ? RAW_SERVER.trim().replace(/\/+$/, '') : '';
 
 /** 同步 token（登录轻后端后写入）；未登录为空 → 服务端能力不可用 */
 export const getSyncToken = (): string => {
