@@ -3,6 +3,43 @@
 All notable changes to LinguaFlow are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **Server-side TTS proxy + OSS persistence** (`GET/POST {COMMUNITY_URL}/tts/audio`).
+  Qwen's audio CDN answers `ACAO: null`, so the browser could play an audio URL but
+  never read its bytes — the cache could only remember a 24-hour presigned link and
+  re-synthesize once it expired. The relay fixes both halves: the client gets a real
+  Blob (cached forever in IndexedDB) and the server PUTs the audio into an Aliyun OSS
+  bucket. Object keys are content-addressed (`sha256("v1|<voice>|<text>")`), so the
+  same word resolves to the same address on every device without any coordination.
+  Works without OSS configured (relay only, no persistence); SSRF-guarded by an
+  upstream host allowlist; authenticated and rate-limited per IP.
+- **`services/serverBridge.ts`**: single source of truth for "is the online relay
+  usable" (`COMMUNITY_URL` + sync token). Previously duplicated inline, where a
+  missed check silently degraded AI calls to browser-direct and got blocked by CORS.
+
+### Changed
+- `fetchQwenTtsUrl` now tries the shared server cache before calling Qwen, and the
+  API-key check moved below the cache lookups — cached audio still plays for a user
+  who has no Qwen key configured.
+- **Reading studio 「意群 & 难词」 no longer calls AI on its own.** The panel used to
+  fire a request the moment a page rendered, and silently pre-fetched the next page.
+  Now each page needs an explicit click ("用 AI 提取本页意群与难词"); turning the page
+  neither calls nor pre-fetches, so a book costs zero tokens until the reader asks.
+  Per-page results are still cached in memory, so revisiting a page costs nothing, and
+  a "先看本地生词候选（不联网）" escape hatch keeps the panel usable without any AI.
+- **Reading assist now prefers DeepSeek `deepseek-flash`** (V4.1 Flash — cheapest and
+  fastest for a one-page JSON task), falling back to the `fast` tier (GLM / Qwen) when
+  no DeepSeek key is configured. DeepSeek's thinking mode is switched off for these
+  short structured calls (`thinking: {type:'disabled'}`, forwarded by `/llm/chat`).
+
+### Fixed
+- **DeepSeek default model was a retired name.** `deepseek-chat` / `deepseek-reasoner`
+  were shut down on 2026-07-24, so any DeepSeek call from a fresh install 400'd. The
+  default is now `deepseek-flash`, and saved configs are migrated on read
+  (`deepseek-chat` / `deepseek-reasoner` / `deepseek-v4-flash` → `deepseek-flash`).
+
 ## [0.2.0] - 2026-11-09
 
 Largest update since `0.1.0`: production deployment, the reading studio,

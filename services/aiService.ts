@@ -10,6 +10,8 @@ import { getCachedTtsUrl, setCachedTtsUrl } from './ttsCache';
 import {
   getTtsBlob, putTtsBlob, putTtsUrl, getTtsUrl, ttsBlobKey, ttsBlobToObjectUrl,
 } from './ttsBlobCache';
+import { fetchTtsFromServer, pushTtsToServer } from './ttsServerCache';
+import { SERVER_BASE, authHeaders, isServerReady } from './serverBridge';
 import { pickLocalTasks } from '../data/dailyTasks';
 import { logChat } from './chatLogService';
 import { moderate } from './moderationService';
@@ -96,15 +98,9 @@ interface LLMProvider {
 // we gracefully fall back to the first available provider (rather than erroring).
 // 线上版走同源服务端中转：部分厂商（如智谱）CORS 预检不放行浏览器直连。
 // 开源版 / 未登录（无服务器地址或 token）时退回浏览器直连。
-const LLM_PROXY_BASE = (process.env.COMMUNITY_URL || '').trim().replace(/\/+$/, '');
-const getProxyToken = (): string => {
-  try {
-    return localStorage.getItem('linguaflow_sync_token') || '';
-  } catch {
-    return '';
-  }
-};
-const useLlmProxy = (): boolean => !!LLM_PROXY_BASE && !!getProxyToken();
+// 判定逻辑收口在 services/serverBridge.ts，避免各处各写一遍漏判。
+const LLM_PROXY_BASE = SERVER_BASE;
+const useLlmProxy = (): boolean => isServerReady();
 
 const NO_KEY_MSG = '尚未配置 API Key：请到「我的资料 → 模型设置」填写你自己的密钥后再使用 AI。';
 
@@ -133,7 +129,9 @@ const buildProviders = (override?: AIConfig): LLMProvider[] => {
     GLM_MODEL
   );
   const customProvider = mk('custom', cfg.custom, '', '');
-  const deepseekProvider = mk('deepseek', cfg.deepseek, 'https://api.deepseek.com/v1', 'deepseek-chat');
+  // DeepSeek：官方模型名已于 2026 年改为 `deepseek-flash`（= DeepSeek-V4.1-Flash），
+  // 旧的 deepseek-chat / deepseek-reasoner 已下线，不能再作默认值。
+  const deepseekProvider = mk('deepseek', cfg.deepseek, 'https://api.deepseek.com/v1', 'deepseek-flash');
 
   // 仅 dev / 自托管 .env 提供 Key 时才会出现的兜底 provider
   const envProviders: LLMProvider[] = [];
@@ -270,7 +268,12 @@ const consumeAiFeature = (): string => {
   return label;
 };
 
-const callProvider = async (p: LLMProvider, messages: { role: string; content: string }[], temperature?: number): Promise<string> => {
+const callProvider = async (
+    p: LLMProvider,
+    messages: { role: string; content: string }[],
+    temperature?: number,
+    opts?: { noThinking?: boolean }
+): Promise<string> => {
     // 统一授权闸门：所有非流式 AI 请求都从这里过（含自动触发的今日任务 / 阅读预取 / 批改等）。
     // 未授权时 await 用户决定；点「允许」后这次请求直接继续，不需要用户重新操作。
     await assertAiAllowed(consumeAiFeature(), `${p.name} · ${p.model}`);
@@ -283,7 +286,7 @@ const callProvider = async (p: LLMProvider, messages: { role: string; content: s
     const proxy = useLlmProxy();
     const endpoint = proxy ? `${LLM_PROXY_BASE}/llm/chat` : `${p.baseUrl}/chat/completions`;
     const headers: Record<string, string> = proxy
-        ? { "Authorization": `Bearer ${getProxyToken()}`, "Content-Type": "application/json" }
+        ? authHeaders({ "Content-Type": "application/json" })
         : {
             "Authorization": `Bearer ${p.apiKey}`,
             "Content-Type": "application/json",
@@ -291,9 +294,16 @@ const callProvider = async (p: LLMProvider, messages: { role: string; content: s
                 ? { "HTTP-Referer": "https://linguaflow.app", "X-Title": "LinguaFlow" }
                 : {}),
         };
+    // DeepSeek V4 起「思考模式」默认开启：推理过程会进 reasoning_content，
+    // 短输出的结构化小活（意群/难词、取词）会因此变慢、也容易被思维片段污染 JSON。
+    // 只在调用方明确要求「快、不要思考」且是 DeepSeek 官方端点时才关掉。
+    const providerExtra: Record<string, unknown> =
+        opts?.noThinking && p.name === "deepseek" && /(^|\.)deepseek\.com$/i.test(p.baseUrl)
+            ? { thinking: { type: "disabled" } }
+            : {};
     const payload = proxy
-        ? { baseUrl: p.baseUrl, apiKey: p.apiKey, model: p.model, messages, temperature: temperature ?? 0.7 }
-        : { model: p.model, messages, temperature: temperature ?? 0.7 };
+        ? { baseUrl: p.baseUrl, apiKey: p.apiKey, model: p.model, messages, temperature: temperature ?? 0.7, ...providerExtra }
+        : { model: p.model, messages, temperature: temperature ?? 0.7, ...providerExtra };
     try {
         res = await fetch(endpoint, {
             method: "POST",
@@ -382,7 +392,7 @@ const callProviderStream = async (
   const proxy = useLlmProxy();
   const endpoint = proxy ? `${LLM_PROXY_BASE}/llm/chat` : `${p.baseUrl}/chat/completions`;
   const headers: Record<string, string> = proxy
-    ? { "Authorization": `Bearer ${getProxyToken()}`, "Content-Type": "application/json" }
+    ? authHeaders({ "Content-Type": "application/json" })
     : {
         "Authorization": `Bearer ${p.apiKey}`,
         "Content-Type": "application/json",
@@ -611,6 +621,21 @@ export const getProviderForTask = (category: TaskCategory): LLMProvider | null =
   return resolveTier(tier) ?? buildProviders()[0] ?? null;
 };
 
+// --- 阅读工作台（意群 & 难词）：单独指定厂商 ---
+// 这类调用是「一页一次、短输出、要求快」的小活：优先 DeepSeek（V4.1 Flash，便宜且快），
+// 没配 DeepSeek Key 时回落到 fast 档（GLM / Qwen），再回落到任意可用 provider。
+const READING_ASSIST_PREFERRED = 'deepseek';
+const resolveReadingAssistProvider = (): LLMProvider | null => {
+  const all = buildProviders();
+  return all.find((p) => p.name === READING_ASSIST_PREFERRED) || resolveTier('fast') || all[0] || null;
+};
+
+/** 阅读意群/难词实际会用的模型（provider · model），给 UI 在点击前如实显示 */
+export const getReadingAssistModelLabel = (): string => {
+  const p = resolveReadingAssistProvider();
+  return p ? `${p.name} · ${p.model}` : '未配置模型';
+};
+
 // 按任务类别选模型：先走路由到的 provider，失败（限流/网络）再回落全局 provider 链。
 const chatCompletionForTask = async (category: TaskCategory, prompt: string, temperature?: number): Promise<string> => {
   markAiFeature(TASK_CATEGORY_LABELS[category] || category);
@@ -630,9 +655,16 @@ const chatCompletionForTask = async (category: TaskCategory, prompt: string, tem
   throw lastErr;
 };
 
-const chatCompletionWithSystemForTask = async (category: TaskCategory, system: string, prompt: string, temperature?: number): Promise<string> => {
+const chatCompletionWithSystemForTask = async (
+  category: TaskCategory,
+  system: string,
+  prompt: string,
+  temperature?: number,
+  /** 指定首发 provider（如阅读意群固定优先 DeepSeek）；同时按「快活」处理（DeepSeek 关思考） */
+  primaryOverride?: LLMProvider | null
+): Promise<string> => {
   markAiFeature(TASK_CATEGORY_LABELS[category] || category);
-  const primary = getProviderForTask(category);
+  const primary = primaryOverride ?? getProviderForTask(category);
   const rest = buildProviders().filter((p) => p.name !== primary?.name);
   const chain = primary ? [primary, ...rest] : buildProviders();
   let lastErr: unknown;
@@ -641,7 +673,7 @@ const chatCompletionWithSystemForTask = async (category: TaskCategory, system: s
       return await callProvider(p, [
         { role: "system", content: system },
         { role: "user", content: prompt },
-      ], temperature);
+      ], temperature, primaryOverride ? { noThinking: true } : undefined);
     } catch (e: any) {
       lastErr = e;
       if (e?.quota || e?.network) continue;
@@ -1526,7 +1558,15 @@ export const extractReadingAssist = async (params: {
 
   const prompt = `Page (${targetLang}):\n"""\n${text.slice(0, 3000)}\n"""`;
   try {
-    const raw = await chatCompletionWithSystemForTask('vocabExtract', system, prompt, 0.3);
+    // 这一页的小活固定优先 DeepSeek（V4.1 Flash）：短输出、便宜；
+    // 没配 DeepSeek Key 时 resolveReadingAssistProvider() 会回落到 fast 档（GLM / Qwen）。
+    const raw = await chatCompletionWithSystemForTask(
+      'vocabExtract',
+      system,
+      prompt,
+      0.3,
+      resolveReadingAssistProvider()
+    );
     if (!raw || !raw.trim()) {
       const model = buildProviders()[0]?.model || '当前模型';
       return { ...empty, error: `${model} 返回为空（推理模型常见：答案落在 reasoning_content 或被限流），换一个模型或稍后重试` };
@@ -1563,7 +1603,7 @@ export const extractReadingAssist = async (params: {
     const msg = e instanceof Error ? e.message : String(e);
     // 线上版最容易踩的坑：没登录 → 没有中转 token → 浏览器直连被 CORS 拦
     const hint =
-      LLM_PROXY_BASE && !getProxyToken()
+      LLM_PROXY_BASE && !isServerReady()
         ? '未登录社区账号：线上版 AI 需登录后走服务端中转（右上角登录）'
         : msg;
     return { ...empty, error: hint.slice(0, 180) };
@@ -1777,11 +1817,23 @@ export const hasPausedSpeech = (): boolean => {
  * 错误抛异常；调用方负责缓存与回退。
  */
 /**
- * 把首次合成的音频落盘。优先抓成 Blob（永不过期）；
- * Qwen 的 OSS CDN 不返回 CORS 头时浏览器抓不到 → 退存 URL + expires_at，
- * 由 getTtsUrl 按官方过期时间自动失效重合成。整条链路失败也不阻断播放。
+ * 把首次合成的音频落盘，三条路依次尝试（前面成功就不走后面）：
+ * ① 推给服务端：它会落阿里云 OSS（跨设备复用），并把音频字节同源回传 ——
+ *    Qwen 的 CDN 不给 CORS 头，只有经自家服务端才抓得到 Blob；
+ * ② 直连抓 Blob（开源版 / 未登录时走这条，CDN 放行 CORS 才能成功）；
+ * ③ 都失败就只存预签名 URL + 官方 expires_at，过期自动失效重合成。
+ * 整条链路失败也不阻断播放。
  */
-const persistTtsAudio = async (key: string, url: string, expiresAt?: number): Promise<void> => {
+const persistTtsAudio = async (
+  key: string,
+  text: string,
+  voice: string,
+  url: string,
+  expiresAt?: number,
+  base64?: string
+): Promise<void> => {
+  const fromServer = await pushTtsToServer(text, voice, base64 ? { data: base64 } : { src: url });
+  if (fromServer && await putTtsBlob(key, fromServer)) return;
   try {
     const res = await fetch(url);
     if (res.ok && typeof res.blob === 'function') {
@@ -1793,8 +1845,6 @@ const persistTtsAudio = async (key: string, url: string, expiresAt?: number): Pr
 };
 
 async function fetchQwenTtsUrl(text: string, voice: string): Promise<string> {
-  const key = getQwenKey();
-  if (!key) throw new Error("未配置 Qwen（DashScope）API Key：请到「我的资料 → 模型设置 → Qwen」填写后重试。");
   // ① 会话内内存缓存（0 请求）
   const cached = getCachedTtsUrl(text, voice);
   if (cached) return cached;
@@ -1816,8 +1866,21 @@ async function fetchQwenTtsUrl(text: string, voice: string): Promise<string> {
     return persistedUrl;
   }
 
-  // ③ 真正调用 Qwen —— 只有这一条路径才需要 AI 授权
-  // （内存 / Blob 命中都不产生新的 AI 调用，用户关掉 AI 后仍可重播本地音频）
+  // ③ 服务端共享缓存：别的设备 / 别的用户合成过就白捡，0 次 AI 调用（也不需要授权）
+  const remoteBlob = await fetchTtsFromServer(text, voice);
+  if (remoteBlob) {
+    const objUrl = ttsBlobToObjectUrl(blobKey, remoteBlob);
+    if (objUrl) {
+      void putTtsBlob(blobKey, remoteBlob); // 存本地，下次连这个请求都省了
+      setCachedTtsUrl(text, voice, objUrl);
+      return objUrl;
+    }
+  }
+
+  // ④ 真正调用 Qwen —— 只有这一条路径才需要 AI Key 与用户授权
+  // （内存 / Blob / 服务端命中都不产生新的 AI 调用，用户关掉 AI 后仍可重播本地音频）
+  const key = getQwenKey();
+  if (!key) throw new Error("未配置 Qwen（DashScope）API Key：请到「我的资料 → 模型设置 → Qwen」填写后重试。");
   await assertAiAllowed('语音朗读 (Qwen TTS)', QWEN_TTS_MODEL);
   const res = await fetch(`${QWEN_HOST}/api/v1/services/aigc/multimodal-generation/generation`, {
     method: "POST",
@@ -1846,7 +1909,15 @@ async function fetchQwenTtsUrl(text: string, voice: string): Promise<string> {
     ? expiresSec * 1000 - 10 * 60 * 1000
     : Date.now() + 23 * 60 * 60 * 1000;
   // 后台落盘，不阻塞本次播放；下次（含刷新后）直接命中 IndexedDB
-  void persistTtsAudio(blobKey, audioUrl, expiresAt);
+  // 有 URL 就传 URL（服务端从 CDN 抓），只有 base64 时传原始数据（服务端解码后存）
+  void persistTtsAudio(
+    blobKey,
+    text,
+    voice,
+    url ? String(url) : '',
+    expiresAt,
+    url ? undefined : (b64 ? String(b64) : undefined)
+  );
   return audioUrl;
 }
 

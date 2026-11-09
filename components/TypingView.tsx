@@ -1298,7 +1298,6 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData, 
             book={book}
             pageIndex={bookPage}
             text={content.text}
-            nextPageText={book.pages[bookPage + 1]}
             nativeLanguage={user.nativeLanguage}
             cefrLevel={activeStage?.cefr || 'B1'}
             addedWords={addedVocabWords}

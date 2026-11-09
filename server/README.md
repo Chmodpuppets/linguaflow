@@ -36,6 +36,30 @@ node scripts/smoke.mjs            # 默认打 http://127.0.0.1:8787
 | `/friends/:id/nudge` | POST | 提醒好友别断签（非实时） |
 | `/nudges` | GET / DELETE | 收到提醒 / 已读清空 |
 | `/sync` | PUT / GET | 整包备份 / 恢复（可选） |
+| `/tts/audio` | GET | TTS 音频代理：按 `text` + `voice` 读缓存（命中回音频字节，未命中 404） |
+| `/tts/audio` | POST | 把刚合成的音频落 OSS 并回传字节（`src` = 上游地址，或 `data` = base64） |
+
+### TTS 音频代理（可选，需配 OSS）
+
+Qwen3-TTS 把音频放在 `dashscope-result-bj.oss-cn-beijing.aliyuncs.com`，
+那个 CDN **不返回 `Access-Control-Allow-Origin`** —— `<audio src>` 能播，
+但浏览器 `fetch()` 抓不到字节，也就存不进 IndexedDB，只能记住 24h 预签名 URL，过期重新合成。
+
+同源中转解决两件事：① 前端能拿到 Blob（永不过期）；② 顺手把音频存进你的 OSS（跨设备、跨用户复用）。
+
+对象 key 是**内容寻址**的：`sha256("v1|<voice>|<text>")`，所以同一个词在任何设备上算出来都是同一个地址，
+不需要任何协商。配置见 `.env.example` 的 `OSS_*` 段；**不配也能跑**，只是不落盘。
+
+```bash
+# 冒烟：写入一段 base64 音频（需要先注册拿 token）
+curl -X POST https://<域名>/api/tts/audio \
+  -H "Authorization: Bearer <token>" -H "Content-Type: application/json" \
+  -d '{"text":"hello","voice":"Cherry","data":"<base64>","contentType":"audio/mpeg"}' -o /tmp/a.mp3
+
+# 再读回来（另起进程/设备也是同一份）
+curl https://<域名>/api/tts/audio?text=hello\&voice=Cherry -H "Authorization: Bearer <token>" -o /tmp/b.mp3
+cmp /tmp/a.mp3 /tmp/b.mp3 && echo 一致
+```
 
 ## 部署到便宜 VPS（Ubuntu/Debian，systemd）
 

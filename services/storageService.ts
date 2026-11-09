@@ -147,10 +147,27 @@ export const defaultAIConfig = (): AIConfig => ({
   qwen: { baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen3.8-flash', apiKey: '' },
   openrouter: { baseUrl: 'https://openrouter.ai/api/v1', model: 'z-ai/glm-5.3-flash', apiKey: '' },
   glm: { baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash', apiKey: '' },
-  deepseek: { baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat', apiKey: '' },
+  // DeepSeek-V4.1-Flash（2026-09 GA）的官方 API 模型名是 `deepseek-flash`；
+  // 旧的 deepseek-chat / deepseek-reasoner 已于 2026-07-24 下线（调用会 400）。
+  deepseek: { baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-flash', apiKey: '' },
   custom: { baseUrl: '', model: '', apiKey: '' },
   ttsVoice: 'Cherry',
 });
+
+// DeepSeek 旧模型名迁移：deepseek-chat / deepseek-reasoner 已于 2026-07-24 下线，
+// 旧名（含 deepseek-v4-flash 系列）现在只是临时路由，迟早失效 —— 统一升到官方新名
+// `deepseek-flash`（= DeepSeek-V4.1-Flash）。老用户 localStorage 里存的旧名会在读取时被纠正。
+const RETIRED_DEEPSEEK_MODELS = new Set([
+  'deepseek-chat',
+  'deepseek-reasoner',
+  'deepseek-v4-flash',
+  'deepseek-v4-flash-vision-exp',
+  'deepseek-v4-pro',
+]);
+export const normalizeDeepSeekModel = (model?: string): string => {
+  const m = (model || '').trim();
+  return !m || RETIRED_DEEPSEEK_MODELS.has(m) ? 'deepseek-flash' : m;
+};
 
 export const getAIConfig = (): AIConfig => {
   const data = localStorage.getItem(STORAGE_KEY_AI);
@@ -163,7 +180,7 @@ export const getAIConfig = (): AIConfig => {
       qwen: { ...d.qwen, ...(p.qwen || {}) },
       openrouter: { ...d.openrouter, ...(p.openrouter || {}) },
       glm: { ...d.glm, ...(p.glm || {}) },
-      deepseek: { ...d.deepseek, ...(p.deepseek || {}) },
+      deepseek: { ...d.deepseek, ...(p.deepseek || {}), model: normalizeDeepSeekModel(p.deepseek?.model ?? d.deepseek.model) },
       custom: { ...d.custom, ...(p.custom || {}) },
       ttsVoice: p.ttsVoice || d.ttsVoice,
       taskRoutes: (p.taskRoutes as Partial<Record<TaskCategory, TaskTier>>) || {},

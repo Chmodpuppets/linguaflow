@@ -32,6 +32,7 @@ import {
   anonymizeChatLogs,
   type UserRow,
 } from './db';
+import { registerTtsRoutes } from './tts';
 
 type Env = { Variables: { user: UserRow } };
 
@@ -247,6 +248,15 @@ app.post('/llm/chat', auth, async (c) => {
   }
   if (!LLM_ALLOW_HOSTS.has(host)) return c.json({ error: `不允许的域名：${host}` }, 403);
 
+  // 上游可选参数白名单：只透传认识的字段（DeepSeek V4 的 thinking / reasoning_effort），
+  // 让前端能把「短输出小活」的思考模式关掉，避免变成任意参数转发器。
+  const extra: Record<string, unknown> = {};
+  const thinkType = (body?.thinking as { type?: unknown } | undefined)?.type;
+  if (thinkType === 'enabled' || thinkType === 'disabled') extra.thinking = { type: thinkType };
+  if (['low', 'high', 'max'].includes(String(body?.reasoning_effort))) {
+    extra.reasoning_effort = String(body.reasoning_effort);
+  }
+
   const upstream = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -254,7 +264,7 @@ app.post('/llm/chat', auth, async (c) => {
       'Content-Type': 'application/json',
       ...(host === 'openrouter.ai' ? { 'HTTP-Referer': 'https://linguaflow.app', 'X-Title': 'LinguaFlow' } : {}),
     },
-    body: JSON.stringify({ model, messages, temperature, ...(stream ? { stream: true } : {}) }),
+    body: JSON.stringify({ model, messages, temperature, ...extra, ...(stream ? { stream: true } : {}) }),
   }).catch(() => null);
 
   if (!upstream) return c.json({ error: '上游不可达' }, 502);
@@ -269,6 +279,34 @@ app.post('/llm/chat', auth, async (c) => {
     'Cache-Control': 'no-cache',
   });
 });
+
+// —— TTS 音频代理 + OSS 永久落盘 ——
+// DashScope 的音频 CDN 不返回 CORS 头，浏览器抓不到 Blob（只能播不能存），
+// 导致 24h 预签名 URL 一过期就得重新调接口。这里做两件事：
+// ① 同源转发音频字节，让前端能存 IndexedDB；② 顺手 PUT 到 OSS，跨设备复用。
+// 对象 key 是内容寻址的（sha256("v1|voice|text")），设备间不需要协调。
+const TTS_RATE_LIMIT = Number(process.env.TTS_RATE_LIMIT || 1200);
+const ttsHits = new Map<string, { count: number; resetAt: number }>();
+const rateLimitedTts = (key: string): boolean => {
+  const now = Date.now();
+  const rec = ttsHits.get(key);
+  if (!rec || rec.resetAt < now) {
+    ttsHits.set(key, { count: 1, resetAt: now + RATE_WINDOW_MS });
+    return false;
+  }
+  rec.count += 1;
+  return rec.count > TTS_RATE_LIMIT;
+};
+
+// 内存态 Map 会一直长，顺手清掉过期的桶
+setInterval(() => {
+  const now = Date.now();
+  for (const map of [regHits, loginHits, logHits, ttsHits]) {
+    for (const [k, v] of map) if (v.resetAt < now) map.delete(k);
+  }
+}, 10 * 60 * 1000).unref?.();
+
+registerTtsRoutes(app, { auth, clientIp, rateLimited: rateLimitedTts });
 
 // 连胜排行榜（公开，无需鉴权）：按 streak 降序
 app.get('/leaderboard', (c) => {

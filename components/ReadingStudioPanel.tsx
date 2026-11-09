@@ -3,10 +3,10 @@ import { createPortal } from 'react-dom';
 import { Book, BookVideo, Language } from '../types';
 import { bilibiliEmbedUrl, bilibiliLabel, bilibiliWatchUrl, isB23ShortLink, parseBilibiliInput } from '../utils/bilibili';
 import { updateBookVideos } from '../services/storageService';
-import { extractReadingAssist, getActiveModelLabel, hasUsableProvider, ReadingAssist, ReadingWord } from '../services/aiService';
+import { extractReadingAssist, getReadingAssistModelLabel, hasUsableProvider, ReadingAssist, ReadingWord } from '../services/aiService';
 import { deleteSentence, getSentences, SentenceItem } from '../services/sentenceBank';
 import { BookWord, getBookWords } from '../services/bookVocab';
-import { Bookmark, Check, ExternalLink, Layers, Loader2, Minimize2, PanelRight, Plus, RefreshCw, Trash2, Video } from 'lucide-react';
+import { Bookmark, Check, ExternalLink, Layers, Loader2, Minimize2, PanelRight, Plus, RefreshCw, Sparkles, Trash2, Video } from 'lucide-react';
 
 interface ReadingStudioPanelProps {
   book: Book;
@@ -14,8 +14,6 @@ interface ReadingStudioPanelProps {
   pageIndex: number;
   /** 当前页正文 */
   text: string;
-  /** 下一页正文（用于静默预取，可空） */
-  nextPageText?: string;
   nativeLanguage: Language;
   cefrLevel?: string;
   /** 已加入词库的词（小写比对） */
@@ -67,7 +65,6 @@ const ReadingStudioPanel: React.FC<ReadingStudioPanelProps> = ({
   book,
   pageIndex,
   text,
-  nextPageText,
   nativeLanguage,
   cefrLevel,
   addedWords,
@@ -214,8 +211,15 @@ const ReadingStudioPanel: React.FC<ReadingStudioPanelProps> = ({
   const [fallback, setFallback] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  /**
+   * 只有用户在这一页亲手点过「用 AI 提取」才会发请求。
+   * 存成 key 而不是 boolean：翻到下一页 key 就变了 → 自动回到「未授权」，
+   * 真正做到「每一页都要经过用户同意」，而不是一次授权全站静默调用。
+   */
+  const [approvedKey, setApprovedKey] = useState<string | null>(null);
 
   const aiReady = hasUsableProvider();
+  const modelLabel = getReadingAssistModelLabel();
 
   // 提取耗时（秒）：慢模型时让人看到「还在跑」而不是以为卡死
   const [elapsed, setElapsed] = useState(0);
@@ -244,6 +248,14 @@ const ReadingStudioPanel: React.FC<ReadingStudioPanelProps> = ({
       setLoading(false);
       return () => { alive = false; };
     }
+    // 本页还没获得用户同意：一个请求都不发，也不预取下一页（翻页时零 token 消耗）
+    if (approvedKey !== cacheKey) {
+      setAssist(null);
+      setFallback(false);
+      setAiError(null);
+      setLoading(false);
+      return () => { alive = false; };
+    }
     setLoading(true);
     setAssist(null);
     // 兜底超时：请求挂死不至于让骨架屏转一辈子。
@@ -263,22 +275,6 @@ const ReadingStudioPanel: React.FC<ReadingStudioPanelProps> = ({
         const hasContent = r.chunks.length > 0 || r.words.some((w) => w.meaning);
         const value: ReadingAssist = hasContent ? r : { chunks: [], words: localWordCandidates(text) };
         if (hasContent) ASSIST_CACHE.set(cacheKey, value);
-        // 静默预取下一页：翻页时基本零等待（失败/超时都不影响当前页）
-        if (hasContent && nextPageText && nextPageText.trim()) {
-          const nextKey = `${book.id}:${pageIndex + 1}:${book.language}`;
-          if (!ASSIST_CACHE.has(nextKey)) {
-            extractReadingAssist({
-              text: nextPageText,
-              targetLang: book.language,
-              nativeLang: nativeLanguage,
-              cefrLevel,
-            })
-              .then((n) => {
-                if (n.chunks.length > 0 || n.words.some((w) => w.meaning)) ASSIST_CACHE.set(nextKey, n);
-              })
-              .catch(() => {});
-          }
-        }
         if (!alive) return;
         setAssist(value);
         setFallback(!hasContent);
@@ -292,7 +288,7 @@ const ReadingStudioPanel: React.FC<ReadingStudioPanelProps> = ({
       })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [cacheKey, tick, text, nextPageText, book.language, nativeLanguage, cefrLevel, aiReady]);
+  }, [cacheKey, tick, approvedKey, text, book.language, nativeLanguage, cefrLevel, aiReady]);
 
   const chunks = assist?.chunks ?? [];
   const words = assist?.words ?? [];
@@ -487,14 +483,21 @@ const ReadingStudioPanel: React.FC<ReadingStudioPanelProps> = ({
           <div className="flex items-center gap-2">
             <Layers size={15} className="text-neon-2" />
             <h3 className="text-sm font-bold text-white">意群 & 难词</h3>
+            {assist && !fallback && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-400/10 text-emerald-300 border border-emerald-400/20">
+                本页已提取
+              </span>
+            )}
           </div>
-          <button
-            onClick={() => { ASSIST_CACHE.delete(cacheKey); setTick((t) => t + 1); }}
-            className="p-1.5 rounded-lg text-muted hover:text-white hover:bg-white/10 transition"
-            title="重新提取"
-          >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-          </button>
+          {assist && (
+            <button
+              onClick={() => { ASSIST_CACHE.delete(cacheKey); setApprovedKey(cacheKey); setTick((t) => t + 1); }}
+              className="p-1.5 rounded-lg text-muted hover:text-white hover:bg-white/10 transition"
+              title="重新提取（会再调用一次 AI）"
+            >
+              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            </button>
+          )}
         </div>
 
         {loading ? (
@@ -504,6 +507,39 @@ const ReadingStudioPanel: React.FC<ReadingStudioPanelProps> = ({
             ))}
             <p className="text-[11px] text-faint flex items-center gap-1.5 pt-1">
               <Loader2 size={11} className="animate-spin" /> 正在提取本页意群与生词…（已等 {elapsed}s，慢模型可能要 30s+）
+            </p>
+          </div>
+        ) : !assist ? (
+          /* 未获用户同意：一个请求都不发（也不预取下一页），等他自己点 */
+          <div className="space-y-2.5 py-1">
+            <p className="text-[11px] text-muted leading-relaxed">
+              这一页还没调用 AI。<b className="text-gray-300">点下面的按钮才会</b>把本页正文发一次给模型，
+              翻页不会自动触发，也不会预取下一页。
+            </p>
+            <button
+              onClick={() => setApprovedKey(cacheKey)}
+              disabled={!aiReady}
+              className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-neon to-neon-2 py-2 text-xs font-bold text-white shadow-glow-neon transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Sparkles size={13} /> 用 AI 提取本页意群与难词
+            </button>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] text-faint">模型：{modelLabel}</span>
+              <button
+                onClick={() => { setAssist({ chunks: [], words: localWordCandidates(text) }); setFallback(true); }}
+                className="text-[10px] font-bold text-faint hover:text-white hover:underline"
+                title="只按长度挑词，不联网、无释义"
+              >
+                先看本地生词候选（不联网）→
+              </button>
+            </div>
+            {!aiReady && (
+              <p className="text-[10px] text-amber-300/80 leading-relaxed">
+                还没配置模型 Key：到「我的资料 → 模型设置」填一个（推荐 DeepSeek，模型名 deepseek-flash）。
+              </p>
+            )}
+            <p className="text-[10px] text-faint leading-relaxed">
+              结果按页缓存（本次打开期间）：同一页重看不再花 token；换书 / 换页都要重新点一次。
             </p>
           </div>
         ) : (
@@ -581,23 +617,23 @@ const ReadingStudioPanel: React.FC<ReadingStudioPanelProps> = ({
                 <p className="text-[11px] text-amber-300/85 leading-relaxed">
                   {aiReady
                     ? 'AI 提取没成功，下面是本地生词候选（无释义/例句）。'
-                    : '未配置模型：下面是本地生词候选（无释义/例句）。配置后可自动生成意群与释义。'}
+                    : '未配置模型：下面是本地生词候选（无释义/例句）。配置后点「用 AI 提取」即可生成意群与释义。'}
                 </p>
                 <p className="text-[10px] text-amber-200/60 leading-relaxed break-words">
                   原因：{aiError || '未拿到错误信息（可能是旧的失败结果被缓存），点下面「重新提取」再试'}
                 </p>
                 <button
-                  onClick={() => { ASSIST_CACHE.delete(cacheKey); setTick((t) => t + 1); }}
+                  onClick={() => { ASSIST_CACHE.delete(cacheKey); setApprovedKey(cacheKey); setTick((t) => t + 1); }}
                   className="text-[10px] font-bold text-neon-2 hover:underline"
                 >
-                  重新提取 →
+                  再调用一次 AI 重新提取 →
                 </button>
               </div>
             )}
 
             <p className="text-[10px] text-faint flex flex-wrap items-center gap-x-2 gap-y-0.5 pt-0.5">
               <span className="flex items-center gap-1"><Bookmark size={10} /> 按页缓存，翻页不重复花 token</span>
-              <span>· 模型：{getActiveModelLabel()}</span>
+              <span>· 模型：{modelLabel}</span>
             </p>
           </div>
         )}

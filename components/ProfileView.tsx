@@ -792,7 +792,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout,
                     </button>
                   </div>
                   <p className="mt-3 text-[11px] leading-relaxed text-faint">
-                    所有 AI 请求都经过这道开关（含自动生成的今日任务、阅读意群、语音朗读）。应用与服务器均不内置密钥；开启云端同步时模型配置（含 Key）会随备份同步到你的账号；线上版为绕过跨域限制会经本站服务器中转（域名白名单、不存储 Key）；AI 对话内容按合规要求留痕 180 天。
+                    所有 AI 请求都经过这道开关（含自动生成的今日任务、语音朗读；阅读意群/难词改为每页点击后才调用）。应用与服务器均不内置密钥；开启云端同步时模型配置（含 Key）会随备份同步到你的账号；线上版为绕过跨域限制会经本站服务器中转（域名白名单、不存储 Key）；AI 对话内容按合规要求留痕 180 天。
                   </p>
                 </div>
 
@@ -801,7 +801,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout,
                   {([
                     { id: 'glm', label: '智谱 GLM', desc: 'glm-4-flash' },
                     { id: 'qwen', label: 'Qwen', desc: 'DashScope' },
-                    { id: 'deepseek', label: 'DeepSeek', desc: 'deepseek-chat' },
+                    { id: 'deepseek', label: 'DeepSeek', desc: 'deepseek-flash · V4.1' },
                     { id: 'openrouter', label: 'OpenRouter', desc: '多模型网关' },
                     { id: 'custom', label: '自定义', desc: 'OpenAI 兼容端点' },
                   ] as const).map((p) => (
@@ -826,7 +826,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout,
                     qwen: { base: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen3.8-flash' },
                     openrouter: { base: 'https://openrouter.ai/api/v1', model: 'z-ai/glm-5.3-flash' },
                     glm: { base: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash' },
-                    deepseek: { base: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
+                    deepseek: { base: 'https://api.deepseek.com/v1', model: 'deepseek-flash' },
                     custom: { base: 'https://your-endpoint/v1', model: 'your-model' },
                   };
                   const h = hints[modelCfg.active];
