@@ -1,0 +1,18 @@
+{
+  "lang": "ko",
+  "name": "韩语 → 中文",
+  "version": "2026-11-10",
+  "entries": 4055,
+  "forms": 533,
+  "bytes": 66351,
+  "parts": [
+    {
+      "file": "part-0.json.gz",
+      "words": 4055,
+      "forms": 533,
+      "bytes": 66351
+    }
+  ],
+  "source": "Open Yonsei Korean Vocabulary",
+  "license": "CC BY-SA 3.0"
+}

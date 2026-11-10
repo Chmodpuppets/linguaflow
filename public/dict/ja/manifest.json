@@ -1,0 +1,24 @@
+{
+  "lang": "ja",
+  "name": "日语 → 中文",
+  "version": "2026-11-10",
+  "entries": 22286,
+  "forms": 26304,
+  "bytes": 714865,
+  "parts": [
+    {
+      "file": "part-0.json.gz",
+      "words": 14000,
+      "forms": 26304,
+      "bytes": 518083
+    },
+    {
+      "file": "part-1.json.gz",
+      "words": 8286,
+      "forms": 0,
+      "bytes": 196782
+    }
+  ],
+  "source": "JMdict / jamdict-cn",
+  "license": "CC BY-SA 4.0"
+}

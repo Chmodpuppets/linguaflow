@@ -1,0 +1,24 @@
+{
+  "lang": "es",
+  "name": "西班牙语 → 中文",
+  "version": "2026-11-10",
+  "entries": 18950,
+  "forms": 25710,
+  "bytes": 321869,
+  "parts": [
+    {
+      "file": "part-0.json.gz",
+      "words": 14000,
+      "forms": 25710,
+      "bytes": 273267
+    },
+    {
+      "file": "part-1.json.gz",
+      "words": 4950,
+      "forms": 0,
+      "bytes": 48602
+    }
+  ],
+  "source": "WikDict / DBnary",
+  "license": "CC BY-SA"
+}
