@@ -991,7 +991,7 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout,
 
               {/* 本地词典：把查词从「每词一次 AI」换成离线词库 */}
               <div className="max-w-4xl mx-auto">
-                <DictionarySettingsCard />
+                <DictionarySettingsCard learningLanguage={user.learningLanguage} />
               </div>
           </div>
       )}

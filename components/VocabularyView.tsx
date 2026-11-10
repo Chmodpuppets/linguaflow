@@ -119,12 +119,9 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser, ini
     if (!newWord.trim()) return;
     setIsGenerating(true);
     try {
-      // 先查本地 / 服务器词典（不花 AI 额度、无需授权）；查不到才退回 AI 补例句
-      // 目标语不是英语时，拉丁字母单词再补一次英语词典（学日语的人也会记英语单词）
-      let hit = await lookupWord(newWord, user.learningLanguage);
-      if (!hit && user.learningLanguage !== 'en' && /^[a-z][a-z' -]*$/i.test(newWord.trim())) {
-        hit = await lookupWord(newWord, 'en');
-      }
+      // 先查本地 / 服务器词典（不花 AI 额度、无需授权）；查不到才退回 AI 补例句。
+      // lookupWord 内部已按「目标语言 → 文字系统 → 英语」回退，学日语的人记英文单词也能命中。
+      const hit = await lookupWord(newWord, user.learningLanguage);
       if (hit) {
         setDefinition(hit.meaning);
         setPartOfSpeech(hit.pos || '');

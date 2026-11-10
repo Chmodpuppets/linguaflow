@@ -2,24 +2,33 @@
  * 本地词典（离线查词）——代替「每个单词都问一次 AI」。
  *
  * 数据来源有两条路，优先级从高到低：
- *  1) 浏览器本地包：`/dict/<lang>/part-N.json.gz`（构建脚本 `scripts/build-dict.mjs`
- *     从 ECDICT 生成，英语约 5.7 万词 / 1.9MB）。装进 IndexedDB 后可离线查词。
- *  2) 服务器在线词典：`{SERVER_BASE}/dict/lookup?w=`（ECDICT 全量 ~40 万词，SQLite 索引）。
+ *  1) 浏览器本地包：`/dict/<lang>/part-N.json.gz`（按语言分别生成，装进 IndexedDB 后可离线查词）。
+ *  2) 服务器在线词典：`{SERVER_BASE}/dict/lookup?w=&lang=`（各语言全量 SQLite 索引）。
  * 两条都查不到才返回 null，由调用方决定要不要退回 AI。
  *
  * 设计约束：
  *  - 不引入依赖：IDB 手写、gzip 用浏览器原生 DecompressionStream。
- *  - 英语之外的语言暂时没有数据源，直接返回 null（不会误发请求）。
+ *  - 语言标识统一走 `dictLang.ts`：全站同时存在 Language 枚举、BCP-47、短码三种口径。
  *  - 词典安装是**静态资源下载**，不经过 AI 授权闸门，也不消耗任何模型额度。
  */
 
 import { SERVER_BASE } from './serverBridge';
+import {
+  DictLang,
+  DICT_LANGS,
+  detectDictLang,
+  isDictLang,
+  normalizeDictLang,
+  normalizeWord as normalizeWordForLang,
+  wordCandidates,
+} from './dictLang';
+
+export { DICT_LANGS, normalizeDictLang, isDictLang } from './dictLang';
+export type { DictLang, DictLangMeta } from './dictLang';
 
 const DB_NAME = 'linguaflow_dict';
 const STORE = 'packs';
 const DB_VERSION = 1;
-
-export type DictLang = 'en';
 
 export interface DictEntry {
   /** 词条原形（查 abandoned 会返回 abandon） */
@@ -172,8 +181,15 @@ const buildCache = async (stored: StoredPack): Promise<PackCache> => {
 
 // ---------------------------------------------------------------- 安装
 
+/** 防止语言码被拼进静态资源路径（来源可能是 localStorage / URL 参数）。 */
+const checkedLang = (lang: DictLang): DictLang => {
+  if (!isDictLang(lang)) throw new Error(`不支持的词典语言：${String(lang)}`);
+  return lang;
+};
+
 export const fetchManifest = async (lang: DictLang = 'en'): Promise<DictManifest> => {
-  const res = await fetch(assetUrl(`${dictBase(lang)}/manifest.json`), { cache: 'no-cache' });
+  const l = checkedLang(lang);
+  const res = await fetch(assetUrl(`${dictBase(l)}/manifest.json`), { cache: 'no-cache' });
   if (!res.ok) throw new Error(`词典清单下载失败（HTTP ${res.status}）`);
   return (await res.json()) as DictManifest;
 };
@@ -218,6 +234,7 @@ export const installDictionary = async (
   lang: DictLang = 'en',
   opts: { force?: boolean; onProgress?: (progress: number, state: DictState) => void } = {}
 ): Promise<DictState> => {
+  checkedLang(lang);
   const current = { ...(state[lang] || emptyState(lang)), installing: true, progress: 0, error: undefined };
   state[lang] = current;
   opts.onProgress?.(0, current);
@@ -322,42 +339,22 @@ export const getDictionaryState = async (lang: DictLang = 'en'): Promise<DictSta
   return state[lang];
 };
 
+/** 设置页一次拿到所有语言包的状态（只读，不触发下载）。 */
+export const getAllDictionaryStates = async (): Promise<Record<DictLang, DictState>> => {
+  const out = {} as Record<DictLang, DictState>;
+  await Promise.all(DICT_LANGS.map(async ({ lang }) => {
+    out[lang] = await getDictionaryState(lang);
+  }));
+  return out;
+};
+
 // ---------------------------------------------------------------- 查询
 
-/** 去掉标点、统一小写与弯引号；只保留字母 / 撇号 / 连字符 */
-export const normalizeWord = (raw: string): string =>
-  (raw || '')
-    .replace(/[’‘]/g, "'")
-    .trim()
-    .toLowerCase()
-    .replace(/^[^a-z]+/, '')
-    .replace(/[^a-z'-]+$/, '');
-
-const SUFFIX_RULES: Array<[RegExp, string[]]> = [
-  [/ies$/, ['y']],
-  [/ied$/, ['y']],
-  [/ying$/, ['ie', 'y']],
-  [/es$/, ['', 'e']],
-  [/ed$/, ['', 'e']],
-  [/ing$/, ['', 'e']],
-  [/er$/, ['', 'e']],
-  [/est$/, ['', 'e']],
-  [/ly$/, ['', 'le']],
-  [/s$/, ['']],
-  [/d$/, ['']],
-];
-
-/** 单复数 / 时态之类的规则回退（词形表没收录时兜底） */
-const candidatesFor = (word: string): string[] => {
-  const out = new Set<string>();
-  for (const [re, repls] of SUFFIX_RULES) {
-    if (!re.test(word)) continue;
-    const stem = word.replace(re, '');
-    for (const r of repls) out.add(stem + r);
-    if (/ing$|ed$|er$|est$/.test(word)) out.add(stem + stem.slice(-1)); // running → run
-  }
-  return [...out].filter((w) => w.length >= 2 && w !== word);
-};
+/**
+ * 按语言清洗词头（兼容旧调用方）。英语之外的文字系统各有规则，详见 dictLang.ts。
+ * 不传语言时按英语处理。
+ */
+export { normalizeWordForLang as normalizeWord };
 
 const loadPack = async (lang: DictLang): Promise<PackCache | null> => {
   const cached = packCache.get(lang);
@@ -397,23 +394,29 @@ const lookupLocal = async (word: string, lang: DictLang): Promise<DictEntry | nu
     if (row) return fromRow(lemma, row);
   }
 
-  for (const cand of candidatesFor(word)) {
+  for (const cand of wordCandidates(word, lang)) {
     const row = pack.words.get(cand);
     if (row) return fromRow(cand, row);
   }
   return null;
 };
 
-const lookupServer = async (word: string): Promise<DictEntry | null> => {
+const lookupServer = async (word: string, lang: DictLang): Promise<DictEntry | null> => {
   if (!SERVER_BASE) return null;
-  if (serverCache.has(word)) return serverCache.get(word) ?? null;
+  const key = `${lang}:${word}`;
+  if (serverCache.has(key)) return serverCache.get(key) ?? null;
   try {
-    const res = await fetch(`${SERVER_BASE}/dict/lookup?w=${encodeURIComponent(word)}`, {
-      signal: typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal ? AbortSignal.timeout(4500) : undefined,
-    });
+    // 把活用还原候选一并交给服务端：服务端只维护索引，不必再写一套日语/韩语形态规则。
+    const alts = wordCandidates(word, lang).slice(0, 20).join(',');
+    const qs = new URLSearchParams({ w: word, lang });
+    if (alts) qs.set('alt', alts);
+    const res = await fetch(
+      `${SERVER_BASE}/dict/lookup?${qs.toString()}`,
+      { signal: typeof AbortSignal !== 'undefined' && 'timeout' in AbortSignal ? AbortSignal.timeout(4500) : undefined }
+    );
     if (!res.ok) {
       if (res.status === 404) {
-        serverCache.set(word, null);
+        serverCache.set(key, null);
         return null;
       }
       return null;
@@ -428,24 +431,41 @@ const lookupServer = async (word: string): Promise<DictEntry | null> => {
       source: 'server',
     };
     if (serverCache.size > SERVER_CACHE_MAX) serverCache.clear();
-    serverCache.set(word, entry);
+    serverCache.set(key, entry);
     return entry;
   } catch {
     return null;
   }
 };
 
+/** 单语言查询：本地包 → 服务器在线词典。词形还原规则由 dictLang.ts 按语言提供。 */
+const lookupIn = async (word: string, lang: DictLang): Promise<DictEntry | null> => {
+  const local = await lookupLocal(word, lang);
+  if (local) return local;
+  return await lookupServer(word, lang);
+};
+
 /**
- * 查词：本地包 → 服务器在线词典 → null。
- * 只支持英语（其余语言没有离线数据源），返回 null 时调用方再决定是否用 AI。
+ * 查词入口。`lang` 可以是 Language 枚举（'English'）、BCP-47（'ja-JP'）或短码（'ja'）。
+ *
+ * 回退顺序：目标语言 → 按文字系统推断的语言 → 拉丁字母词补查英语。
+ * 最后一条是给「学日语的人在记英文单词」这类场景用的，也修掉了历史上
+ * 「传 'English' 进来被当成非 'en' 直接 return null」的静默失败。
  */
 export const lookupWord = async (raw: string, lang: string = 'en'): Promise<DictEntry | null> => {
-  if (lang !== 'en') return null;
-  const word = normalizeWord(raw);
-  if (!word || word.length > 40) return null;
-  const local = await lookupLocal(word, 'en');
-  if (local) return local;
-  return await lookupServer(word);
+  const primary = normalizeDictLang(lang);
+  const guessed = detectDictLang(raw);
+  const ordered: DictLang[] = [];
+  for (const l of [primary, guessed, /^[\p{L}\s'-]+$/u.test((raw || '').trim()) ? 'en' as DictLang : null]) {
+    if (l && !ordered.includes(l)) ordered.push(l);
+  }
+  for (const l of ordered) {
+    const word = normalizeWordForLang(raw, l);
+    if (!word || word.length > 40) continue;
+    const hit = await lookupIn(word, l);
+    if (hit) return hit;
+  }
+  return null;
 };
 
 /** 批量补释义：查到的写回 meaning / ipa / pos，查不到的保持原样 */
@@ -453,7 +473,7 @@ export const enrichWords = async <T extends { word: string; meaning?: string; ip
   list: T[],
   lang: string = 'en'
 ): Promise<T[]> => {
-  if (lang !== 'en' || !list.length) return list;
+  if (!list.length) return list;
   const out: T[] = [];
   let changed = false;
   for (const item of list) {
@@ -474,6 +494,7 @@ export const enrichWords = async <T extends { word: string; meaning?: string; ip
 
 /**
  * 线上版首次打开时静默预装英语词典（约 1.9MB，一次性）。
+ * 其它语言不预装 —— 首次进站不该一口气下 4 个包，交给用户在设置页按需下载。
  * 已装同版本会直接命中缓存，不重复下载；失败不影响任何功能。
  */
 export const preinstallForEdition = (): void => {

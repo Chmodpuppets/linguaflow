@@ -2,9 +2,10 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { TypingContent, UserProfile, UserContent, CEFRLevel, VocabularyItem, Book, Language } from '../types';
 import { KANA_DRILLS, buildKanaContent } from '../data/kanaDrills';
-import { generateTypingContent, generateSpeech, cancelSpeech, languageToSpeechLang } from '../services/aiService';
+import { generateTypingContent, generateSpeech, playWord, cancelSpeech, languageToSpeechLang } from '../services/aiService';
 import type { ReadingAssist } from '../services/aiService';
 import { lookupWord, type DictEntry } from '../services/dictionary';
+import { detectDictLang, dictLangToLanguage, normalizeDictLang } from '../services/dictLang';
 import { saveSentence } from '../services/sentenceBank';
 import { addBookWord } from '../services/bookVocab';
 import { addActivity, getLibrary, saveLibraryItem, saveVocabularyItem, getTypingLibraryItems, saveTypingLibraryItem, deleteTypingLibraryItem, touchTypingLibraryItem, TypingLibraryItem, updateBookProgress } from '../services/storageService';
@@ -440,6 +441,33 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData, 
   const assistRef = useRef<ReadingAssist | null>(null);
   // 划词释义：本地 / 服务器词典，不调用 AI
   const [selGloss, setSelGloss] = useState<DictEntry | null>(null);
+  // 划词发音：短暂高亮，1.8s 后自动复位（playWord 是 fire-and-forget，没有 onEnd 回调）
+  const [speaking, setSpeaking] = useState(false);
+  const speakTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (speakTimer.current) clearTimeout(speakTimer.current); }, []);
+
+  /** 选中文本该用哪种语音：书库语言优先，但按文字系统纠偏（学日语时划到英文词要读英文）。 */
+  const speechLang = useMemo<Language>(() => {
+      const raw = String(book?.language || user.learningLanguage || '');
+      const short = normalizeDictLang(raw);
+      if (short) return dictLangToLanguage(short);
+      return Object.values(Language).includes(raw as Language) ? (raw as Language) : Language.English;
+  }, [book?.language, user.learningLanguage]);
+
+  const handleSpeakSelected = useCallback((text: string) => {
+      const w = text.trim();
+      if (!w) return;
+      const detected = detectDictLang(w);
+      let lang = speechLang;
+      if (detected) lang = dictLangToLanguage(detected);
+      else if (/^[\p{L}\s'-]+$/u.test(w) && (speechLang === Language.Japanese || speechLang === Language.Korean)) {
+          lang = Language.English;
+      }
+      playWord(w, lang);
+      setSpeaking(true);
+      if (speakTimer.current) clearTimeout(speakTimer.current);
+      speakTimer.current = setTimeout(() => setSpeaking(false), 1800);
+  }, [speechLang]);
 
   useEffect(() => {
       setSelGloss(null);
@@ -1526,19 +1554,39 @@ const TypingView: React.FC<TypingViewProps> = ({ user, onComplete, initialData, 
               >
                 {selChip.single && selGloss && (
                   <div className="max-w-[260px] border-b border-white/10 pb-1.5">
-                    <div className="flex flex-wrap items-baseline gap-x-1.5">
-                      <span className="text-xs font-bold text-white">{selGloss.word}</span>
-                      {selGloss.phonetic && (
-                        <span className="font-mono text-[10px] text-neon-2">
-                          {selGloss.phonetic.startsWith('/') ? selGloss.phonetic : `/${selGloss.phonetic}/`}
-                        </span>
-                      )}
-                      {selGloss.pos && <span className="text-[10px] uppercase text-faint">{selGloss.pos}</span>}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex flex-wrap items-baseline gap-x-1.5 min-w-0">
+                        <span className="text-xs font-bold text-white">{selGloss.word}</span>
+                        {selGloss.phonetic && (
+                          <span className="font-mono text-[10px] text-neon-2">
+                            {selGloss.phonetic.startsWith('/') || /[ぁ-んァ-ヶ一-龯]/.test(selGloss.phonetic)
+                              ? selGloss.phonetic
+                              : `/${selGloss.phonetic}/`}
+                          </span>
+                        )}
+                        {selGloss.pos && <span className="text-[10px] uppercase text-faint">{selGloss.pos}</span>}
+                      </div>
+                      <button
+                        onClick={() => handleSpeakSelected(selGloss.word)}
+                        className={`shrink-0 rounded-md p-1 transition ${speaking ? 'bg-neon/20 text-neon-2' : 'text-muted hover:bg-white/10 hover:text-white'}`}
+                        title="听发音（按文字系统自动选语音）"
+                      >
+                        <Volume2 size={13} className={speaking ? 'animate-pulse' : ''} />
+                      </button>
                     </div>
                     <p className="mt-0.5 text-[11px] leading-snug text-gray-300 line-clamp-3">{selGloss.meaning}</p>
                   </div>
                 )}
                 <div className="flex items-center gap-1">
+                  {selChip.single && !selGloss && (
+                    <button
+                      onClick={() => handleSpeakSelected(selChip.text)}
+                      className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold border border-white/10 transition ${speaking ? 'bg-neon/20 text-neon-2' : 'bg-white/5 text-gray-200 hover:bg-white/10'}`}
+                      title="听发音"
+                    >
+                      <Volume2 size={12} className={speaking ? 'animate-pulse' : ''} /> 发音
+                    </button>
+                  )}
                   {selChip.single && (
                     <button
                       onClick={() => handleSaveSelectedWord(selChip.text)}
