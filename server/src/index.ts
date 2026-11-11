@@ -128,7 +128,9 @@ const genToken = (): string => randomBytes(24).toString('base64url');
 
 // CORS（匿名 token，无 cookie，默认 `*`；生产可收紧为 CORS_ORIGIN）
 app.use('*', async (c: Context<Env>, next: Next) => {
-  c.header('Access-Control-Allow-Origin', CORS_ORIGIN);
+  // 公开只读词典 /dict/* 对全部 Pathmora 产品跨域开放（pathmora / linguaflow / linguaflow-reader 共用同一词典服务）；
+  // 其余接口仍收紧到 CORS_ORIGIN。查词无 cookie、无敏感数据，开放 Origin 不引入 CSRF 风险。
+  c.header('Access-Control-Allow-Origin', c.req.path.startsWith('/dict/') ? '*' : CORS_ORIGIN);
   c.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
   c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   // 注意：必须用 c.body() 而非 new Response()——后者不会带上 c.header() 设置的 CORS 头
