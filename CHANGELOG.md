@@ -35,16 +35,35 @@ All notable changes to LinguaFlow are documented here. This project adheres to
   neither calls nor pre-fetches, so a book costs zero tokens until the reader asks.
   Per-page results are still cached in memory, so revisiting a page costs nothing, and
   a "先看本地生词候选（不联网）" escape hatch keeps the panel usable without any AI.
-- **Reading assist now prefers DeepSeek `deepseek-flash`** (V4.1 Flash — cheapest and
-  fastest for a one-page JSON task), falling back to the `fast` tier (GLM / Qwen) when
-  no DeepSeek key is configured. DeepSeek's thinking mode is switched off for these
-  short structured calls (`thinking: {type:'disabled'}`, forwarded by `/llm/chat`).
+- **Reading assist picks a fast model by *model name*, not provider slot.** It used to
+  look for a slot literally named `deepseek` and otherwise fall back to the `fast` tier
+  (GLM hard-coded first) — so a DeepSeek model hosted on DashScope and configured in the
+  *Qwen* slot was invisible to it, and the panel landed on reasoning models like
+  `GLM-4.7-Flash` (measured ~26s + a 1.9K-char thinking trace for a one-line JSON task,
+  vs ~1.6s for `glm-4-flash`, plus frequent `1305` congestion). Resolution now prefers the
+  official DeepSeek slot, then any slot whose model matches a fast pattern
+  (`deepseek*flash` / `glm-4-flash` / `qwen*-(turbo|flash)`), and avoids reasoning models
+  (`glm-4.5+`, `deepseek-reasoner`, `qwq`/`thinking`). When only a reasoning model is
+  available the panel says so and warns it will be slow.
+- **`noThinking` now actually reaches GLM and DashScope.** Previously only the official
+  DeepSeek endpoint got `thinking:{type:'disabled'}`. GLM-4.5+ reasoning models and
+  DashScope-hosted DeepSeek now get it too, and DashScope `qwen3`/`qwq` gets
+  `enable_thinking:false` (measured: `deepseek-v4.1-flash` thinking trace 60→0 chars).
+  The `/llm/chat` relay whitelist forwards both `thinking` and `enable_thinking`.
 
 ### Fixed
 - **DeepSeek default model was a retired name.** `deepseek-chat` / `deepseek-reasoner`
   were shut down on 2026-07-24, so any DeepSeek call from a fresh install 400'd. The
   default is now `deepseek-flash`, and saved configs are migrated on read
   (`deepseek-chat` / `deepseek-reasoner` / `deepseek-v4-flash` → `deepseek-flash`).
+- **Reading assist error messages and the result footer name the model that actually
+  answered** (after a quota fallback), not the global first provider. The per-page cache
+  key now includes native language and CEFR level, so switching either no longer serves a
+  stale gloss. A result that arrives after the 90s UI timeout is still cached (and shown
+  if the reader is still on that page) instead of being thrown away.
+- **Local word candidates no longer silently return nothing for CJK pages** (an honest
+  note is shown instead) and pick up shorter difficult words — minimum length 8→5 with an
+  expanded common-word stoplist, so literary words like *privy* / *bores* / *griefs* qualify.
 
 ## [0.2.0] - 2026-11-09
 

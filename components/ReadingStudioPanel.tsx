@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Book, BookVideo, Language } from '../types';
 import { bilibiliEmbedUrl, bilibiliLabel, bilibiliWatchUrl, isB23ShortLink, parseBilibiliInput } from '../utils/bilibili';
 import { updateBookVideos } from '../services/storageService';
-import { extractReadingAssist, getReadingAssistModelLabel, hasUsableProvider, ReadingAssist, ReadingWord } from '../services/aiService';
+import { extractReadingAssist, getReadingAssistModelInfo, hasUsableProvider, ReadingAssist, ReadingWord } from '../services/aiService';
 import { deleteSentence, getSentences, SentenceItem } from '../services/sentenceBank';
 import { enrichWords } from '../services/dictionary';
 import { BookWord, getBookWords } from '../services/bookVocab';
@@ -29,7 +29,7 @@ interface ReadingStudioPanelProps {
 // 按「书 + 页 + 语言」缓存提取结果：翻回去看同一页不再花 token
 const ASSIST_CACHE = new Map<string, ReadingAssist>();
 
-// 无 AI 时的兜底：只挑「看起来像生词」的长词，没有释义（提示语会说明）
+// 无 AI 时的兜底：只挑「看起来像生词」的词，没有释义（提示语会说明）
 const COMMON_LONG_WORDS = new Set([
   'because', 'without', 'through', 'themselves', 'something', 'anything', 'everything', 'nothing',
   'thought', 'brought', 'between', 'against', 'morning', 'evening', 'another', 'already',
@@ -46,15 +46,37 @@ const COMMON_LONG_WORDS = new Set([
   'sometimes', 'usually', 'finally', 'quickly', 'quietly', 'suddenly', 'immediately',
 ]);
 
+// 5–7 字母的高频词：降低候选门槛（8→5）后用来挡住「the/and 的加长版」，
+// 让 privy / bores / griefs 这类真正的文学难词能进兜底候选。
+const COMMON_SHORT_WORDS = new Set([
+  'about', 'above', 'after', 'again', 'along', 'among', 'around', 'being', 'below', 'both',
+  'bring', 'build', 'carry', 'catch', 'cause', 'change', 'child', 'close', 'come', 'could',
+  'course', 'cover', 'early', 'earth', 'enough', 'every', 'field', 'first', 'found', 'great',
+  'green', 'group', 'grow', 'hand', 'head', 'hear', 'heart', 'heavy', 'hold', 'home', 'house',
+  'human', 'idea', 'keep', 'kind', 'know', 'large', 'later', 'learn', 'leave', 'level', 'light',
+  'line', 'little', 'live', 'local', 'long', 'look', 'made', 'make', 'mean', 'might', 'money',
+  'month', 'more', 'most', 'move', 'much', 'music', 'never', 'night', 'north', 'note', 'often',
+  'once', 'only', 'open', 'order', 'other', 'over', 'own', 'part', 'people', 'place', 'point',
+  'power', 'quite', 'reach', 'read', 'ready', 'real', 'right', 'round', 'said', 'same', 'seem',
+  'sense', 'serve', 'shall', 'short', 'should', 'show', 'side', 'since', 'small', 'some',
+  'soon', 'sound', 'south', 'space', 'speak', 'stand', 'start', 'state', 'still', 'story',
+  'study', 'such', 'take', 'talk', 'tell', 'than', 'that', 'their', 'them', 'then', 'there',
+  'these', 'they', 'thing', 'think', 'third', 'those', 'though', 'three', 'time', 'today',
+  'took', 'turn', 'under', 'until', 'upon', 'used', 'very', 'voice', 'want', 'watch', 'water',
+  'well', 'went', 'were', 'what', 'when', 'where', 'which', 'while', 'white', 'whole', 'whom',
+  'whose', 'will', 'with', 'within', 'woman', 'women', 'word', 'work', 'world', 'would',
+  'write', 'wrong', 'year', 'young', 'your',
+]);
+
 const localWordCandidates = (text: string): ReadingWord[] => {
   const seen = new Set<string>();
   const out: ReadingWord[] = [];
   const tokens = text.split(/[^A-Za-z'’-]+/);
   for (const raw of tokens) {
     const word = raw.replace(/^['’-]+|['’-]+$/g, '');
-    if (word.length < 8) continue;
+    if (word.length < 5) continue;
     const low = word.toLowerCase();
-    if (seen.has(low) || COMMON_LONG_WORDS.has(low)) continue;
+    if (seen.has(low) || COMMON_LONG_WORDS.has(low) || COMMON_SHORT_WORDS.has(low)) continue;
     seen.add(low);
     out.push({ word, meaning: '', pos: '' });
     if (out.length >= 8) break;
@@ -206,7 +228,8 @@ const ReadingStudioPanel: React.FC<ReadingStudioPanelProps> = ({
   };
 
   // --- 意群 & 难词 ---
-  const cacheKey = `${book.id}:${pageIndex}:${book.language}`;
+  // 缓存键含母语 / CEFR：换了母语或等级后，旧缓存的释义语言 / 难度不再匹配，不能直接端上来
+  const cacheKey = `${book.id}:${pageIndex}:${book.language}:${nativeLanguage}:${cefrLevel || 'B1'}`;
   const [assist, setAssist] = useState<ReadingAssist | null>(null);
   const [loading, setLoading] = useState(false);
   const [fallback, setFallback] = useState(false);
@@ -220,7 +243,8 @@ const ReadingStudioPanel: React.FC<ReadingStudioPanelProps> = ({
   const [approvedKey, setApprovedKey] = useState<string | null>(null);
 
   const aiReady = hasUsableProvider();
-  const modelLabel = getReadingAssistModelLabel();
+  const modelInfo = getReadingAssistModelInfo();
+  const modelLabel = modelInfo.label;
 
   // 提取耗时（秒）：慢模型时让人看到「还在跑」而不是以为卡死
   const [elapsed, setElapsed] = useState(0);
@@ -268,10 +292,19 @@ const ReadingStudioPanel: React.FC<ReadingStudioPanelProps> = ({
         90000
       )
     );
-    Promise.race([
-      extractReadingAssist({ text, targetLang: book.language, nativeLang: nativeLanguage, cefrLevel }),
-      timeout,
-    ])
+    const request = extractReadingAssist({ text, targetLang: book.language, nativeLang: nativeLanguage, cefrLevel });
+    // 迟到的成功也缓存：90s 超时只影响 UI，不浪费已经花掉的 token；
+    // 若用户还停在这一页，结果到达时直接端上来。
+    void request.then((r) => {
+      if (!(r.chunks.length > 0 || r.words.some((w) => w.meaning))) return;
+      ASSIST_CACHE.set(cacheKey, r);
+      if (!alive) return;
+      setAssist(r);
+      setFallback(false);
+      setAiError(r.error ?? null);
+      setLoading(false);
+    }).catch(() => { /* race 那边已处理错误 */ });
+    Promise.race([request, timeout])
       .then((r) => {
         const hasContent = r.chunks.length > 0 || r.words.some((w) => w.meaning);
         const value: ReadingAssist = hasContent ? r : { chunks: [], words: localWordCandidates(text) };
@@ -549,6 +582,11 @@ const ReadingStudioPanel: React.FC<ReadingStudioPanelProps> = ({
                 先看本地生词候选（不联网）→
               </button>
             </div>
+            {modelInfo.reasoning && (
+              <p className="text-[10px] text-amber-300/80 leading-relaxed">
+                当前是推理模型：这个任务会明显偏慢、还可能返回空。建议到「模型设置」换快模型（glm-4-flash / deepseek-flash，配在任意槽位都行）。
+              </p>
+            )}
             {!aiReady && (
               <p className="text-[10px] text-amber-300/80 leading-relaxed">
                 还没配置模型 Key：到「我的资料 → 模型设置」填一个（推荐 DeepSeek，模型名 deepseek-flash）。
@@ -624,16 +662,22 @@ const ReadingStudioPanel: React.FC<ReadingStudioPanelProps> = ({
 
             {chunks.length === 0 && words.length === 0 && (
               <p className="text-[11px] text-faint py-2">
-                本页没有可提取的内容（或这一页太短）。
+                {/[぀-ヿ一-鿿가-힯]/.test(text)
+                  ? '本地候选目前只支持拉丁字母文本。日 / 中 / 韩请配置模型后用「用 AI 提取」。'
+                  : '本页没有可提取的内容（或这一页太短）。'}
               </p>
             )}
 
             {fallback && (
               <div className="border-t border-white/5 pt-2 space-y-1">
                 <p className="text-[11px] text-amber-300/85 leading-relaxed">
-                  {aiReady
-                    ? 'AI 提取没成功，下面是本地生词候选（无释义/例句）。'
-                    : '未配置模型：下面是本地生词候选（无释义/例句）。配置后点「用 AI 提取」即可生成意群与释义。'}
+                  {words.length === 0
+                    ? (aiReady
+                      ? 'AI 提取没成功，本地候选也没挑出生词。'
+                      : '未配置模型，本地候选也没挑出生词。配置模型后点「用 AI 提取」。')
+                    : (aiReady
+                      ? 'AI 提取没成功，下面是本地生词候选（无释义/例句）。'
+                      : '未配置模型：下面是本地生词候选（无释义/例句）。配置后点「用 AI 提取」即可生成意群与释义。')}
                 </p>
                 <p className="text-[10px] text-amber-200/60 leading-relaxed break-words">
                   原因：{aiError || '未拿到错误信息（可能是旧的失败结果被缓存），点下面「重新提取」再试'}
@@ -649,7 +693,7 @@ const ReadingStudioPanel: React.FC<ReadingStudioPanelProps> = ({
 
             <p className="text-[10px] text-faint flex flex-wrap items-center gap-x-2 gap-y-0.5 pt-0.5">
               <span className="flex items-center gap-1"><Bookmark size={10} /> 按页缓存，翻页不重复花 token</span>
-              <span>· 模型：{modelLabel}</span>
+              <span>· 模型：{assist?.model || modelLabel}</span>
             </p>
           </div>
         )}

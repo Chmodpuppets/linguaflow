@@ -22,6 +22,8 @@
 > **模型切换**：默认走 GLM · `glm-4-flash`。选 OpenRouter 时模型取 `OPENROUTER_MODEL`。降级依次尝试当前 provider → 备选 provider。
 >
 > **按任务分配模型**：「模型设置」底部可按学习环节指定 `快模型` / `高推理` / `跟随全局`，缺省路由见 `services/storageService.ts` 的 `DEFAULT_TASK_ROUTES`。
+>
+> **阅读「意群 & 难词」单独选快模型**：这是「一页一次、短输出、要求快」的小活，按**模型名**（不是槽位名）挑快模型——优先 DeepSeek 官方槽位，其次任意槽位里匹配 `deepseek*flash` / `glm-4-flash` / `qwen*-(turbo|flash)` 的模型，并避开推理模型（`glm-4.5+` / `deepseek-reasoner` / `qwq`）。所以把 DashScope 托管的 `deepseek-v4.1-flash` 配在 **Qwen 槽位**也会被优先选中，不会回落 GLM 推理模型。这类调用会按厂商关掉思考（DeepSeek/GLM `thinking:disabled`、DashScope qwen3 `enable_thinking:false`）。只剩推理模型可用时，面板会如实提示「偏慢、可能返回空」。
 
 ---
 

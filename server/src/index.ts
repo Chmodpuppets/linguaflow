@@ -251,14 +251,16 @@ app.post('/llm/chat', auth, async (c) => {
   }
   if (!LLM_ALLOW_HOSTS.has(host)) return c.json({ error: `不允许的域名：${host}` }, 403);
 
-  // 上游可选参数白名单：只透传认识的字段（DeepSeek V4 的 thinking / reasoning_effort），
-  // 让前端能把「短输出小活」的思考模式关掉，避免变成任意参数转发器。
+  // 上游可选参数白名单：只透传认识的字段（DeepSeek V4 的 thinking / reasoning_effort，
+  // DashScope qwen3/QwQ 的 enable_thinking），让前端能把「短输出小活」的思考模式关掉，
+  // 避免变成任意参数转发器。
   const extra: Record<string, unknown> = {};
   const thinkType = (body?.thinking as { type?: unknown } | undefined)?.type;
   if (thinkType === 'enabled' || thinkType === 'disabled') extra.thinking = { type: thinkType };
   if (['low', 'high', 'max'].includes(String(body?.reasoning_effort))) {
     extra.reasoning_effort = String(body.reasoning_effort);
   }
+  if (typeof body?.enable_thinking === 'boolean') extra.enable_thinking = body.enable_thinking;
 
   const upstream = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',

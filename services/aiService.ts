@@ -294,13 +294,23 @@ const callProvider = async (
                 ? { "HTTP-Referer": "https://linguaflow.app", "X-Title": "LinguaFlow" }
                 : {}),
         };
-    // DeepSeek V4 起「思考模式」默认开启：推理过程会进 reasoning_content，
+    // 推理模型的「思考模式」默认开启：推理过程会进 reasoning_content，
     // 短输出的结构化小活（意群/难词、取词）会因此变慢、也容易被思维片段污染 JSON。
-    // 只在调用方明确要求「快、不要思考」且是 DeepSeek 官方端点时才关掉。
-    const providerExtra: Record<string, unknown> =
-        opts?.noThinking && p.name === "deepseek" && /(^|\.)deepseek\.com$/i.test(p.baseUrl)
-            ? { thinking: { type: "disabled" } }
-            : {};
+    // 调用方明确要求「快、不要思考」时按厂商关闭（2026-11 实测）：
+    // - DeepSeek 官方端点：thinking.type=disabled
+    // - 智谱 GLM-4.5+ 推理模型：thinking.type=disabled（中转白名单已透传）
+    // - DashScope 托管的 deepseek：thinking.type=disabled；qwen3/QwQ 系：enable_thinking=false
+    const providerExtra: Record<string, unknown> = {};
+    if (opts?.noThinking) {
+        let host = '';
+        try { host = new URL(p.baseUrl).hostname; } catch { /* ignore */ }
+        if (/(^|\.)deepseek\.com$/i.test(host) || (p.name === 'glm' && isReasoningModel(p.model))) {
+            providerExtra.thinking = { type: 'disabled' };
+        } else if (/dashscope/i.test(host)) {
+            if (/deepseek/i.test(p.model)) providerExtra.thinking = { type: 'disabled' };
+            else if (/qwen3|qwq/i.test(p.model)) providerExtra.enable_thinking = false;
+        }
+    }
     const payload = proxy
         ? { baseUrl: p.baseUrl, apiKey: p.apiKey, model: p.model, messages, temperature: temperature ?? 0.7, ...providerExtra }
         : { model: p.model, messages, temperature: temperature ?? 0.7, ...providerExtra };
@@ -622,19 +632,44 @@ export const getProviderForTask = (category: TaskCategory): LLMProvider | null =
 };
 
 // --- 阅读工作台（意群 & 难词）：单独指定厂商 ---
-// 这类调用是「一页一次、短输出、要求快」的小活：优先 DeepSeek（V4.1 Flash，便宜且快），
-// 没配 DeepSeek Key 时回落到 fast 档（GLM / Qwen），再回落到任意可用 provider。
+// 这类调用是「一页一次、短输出、要求快」的小活：优先快模型（deepseek-flash 系 /
+// glm-4-flash / qwen-turbo|flash），避开推理模型（慢、短输出易空返回）。
+// 注意按「模型名」而不是「槽位名」判断 —— DashScope 也托管 deepseek-v4.1-flash，
+// 用户把它配在 Qwen 槽位时同样应被优先选中（2026-11 前只认 deepseek 槽位，
+// 导致「Qwen 槽位配了 deepseek flash 却回落 GLM-4.7-Flash 推理模型」）。
 const READING_ASSIST_PREFERRED = 'deepseek';
+
+/** 推理模型：答案进思考链，短 JSON 小活又慢又易空返回（GLM-4.7-Flash 实测 26s vs glm-4-flash 1.6s） */
+export const isReasoningModel = (model: string): boolean =>
+  /glm-4\.[5-9]/i.test(model) || /deepseek-reasoner/i.test(model) || /qwq|thinking/i.test(model);
+
+/** 适合「短输出小活」的快模型（含 DashScope / OpenRouter 托管的 deepseek-flash 系） */
+const isFastAssistModel = (model: string): boolean =>
+  /deepseek[\w.-]*flash/i.test(model) || /glm-4-flash/i.test(model) || /qwen[\w.]*-(turbo|flash)/i.test(model);
+
 const resolveReadingAssistProvider = (): LLMProvider | null => {
   const all = buildProviders();
-  return all.find((p) => p.name === READING_ASSIST_PREFERRED) || resolveTier('fast') || all[0] || null;
+  if (!all.length) return null;
+  // 1) DeepSeek 官方槽位（历史首选）
+  const official = all.find((p) => p.name === READING_ASSIST_PREFERRED);
+  if (official) return official;
+  // 2) 任意槽位里的快模型（按模型名匹配，不认槽位名）
+  const fast = all.find((p) => isFastAssistModel(p.model));
+  if (fast) return fast;
+  // 3) fast 档路由，但避开推理模型；实在没有才用推理模型（UI 会提示偏慢）
+  const tierFast = resolveTier('fast');
+  if (tierFast && !isReasoningModel(tierFast.model)) return tierFast;
+  return all.find((p) => !isReasoningModel(p.model)) || tierFast || all[0];
 };
 
-/** 阅读意群/难词实际会用的模型（provider · model），给 UI 在点击前如实显示 */
-export const getReadingAssistModelLabel = (): string => {
+/** 阅读意群/难词实际会用的模型 + 是否推理模型，给 UI 在点击前如实显示 */
+export const getReadingAssistModelInfo = (): { label: string; reasoning: boolean } => {
   const p = resolveReadingAssistProvider();
-  return p ? `${p.name} · ${p.model}` : '未配置模型';
+  return p
+    ? { label: `${p.name} · ${p.model}`, reasoning: isReasoningModel(p.model) }
+    : { label: '未配置模型', reasoning: false };
 };
+export const getReadingAssistModelLabel = (): string => getReadingAssistModelInfo().label;
 
 // 按任务类别选模型：先走路由到的 provider，失败（限流/网络）再回落全局 provider 链。
 const chatCompletionForTask = async (category: TaskCategory, prompt: string, temperature?: number): Promise<string> => {
@@ -660,8 +695,10 @@ const chatCompletionWithSystemForTask = async (
   system: string,
   prompt: string,
   temperature?: number,
-  /** 指定首发 provider（如阅读意群固定优先 DeepSeek）；同时按「快活」处理（DeepSeek 关思考） */
-  primaryOverride?: LLMProvider | null
+  /** 指定首发 provider（如阅读意群固定优先快模型）；同时按「快活」处理（关思考） */
+  primaryOverride?: LLMProvider | null,
+  /** 实际应答的 provider（限流回落后可能与首发不同），供调用方做错误归因 */
+  onAnswer?: (p: LLMProvider) => void
 ): Promise<string> => {
   markAiFeature(TASK_CATEGORY_LABELS[category] || category);
   const primary = primaryOverride ?? getProviderForTask(category);
@@ -670,10 +707,12 @@ const chatCompletionWithSystemForTask = async (
   let lastErr: unknown;
   for (const p of chain) {
     try {
-      return await callProvider(p, [
+      const out = await callProvider(p, [
         { role: "system", content: system },
         { role: "user", content: prompt },
       ], temperature, primaryOverride ? { noThinking: true } : undefined);
+      onAnswer?.(p);
+      return out;
     } catch (e: any) {
       lastErr = e;
       if (e?.quota || e?.network) continue;
@@ -1528,6 +1567,8 @@ export interface ReadingAssist {
   words: ReadingWord[];
   /** 失败原因（用于在 UI 里如实显示，而不是静默降级） */
   error?: string;
+  /** 实际应答的模型（provider · model）；限流回落后可能与点击前标签不同 */
+  model?: string;
 }
 
 export const extractReadingAssist = async (params: {
@@ -1557,19 +1598,23 @@ export const extractReadingAssist = async (params: {
     `{"chunks":[{"text":"...","meaning":"..."}],"words":[{"word":"...","ipa":"...","meaning":"...","pos":"...","example":"..."}]}`;
 
   const prompt = `Page (${targetLang}):\n"""\n${text.slice(0, 3000)}\n"""`;
+  // 记录实际应答的 provider：限流回落后可能与点击前标签不同，
+  // 错误归因与结果页脚必须用它，而不是全局第一个 provider。
+  let answered: LLMProvider | null = null;
+  const answeredLabel = () => (answered ? `${answered.name} · ${answered.model}` : '当前模型');
   try {
-    // 这一页的小活固定优先 DeepSeek（V4.1 Flash）：短输出、便宜；
-    // 没配 DeepSeek Key 时 resolveReadingAssistProvider() 会回落到 fast 档（GLM / Qwen）。
+    // 这一页的小活优先快模型（deepseek-flash 系，含 DashScope 托管）；
+    // resolveReadingAssistProvider() 避开推理模型，callProvider 会为这个活关掉思考。
     const raw = await chatCompletionWithSystemForTask(
       'vocabExtract',
       system,
       prompt,
       0.3,
-      resolveReadingAssistProvider()
+      resolveReadingAssistProvider(),
+      (p) => { answered = p; }
     );
     if (!raw || !raw.trim()) {
-      const model = buildProviders()[0]?.model || '当前模型';
-      return { ...empty, error: `${model} 返回为空（推理模型常见：答案落在 reasoning_content 或被限流），换一个模型或稍后重试` };
+      return { ...empty, model: answeredLabel(), error: `${answeredLabel()} 返回为空（推理模型常见：答案落在 reasoning_content 或被限流），换一个模型或稍后重试` };
     }
     // 模型有时会在 JSON 前后裹一段解释，抠出第一个 { 到最后一个 }
     const a = raw.indexOf('{');
@@ -1595,9 +1640,9 @@ export const extractReadingAssist = async (params: {
           }))
       : [];
     if (chunks.length === 0 && words.length === 0) {
-      return { ...empty, error: `模型返回了内容但解析不出意群/难词（原始 ${raw.length} 字）：${raw.slice(0, 80).replace(/\s+/g, ' ')}` };
+      return { ...empty, model: answeredLabel(), error: `${answeredLabel()} 返回了内容但解析不出意群/难词（原始 ${raw.length} 字）：${raw.slice(0, 80).replace(/\s+/g, ' ')}` };
     }
-    return { chunks, words };
+    return { chunks, words, model: answeredLabel() };
   } catch (e) {
     console.warn('[LinguaFlow] extractReadingAssist failed:', e);
     const msg = e instanceof Error ? e.message : String(e);
@@ -1606,7 +1651,7 @@ export const extractReadingAssist = async (params: {
       LLM_PROXY_BASE && !isServerReady()
         ? '未登录社区账号：线上版 AI 需登录后走服务端中转（右上角登录）'
         : msg;
-    return { ...empty, error: hint.slice(0, 180) };
+    return { ...empty, model: answered ? answeredLabel() : undefined, error: hint.slice(0, 180) };
   }
 };
 
