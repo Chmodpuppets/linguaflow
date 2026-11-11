@@ -920,6 +920,26 @@ export const updateVocabularyItem = (item: VocabularyItem) => {
     }
 };
 
+/**
+ * 批量回写词条（一次读、一次写）。
+ * 历史词条补释义会一次改几十条，逐个 updateVocabularyItem 会变成 O(n²) 次
+ * localStorage 全量序列化；这里合并成一次。找不到 id 的条目直接忽略。
+ */
+export const updateVocabularyItems = (updates: VocabularyItem[]): number => {
+    if (!updates.length) return 0;
+    const byId = new Map(updates.map((u) => [u.id, u]));
+    const items = getVocabulary();
+    let changed = 0;
+    const next = items.map((item) => {
+        const u = byId.get(item.id);
+        if (!u) return item;
+        changed += 1;
+        return u;
+    });
+    if (changed) localStorage.setItem(STORAGE_KEY_VOCAB, JSON.stringify(next));
+    return changed;
+};
+
 // --- Activity Logs ---
 
 export const getLogs = (): ActivityLog[] => {

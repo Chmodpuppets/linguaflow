@@ -1,11 +1,12 @@
 
 import { uuid } from '../utils/uuid';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { UserProfile, VocabularyItem } from '../types';
 import { getVocabulary, saveVocabularyItem, deleteVocabularyItem, addActivity, getDueVocabulary, updateVocabularyItem, reviewVocabulary, importStarterVocab } from '../services/storageService';
 import { generateWordDetails, playWord } from '../services/aiService';
 import { lookupWord } from '../services/dictionary';
+import { repairVocabulary, countIncompleteVocab, clearVocabRepairMisses } from '../services/vocabRepair';
 import { getStarterVocab, getStarterVocabLabel } from '../data/starterVocab';
 import { BookA, Plus, Search, Trash2, Sparkles, Volume2, Tag, Loader2, Save, X, Repeat, Check, XCircle, Layers, Download } from 'lucide-react';
 
@@ -20,6 +21,11 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser, ini
   const [filter, setFilter] = useState('');
   const [viewMode, setViewMode] = useState<'browse' | 'review'>(initialView);
   const [dueCount, setDueCount] = useState(0);
+  // 历史词条补释义（纯词典，零 AI）：后台补全 + 可见状态 + 手动重试
+  const [repairMsg, setRepairMsg] = useState('');
+  const [repairing, setRepairing] = useState(false);
+  const repairBusy = useRef(false);
+  const incompleteCount = countIncompleteVocab(items);
 
   // Review state
   const [queue, setQueue] = useState<VocabularyItem[]>([]);
@@ -75,12 +81,45 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser, ini
     </div>
   );
 
+  /**
+   * 老词条没有 definition / partOfSpeech（词典上线前存的），卡片会显示空白 + 「词性」占位。
+   * 进词库时静默批量补一次，只查本地 / 服务器词典，不调 AI、不弹授权、不花额度。
+   * 幂等：修好后下次进来没有待补项，零写入；单次最多 40 条、4 并发。
+   */
+  const runRepair = useCallback(async (list: VocabularyItem[], lang: string, force = false) => {
+    if (repairBusy.current) return;
+    repairBusy.current = true;
+    setRepairing(true);
+    if (force) clearVocabRepairMisses();
+    try {
+      const r = await repairVocabulary(list, lang, {
+        force,
+        onProgress: (done, total) => setRepairMsg(`正在从词典补全历史词条 ${done}/${total}…`),
+      });
+      if (r.fixed) {
+        setItems(r.items);
+        setDueCount(getDueVocabulary().filter(v => v.language === lang).length);
+        setRepairMsg(`已从词典补全 ${r.fixed} 个历史单词的释义${r.missing ? `，还有 ${r.missing} 个词典里没查到` : ''}`);
+      } else if (r.missing) {
+        setRepairMsg(`这 ${r.missing} 个词没查到：可先在「我的资料 → 本地词典」下载词库，再点「补全释义」重试，或点开手动补`);
+      } else {
+        setRepairMsg('');
+      }
+    } catch {
+      setRepairMsg('');
+    } finally {
+      repairBusy.current = false;
+      setRepairing(false);
+    }
+  }, []);
+
   useEffect(() => {
     // Filter items by current learning language
     const list = getVocabulary().filter(v => v.language === user.learningLanguage);
     setItems(list);
     setDueCount(getDueVocabulary().filter(v => v.language === user.learningLanguage).length);
-  }, [user.learningLanguage, user]);
+    void runRepair(list, user.learningLanguage);
+  }, [user.learningLanguage, user, runRepair]);
 
   const startReview = () => {
     const due = getDueVocabulary().filter(v => v.language === user.learningLanguage);
@@ -181,9 +220,9 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser, ini
     setIsAdding(false);
   };
 
-  const filteredItems = items.filter(i => 
-    i.word.toLowerCase().includes(filter.toLowerCase()) || 
-    i.definition.toLowerCase().includes(filter.toLowerCase())
+  const filteredItems = items.filter(i =>
+    i.word.toLowerCase().includes(filter.toLowerCase()) ||
+    (i.definition || '').toLowerCase().includes(filter.toLowerCase())
   );
 
   return (
@@ -333,14 +372,32 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser, ini
           <div className="p-4 border-b border-line-strong bg-white/5">
               <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={18} />
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={filter}
                     onChange={(e) => setFilter(e.target.value)}
                     placeholder="搜索你的单词…"
                     className="w-full bg-dark/60 border border-line-strong rounded-lg pl-10 pr-4 py-3 text-white focus:ring-2 focus:ring-neon focus:border-transparent outline-none"
                   />
               </div>
+              {(repairMsg || incompleteCount > 0) && (
+                <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                  <span className={repairing ? 'text-neon-2' : 'text-emerald-300'}>
+                    {repairing && <Loader2 size={11} className="inline animate-spin mr-1" />}
+                    {repairMsg || `还有 ${incompleteCount} 个词没写释义`}
+                  </span>
+                  {incompleteCount > 0 && (
+                    <button
+                      onClick={() => { void runRepair(items, user.learningLanguage, true); }}
+                      disabled={repairing}
+                      className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 font-bold text-gray-200 transition hover:bg-white/10 disabled:opacity-50"
+                      title="只查本地 / 服务器词典，不调用 AI"
+                    >
+                      <Sparkles size={11} className="inline mr-1 -mt-0.5" /> 补全释义 ({incompleteCount})
+                    </button>
+                  )}
+                </div>
+              )}
           </div>
 
           <div className="flex-1 overflow-y-auto custom-scrollbar p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 content-start">

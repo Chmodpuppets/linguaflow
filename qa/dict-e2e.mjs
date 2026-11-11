@@ -100,6 +100,37 @@ for (let i = 0; i < 5; i++) {
 await page.waitForTimeout(2200);
 log('registered');
 
+// --- 历史词条回归：塞一条「词典上线前存的、释义和词性都空」的老词条 ---
+const BLANK_WORD = 'reserved';
+await page.evaluate((w) => {
+  const u = JSON.parse(localStorage.getItem('linguaflow_user') || '{}');
+  const lang = u.learningLanguage || 'English';
+  const KEY = 'linguaflow_vocabulary';
+  const list = JSON.parse(localStorage.getItem(KEY) || '[]').filter((x) => x.word !== w);
+  list.unshift({
+    id: `qa-blank-${Date.now()}`, word: w, definition: '', exampleSentence: '',
+    partOfSpeech: '', language: lang, createdAt: Date.now(),
+    box: 1, dueDate: Date.now(), reviews: 0, lapses: 0,
+  });
+  localStorage.setItem(KEY, JSON.stringify(list));
+}, BLANK_WORD);
+await page.reload({ waitUntil: 'domcontentloaded' });
+await page.waitForTimeout(2200);
+// reload 后偶尔会重新出现引导向导，兜一下
+const nick2 = page.getByPlaceholder('输入你的昵称');
+if (await nick2.count()) {
+  await nick2.fill('dictqa');
+  for (let i = 0; i < 6; i++) {
+    const start = page.getByRole('button', { name: /开始学习/ }).first();
+    const next = page.getByRole('button', { name: /下一步/ }).first();
+    if (await start.isVisible().catch(() => false)) { await start.click(); break; }
+    if (await next.isVisible().catch(() => false)) { await next.click(); await page.waitForTimeout(600); continue; }
+    break;
+  }
+  await page.waitForTimeout(1500);
+}
+log('injected blank historical word:', BLANK_WORD);
+
 for (const g of ['精进', '资源', '社区', '学习']) {
   const h = page.getByRole('button', { name: g, exact: true }).first();
   if (await h.isVisible().catch(() => false) && (await h.getAttribute('aria-expanded')) === 'false') {
@@ -173,7 +204,16 @@ log('IndexedDB:', JSON.stringify(idb));
 
 // --- 词汇页自动填充 ---
 await page.getByRole('button', { name: /词汇/ }).first().click();
-await page.waitForTimeout(900);
+await page.waitForTimeout(2600); // 等后台批量补全跑完
+const storedBlank = await page.evaluate((w) => {
+  const list = JSON.parse(localStorage.getItem('linguaflow_vocabulary') || '[]');
+  const it = list.find((x) => x.word === w);
+  return it ? { definition: it.definition, pos: it.partOfSpeech } : null;
+}, BLANK_WORD);
+const blankVisibleOnCard = await page.getByText(/保留的/).count();
+log('历史词条补全:', JSON.stringify(storedBlank), '| 卡片命中释义', blankVisibleOnCard);
+await page.screenshot({ path: 'qa-screenshots/dict-repair.png' });
+
 const addBtn = page.getByRole('button', { name: /添加单词|新增|添加/ }).first();
 await addBtn.click().catch(() => {});
 await page.waitForTimeout(400);
@@ -196,8 +236,10 @@ log('page errors:', errors.slice(0, 3));
 await browser.close();
 
 const apiOk = apiCases.every(([lang]) => apiResults[lang]?.ok) && apiResults.jaInflect?.ok;
+const repairOk = !!storedBlank?.definition && /保留|预定/.test(storedBlank.definition) && blankVisibleOnCard > 0;
 const pass = apiOk && rowCount >= 4 && enInstalled && jaInstalled && idb.ok &&
-  /傲慢|自大/.test(enDef) && /吃/.test(jaDef);
+  /傲慢|自大/.test(enDef) && /吃/.test(jaDef) && repairOk;
+log('历史词条补全 =', repairOk);
 log('qaUser =', qaUser, '（生产库测试账号，跑完请清理）');
 console.log(pass ? 'PASS ✅' : 'FAIL ❌');
 process.exit(pass ? 0 : 1);
