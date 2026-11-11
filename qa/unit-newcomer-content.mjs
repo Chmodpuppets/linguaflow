@@ -98,8 +98,18 @@ tasks0.every((t) => !t.target || ['kana', 'starter_vocab'].includes(t.target))
   ? ok('本地兜底同样经过落地校正') : bad('兜底任务未校正');
 
 // 5) 有词后不再改写
+// 兜底池 pickLocalTasks 带随机性：A1 档约 25% 概率抽不到词汇任务，
+// 会让断言误报「有词后仍被改写」。临时固定 Math.random（每档取第一个候选：
+// vocabulary → typing → writing），保留 generateDailyTasks → 词库计数 → 校正的完整链路。
 SS.importStarterVocab('Japanese', ja);
-const tasks1 = await AI.generateDailyTasks(user);
+const realRandom = Math.random;
+Math.random = () => 0;
+let tasks1;
+try {
+  tasks1 = await AI.generateDailyTasks(user);
+} finally {
+  Math.random = realRandom;
+}
 const vocab1 = tasks1.filter((t) => t.module === 'vocabulary');
 console.log('5) 有词后任务:', JSON.stringify(vocab1.map((t) => [t.target, t.title])));
 vocab1.length && vocab1.every((t) => t.target !== 'starter_vocab')

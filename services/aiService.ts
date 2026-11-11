@@ -19,7 +19,7 @@ import { assertAiAllowed } from './aiConsent';
 
 // --- Qwen (DashScope) + OpenRouter configuration ---
 // Primary LLM provider: Alibaba Cloud DashScope "Qwen" via its OpenAI-compatible
-// chat completions endpoint. TTS uses qwen3-tts-flash (multilingual); STT uses paraformer-v2.
+// chat completions endpoint. TTS uses qwen3-tts-flash (multilingual).
 // When Qwen's quota/rate-limit is exhausted, requests fall back to OpenRouter.
 const QWEN_BASE_URL =
   process.env.QWEN_BASE_URL || "https://dashscope.aliyuncs.com/compatible-mode/v1";
@@ -28,7 +28,7 @@ if (!QWEN_API_KEY) {
   console.warn("[LinguaFlow] QWEN_API_KEY is not set. Copy .env.example to .env and add your DashScope API key.");
 }
 
-// 语音（TTS/STT）用的 DashScope Key：优先用户在「模型设置 → Qwen」里自填的 Key。
+// 语音（TTS）用的 DashScope Key：优先用户在「模型设置 → Qwen」里自填的 Key。
 // 生产构建不内置 .env 的 Key，所以不能只读 QWEN_API_KEY。
 const getQwenKey = (): string => {
   try {
@@ -43,7 +43,7 @@ const getQwenKey = (): string => {
 // (e.g. qwen-turbo, qwen-plus, qwen-max, qwen3.7-flash-2026-07-15, ...)
 const QWEN_LLM_MODEL = process.env.QWEN_MODEL || "qwen3.8-flash";
 
-// Derive the DashScope host for TTS/STT endpoints (which live outside /compatible-mode).
+// Derive the DashScope host for the TTS endpoint (which lives outside /compatible-mode).
 const QWEN_HOST = QWEN_BASE_URL.replace(/\/compatible-mode\/v1\/?$/, "");
 
 // OpenRouter provider（Settings -> 模型设置 可切换为主用；Qwen 限流时亦作兜底）。

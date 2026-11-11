@@ -37,7 +37,6 @@ export default defineConfig(({ mode }) => {
         'process.env.QWEN_MODEL': JSON.stringify(env.QWEN_MODEL),
         'process.env.QWEN_TTS_MODEL': JSON.stringify(env.QWEN_TTS_MODEL),
         'process.env.QWEN_TTS_VOICE': JSON.stringify(env.QWEN_TTS_VOICE),
-        'process.env.QWEN_STT_MODEL': JSON.stringify(env.QWEN_STT_MODEL),
         'process.env.API_KEY': JSON.stringify(openrouterKey),
         'process.env.GLM_API_KEY': JSON.stringify(glmKey),
         'process.env.OPENROUTER_MODEL': JSON.stringify(env.OPENROUTER_MODEL),
