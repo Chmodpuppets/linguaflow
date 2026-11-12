@@ -270,10 +270,36 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser, ini
                   Box {queue[reviewIdx]?.box ?? 1}
                 </span>
               </div>
-              <div className="text-3xl font-bold text-white mb-2">{queue[reviewIdx]?.word}</div>
-              <span className="text-xs font-mono text-neon-2 px-2 py-0.5 bg-neon-2/10 rounded-full border border-neon-2/20 inline-block mb-6">
+              <div className="flex items-center justify-center gap-2.5 text-3xl font-bold text-white mb-2">
+                <span>{queue[reviewIdx]?.word}</span>
+                <button
+                  onClick={() => playWord(queue[reviewIdx]?.word || '', user.learningLanguage, accent)}
+                  className="text-muted hover:text-neon-2 active:scale-90 transition-all shrink-0"
+                  title="朗读单词"
+                  aria-label="朗读单词"
+                >
+                  <Volume2 size={22} />
+                </button>
+              </div>
+              <span className={`text-xs font-mono text-neon-2 px-2 py-0.5 bg-neon-2/10 rounded-full border border-neon-2/20 inline-block ${user.learningLanguage === 'English' ? 'mb-3' : 'mb-6'}`}>
                 {queue[reviewIdx]?.partOfSpeech || '词性'}
               </span>
+              {user.learningLanguage === 'English' && (
+                <div className="flex items-center justify-center mb-6">
+                  <div className="flex bg-white/5 rounded-lg p-0.5 border border-white/10 text-xs">
+                    <button
+                      onClick={() => setAccent('uk')}
+                      className={`px-2.5 py-1 rounded ${accent === 'uk' ? 'bg-neon text-white' : 'text-muted hover:text-white'}`}
+                      title="英式发音（有道）"
+                    >英 UK</button>
+                    <button
+                      onClick={() => setAccent('us')}
+                      className={`px-2.5 py-1 rounded ${accent === 'us' ? 'bg-neon text-white' : 'text-muted hover:text-white'}`}
+                      title="美式发音（有道）"
+                    >美 US</button>
+                  </div>
+                </div>
+              )}
 
               {!revealed ? (
                 <div className="space-y-4">
@@ -282,28 +308,6 @@ const VocabularyView: React.FC<VocabularyViewProps> = ({ user, onUpdateUser, ini
                     className="w-full py-3 rounded-xl bg-neon text-white font-bold hover:bg-neon/80 shadow-glow-neon"
                   >
                     显示答案
-                  </button>
-                  {user.learningLanguage === 'English' && (
-                    <div className="flex items-center justify-center">
-                      <div className="flex bg-white/5 rounded-lg p-0.5 border border-white/10 text-xs">
-                        <button
-                          onClick={() => setAccent('uk')}
-                          className={`px-2.5 py-1 rounded ${accent === 'uk' ? 'bg-neon text-white' : 'text-muted hover:text-white'}`}
-                          title="英式发音（有道）"
-                        >英 UK</button>
-                        <button
-                          onClick={() => setAccent('us')}
-                          className={`px-2.5 py-1 rounded ${accent === 'us' ? 'bg-neon text-white' : 'text-muted hover:text-white'}`}
-                          title="美式发音（有道）"
-                        >美 US</button>
-                      </div>
-                    </div>
-                  )}
-                  <button
-                    onClick={() => playWord(queue[reviewIdx]?.word || '', user.learningLanguage, accent)}
-                    className="flex items-center justify-center gap-2 w-full py-2 text-muted hover:text-neon-2"
-                  >
-                    <Volume2 size={16} /> 听发音
                   </button>
                 </div>
               ) : (
