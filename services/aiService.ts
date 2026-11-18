@@ -3,7 +3,7 @@ import { uuid } from '../utils/uuid';
 
 import { Language, CEFRLevel, AssessmentResult, TypingContent, WritingFeedback, WritingRevisionFeedback, GuidedWritingFeedback, GuidedMode, WritingNode, NodeType, ReadingReflection, RPGScenario, RPGTurnResult, UserProfile, ScenarioDef, TargetExam, WritingRegister, CompositionGenre, GENRE_LABELS, ReferenceEssay, WritingPracticeType, WritingCycleStage, CustomDirectionLeafSeed, DailyTask, StudyBook, StudyChapter, StudyItem, StudyItemQuality, StudyBookType, StudyItemType } from '../types';
 import { MENTOR_PERSONAS } from '../constants';
-import { getAIConfig, AIConfig, TaskCategory, TaskTier, DEFAULT_TASK_ROUTES, TASK_CATEGORY_LABELS, recomputeStudyBookStats, getVocabularyCount } from './storageService';
+import { getAIConfig, getUser, AIConfig, TaskCategory, TaskTier, DEFAULT_TASK_ROUTES, TASK_CATEGORY_LABELS, recomputeStudyBookStats, getVocabularyCount } from './storageService';
 import { getScriptPackForLanguage } from '../data/scriptPacks';
 import { getStarterVocab } from '../data/starterVocab';
 import { getCachedTtsUrl, setCachedTtsUrl } from './ttsCache';
@@ -16,6 +16,8 @@ import { pickLocalTasks } from '../data/dailyTasks';
 import { logChat } from './chatLogService';
 import { moderate } from './moderationService';
 import { assertAiAllowed } from './aiConsent';
+import { atlasWordRecording } from './atlasPronounce';
+import { TTS_VOICES as TTS_VOICE_CATALOG, defaultVoiceFor, findTtsVoice, isEdgeVoice } from './ttsVoices';
 
 // --- Qwen (DashScope) + OpenRouter configuration ---
 // Primary LLM provider: Alibaba Cloud DashScope "Qwen" via its OpenAI-compatible
@@ -69,21 +71,23 @@ const GLM_MODEL = import.meta.env.VITE_GLM_MODEL || "glm-4-flash";
 //   浏览器端无法直接用，故全部弃用。
 const QWEN_TTS_MODEL = process.env.QWEN_TTS_MODEL || "qwen3-tts-flash";
 
-/** qwen3-tts-flash 可选音色（已实测全部可用；任一音色都能朗读多语种）。 */
-export const TTS_VOICES: { id: string; label: string; desc: string }[] = [
-  { id: "Cherry", label: "芊悦 Cherry", desc: "阳光积极女声・通用推荐" },
-  { id: "Ethan", label: "晨煦 Ethan", desc: "温暖清亮男声" },
-  { id: "Jennifer", label: "詹妮弗 Jennifer", desc: "品牌级英音女声・练英语首选" },
-  { id: "Ryan", label: "甜茶 Ryan", desc: "节奏感强男声" },
-  { id: "Elias", label: "墨讲师 Elias", desc: "慢速讲解男声・适合跟读" },
-  { id: "Katerina", label: "卡捷琳娜 Katerina", desc: "俄语系女声" },
-  { id: "Nofish", label: "不吃鱼 Nofish", desc: "松弛口语男声" },
-  { id: "Jada", label: "阿珍 Jada", desc: "上海腔女声" },
-  { id: "Dylan", label: "晓东 Dylan", desc: "北京腔男声" },
-  { id: "Sunny", label: "晴儿 Sunny", desc: "四川话女声" },
-  { id: "Kiki", label: "阿清 Kiki", desc: "粤语女声" },
-  { id: "Rocky", label: "阿强 Rocky", desc: "粤语男声" },
-];
+/**
+ * 朗读音色表 = Azure Neural（免费 Edge 端点），数据源见 `services/ttsVoices.ts`。
+ *
+ * 这里保留扁平结构只是为了让下拉框还能一行渲染；真正需要
+ * 「按语言分组 / 是否免费可用 / 试听地址」请直接用 ttsVoices.ts 的
+ * `ttsVoiceGroups()`、`isEdgeVoice()`、`TtsVoice.previewUrl`。
+ *
+ * 历史：这里原来是 qwen3-tts-flash 的 12 个音色名（Cherry/Ethan/…），
+ * 现在 Qwen 只作为兜底链路，音色名由 `toQwenVoice()` 从 Azure 音色映射过去。
+ */
+export const TTS_VOICES: { id: string; label: string; desc: string; edgeTts: boolean }[] =
+  TTS_VOICE_CATALOG.map((v) => ({
+    id: v.voiceId,
+    label: `${v.displayName}（${v.localName}）`,
+    desc: `${v.localeName} · ${v.gender === 'Female' ? '女声' : v.gender === 'Male' ? '男声' : '中性'}${v.edgeTts ? '' : ' · 需 Azure 订阅'}`,
+    edgeTts: v.edgeTts,
+  }));
 
 interface LLMProvider {
   name: string;
@@ -1799,6 +1803,8 @@ const SPEECH_LANG_MAP: Record<string, string> = {
 export const languageToSpeechLang = (lang: Language): string => SPEECH_LANG_MAP[lang] || "en-US";
 
 let currentQwenAudio: HTMLAudioElement | null = null;
+// 单词发音请求序号：词库录音需异步查索引，回调时若已被更新的发音请求取代则放弃，避免慢索引覆盖新词。
+let wordPlaySeq = 0;
 
 export const cancelSpeech = (): void => {
   if (currentQwenAudio) {
@@ -1890,6 +1896,9 @@ const persistTtsAudio = async (
 };
 
 async function fetchQwenTtsUrl(text: string, voice: string): Promise<string> {
+  // 传进来的可能是 Azure 音色名（用户设置里选的那套），Qwen 只认自己的名字
+  voice = toQwenVoice(voice);
+
   // ① 会话内内存缓存（0 请求）
   const cached = getCachedTtsUrl(text, voice);
   if (cached) return cached;
@@ -1966,30 +1975,182 @@ async function fetchQwenTtsUrl(text: string, voice: string): Promise<string> {
   return audioUrl;
 }
 
-/** 当前生效音色：用户在「模型设置」里选的，回落到 .env，再回落到 Cherry。 */
-function currentTtsVoice(): string {
+// ===== 免费 Azure 音色（Edge 朗读端点，由服务端合成） =====
+//
+// 为什么由服务端合成：Edge 朗读端点要 WS 握手 + Sec-MS-GEC 反爬令牌，浏览器
+// 直连既过不了 CORS 也过不了鉴权；服务端合成后同源回字节，前端才拿得到 Blob
+// 存进 IndexedDB（Qwen 那条链路当年正是卡在 CDN 不给 CORS）。
+//
+// 开源版（SERVER_BASE 为空）没有这条链路，自动退回 Qwen / Web Speech。
+
+/** 本机这份构建有没有云端音色可用（= 线上版且有同源服务端） */
+export const edgeTtsAvailable = (): boolean => !!SERVER_BASE;
+
+/** 该音色能不能走免费端点（订阅专属音色 edgeTts=false 会被服务端 400 拒绝） */
+export const canUseEdgeVoice = (voice?: string): boolean =>
+  edgeTtsAvailable() && isEdgeVoice(voice || currentTtsVoice());
+
+/** 与服务端 `MAX_TEXT` 对齐；超长截断而不是报错，保证「点了就有声」 */
+const EDGE_MAX_TEXT = 1200;
+/** 上游正常 1s 左右；8s 还没回来就当这次失败，赶紧让上层降级 */
+const EDGE_TIMEOUT_MS = 8000;
+
+const fetchEdgeBlob = async (text: string, voice: string): Promise<Blob | null> => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), EDGE_TIMEOUT_MS);
   try {
-    return getAIConfig().ttsVoice || process.env.QWEN_TTS_VOICE || "Cherry";
-  } catch {
-    return process.env.QWEN_TTS_VOICE || "Cherry";
+    const res = await fetch(`${SERVER_BASE}/tts/edge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, voice }),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      if (res.status === 400) {
+        console.warn(`[TTS] 音色不在免费清单里（${res.status}）：${voice}`);
+      } else {
+        console.warn(`[TTS] Edge 合成失败（${res.status}），将降级`);
+      }
+      return null;
+    }
+    const blob = await res.blob();
+    return blob.size > 0 ? blob : null;
+  } catch (e) {
+    // 超时 / 离线 / 被限流：一律返回 null 交给上层，不抛（上层要保证 onEnd 一定触发）
+    console.warn("[TTS] Edge 请求异常，将降级：", e);
+    return null;
+  } finally {
+    clearTimeout(timer);
   }
+};
+
+/** Edge 音频的缓存命中顺序与 Qwen 那条完全一致：内存 → IndexedDB → 网络。 */
+async function fetchEdgeTtsUrl(text: string, voice: string): Promise<string | null> {
+  const cached = getCachedTtsUrl(text, voice);
+  if (cached) return cached;
+
+  const blobKey = ttsBlobKey(text, voice);
+  const local = await getTtsBlob(blobKey);
+  if (local) {
+    const objUrl = ttsBlobToObjectUrl(blobKey, local);
+    if (objUrl) {
+      setCachedTtsUrl(text, voice, objUrl);
+      return objUrl;
+    }
+  }
+
+  const blob = await fetchEdgeBlob(text.slice(0, EDGE_MAX_TEXT), voice);
+  if (!blob) return null;
+  void putTtsBlob(blobKey, blob);
+  const url = ttsBlobToObjectUrl(blobKey, blob) || URL.createObjectURL(blob);
+  setCachedTtsUrl(text, voice, url);
+  return url;
 }
 
-/** 供 UI 层算缓存 key：必须和 fetchQwenTtsUrl 实际使用的音色一致，否则删除失效条目会删错 key */
+/**
+ * Azure 音色 → Qwen 音色。只在「用户自己填了 DashScope Key、而 Edge 端点不可用」
+ * 时才会用到：Qwen 是兜底链路，音色对不上是已知代价（它本来就不支持这套音色）。
+ */
+const toQwenVoice = (voice?: string): string => {
+  const lang = findTtsVoice(voice)?.language;
+  const map: Record<string, string> = {
+    zh: "Cherry", en: "Jennifer", ja: "Cherry", ko: "Cherry", ru: "Katerina",
+  };
+  return (lang && map[lang]) || "Cherry";
+};
+
+/** 学习语言 → TTS 语言码（音色表用的两位码） */
+const TTS_LANG_CODE: Partial<Record<Language, string>> = {
+  [Language.English]: "en",
+  [Language.Japanese]: "ja",
+  [Language.Korean]: "ko",
+  [Language.Chinese]: "zh",
+  [Language.Spanish]: "es",
+  [Language.French]: "fr",
+  [Language.German]: "de",
+  [Language.Italian]: "it",
+  [Language.Russian]: "ru",
+  [Language.Arabic]: "ar",
+};
+
+/** 没显式选音色时，默认跟「正在学的语言」走（学日语就用日语女声，而不是英文音色）。 */
+const preferredVoiceLanguage = (): string => {
+  try {
+    const lang = getUser()?.learningLanguage;
+    return (lang && TTS_LANG_CODE[lang]) || "en";
+  } catch {
+    return "en";
+  }
+};
+
+/** 当前生效音色：用户选的 Azure 音色；留空则取学习语言的默认音色。 */
+function currentTtsVoice(): string {
+  let configured = "";
+  try {
+    configured = (getAIConfig().ttsVoice || "").trim();
+  } catch {
+    /* 配置读不到就用默认 */
+  }
+  if (configured && findTtsVoice(configured)) return configured;
+  // 2.0 之前存的是 Cherry/Ethan 这类 Qwen 名：迁移到英语默认音色，
+  // 否则会把 Qwen 名当 voiceId 发给 Edge 端点（必然 400）。
+  if (configured) return defaultVoiceFor("en");
+  return defaultVoiceFor(preferredVoiceLanguage());
+}
+
+/** 供 UI 层算缓存 key：必须和实际合成用的音色一致，否则删除失效条目会删错 key */
 export const getEffectiveTtsVoice = (voice?: string): string => voice || currentTtsVoice();
 
-/** 供设置页试听用：直接指定音色朗读一段样例。 */
+/**
+ * 按**文本语言**挑音色：Edge 端点对「音色语言 ≠ 文本语言」的输入经常返回空音频
+ * （例如 en-US-AriaNeural 读日文句子 → 400 VOICE_UNAVAILABLE，实测）。
+ * 所以只要检测出文本语言和用户选的音色语言不一致，就换成该语言的默认音色；
+ * 检测不出、或该语言没有音色时保持用户选择。
+ */
+export const resolveTtsVoiceForText = (text: string, preferred?: string): string => {
+  const chosen = preferred || currentTtsVoice();
+  const lang = detectContentLanguage(text);
+  const code = lang ? TTS_LANG_CODE[lang] : undefined;
+  if (!code) return chosen;
+  const chosenLang = findTtsVoice(chosen)?.language;
+  if (chosenLang === code) return chosen;
+  return defaultVoiceFor(code);
+};
+
+/**
+ * 统一的「拿到一个可播放 URL」链路：**Edge（免费）→ Qwen（自家 Key）→ null**。
+ * 返回 null 表示两条链路都不可用，调用方降级 Web Speech。
+ */
+const resolveSpeechUrl = async (text: string, voice?: string): Promise<string | null> => {
+  // 先按文本语言纠正音色，再决定走哪条链路（缓存 key 也就自然跟着文本走）
+  const v = resolveTtsVoiceForText(text, voice);
+  if (canUseEdgeVoice(v)) {
+    const edgeUrl = await fetchEdgeTtsUrl(text, v);
+    if (edgeUrl) return edgeUrl;
+  }
+  if (getQwenKey()) {
+    try {
+      return await fetchQwenTtsUrl(text, v);
+    } catch (e) {
+      console.warn("Qwen TTS failed:", e);
+    }
+  }
+  return null;
+};
+
+/** 供设置页试听用：直接指定音色朗读一段样例（先 Edge，再 Qwen，都没有则静默失败）。 */
 export const previewVoice = (voice: string, text: string): Promise<void> => {
   cancelSpeech();
-  return fetchQwenTtsUrl(text, voice).then((url) => {
+  return resolveSpeechUrl(text, voice).then((url) => {
+    if (!url) throw new Error("云端音色不可用：请确认已联网，或改用浏览器合成。");
     playQwenAudio(url);
   });
 };
 
 /**
  * 暴露给上层组件（如 TtsAudioPlayer）以便自己控制 <audio> 元素的播放器。
- * - 若有 Qwen key 且 TTS 返回成功 → 返回 CDN 上的 mp3 URL（24h 内可重复播放，无需再次调用接口）；
- * - 否则返回 null（调用方可降级到 Web Speech / 错误提示）。
+ * - Edge / Qwen 任一成功 → 返回可播放 URL（本地缓存优先，秒播）；
+ * - 都不可用 → 返回 null（调用方降级 Web Speech / 错误提示）。
  *
  * @param text 待合成文本
  * @param voice 指定音色；留空则用用户设置里的 ttsVoice
@@ -1997,11 +2158,10 @@ export const previewVoice = (voice: string, text: string): Promise<void> => {
 export const fetchSpeechUrl = async (text: string, voice?: string): Promise<string | null> => {
   const t = (text || "").trim();
   if (!t) return null;
-  if (!getQwenKey()) return null;
   try {
-    return await fetchQwenTtsUrl(t, voice || currentTtsVoice());
+    return await resolveSpeechUrl(t, voice || currentTtsVoice());
   } catch (e) {
-    console.warn("Qwen TTS (fetchSpeechUrl) failed:", e);
+    console.warn("TTS (fetchSpeechUrl) failed:", e);
     return null;
   }
 };
@@ -2072,15 +2232,17 @@ export const generateSpeech = (
     // 语种检测仅用于：Qwen 不可用时，给浏览器 Web Speech 兜底选对音色语言。
     const contentLang = detectContentLanguage(text) ?? opts?.lang ?? Language.English;
 
-    if (!getQwenKey()) {
-      playWebSpeech(text, { ...opts, lang: contentLang });
-      return;
-    }
-
-    fetchQwenTtsUrl(text, currentTtsVoice())
-      .then((url) => playQwenAudio(url, opts))
+    // Edge（免费 Azure 音色）→ Qwen（用户自己的 Key）→ Web Speech
+    resolveSpeechUrl(text, currentTtsVoice())
+      .then((url) => {
+        if (!url) {
+          playWebSpeech(text, { ...opts, lang: contentLang });
+          return;
+        }
+        playQwenAudio(url, opts);
+      })
       .catch((e) => {
-        console.warn("Qwen TTS failed, falling back to Web Speech:", e);
+        console.warn("Cloud TTS failed, falling back to Web Speech:", e);
         playWebSpeech(text, { ...opts, lang: contentLang });
       });
 };
@@ -2121,22 +2283,17 @@ export const playCachedSpeech = async (
 
   const contentLang = detectContentLanguage(text) ?? opts?.lang ?? Language.English;
 
-  if (!getQwenKey()) {
-    playWebSpeech(text, { ...opts, lang: contentLang });
-    return;
-  }
-
-  fetchQwenTtsUrl(text, effectiveVoice)
+  resolveSpeechUrl(text, effectiveVoice)
     .then((url) => {
       if (!url) {
         playWebSpeech(text, { ...opts, lang: contentLang });
         return;
       }
-      // 缓存由 fetchQwenTtsUrl 统一写入，这里只负责播放
+      // 缓存由 fetchEdgeTtsUrl / fetchQwenTtsUrl 统一写入，这里只负责播放
       playQwenAudio(url, opts);
     })
     .catch((e) => {
-      console.warn("Qwen TTS (cached) failed, falling back to Web Speech:", e);
+      console.warn("Cloud TTS (cached) failed, falling back to Web Speech:", e);
       playWebSpeech(text, { ...opts, lang: contentLang });
     });
 };
@@ -2150,6 +2307,21 @@ export const playCachedSpeech = async (
 //   日 → Web Speech ja-JP（有道不可靠）
 //   其他语言 → 沿用既有策略（Qwen 若有 key，否则 Web Speech 选对语种）
 const YOUDAO_DICTVOICE = "https://dict.youdao.com/dictvoice";
+
+/** 播放词库真人录音（OSS）；加载/解码失败时回退有道词典语音，保证一定有声。 */
+function playAtlasRecording(url: string, word: string, accent: "uk" | "us"): void {
+  const audio = new Audio();
+  currentQwenAudio = audio;
+  audio.onended = () => { if (currentQwenAudio === audio) currentQwenAudio = null; };
+  const fallback = () => {
+    if (currentQwenAudio !== audio) return; // 已被更新的发音取代
+    currentQwenAudio = null;
+    playYoudaoWord(word, accent);
+  };
+  audio.onerror = fallback;
+  audio.src = url;
+  audio.play().catch(fallback);
+}
 
 function playYoudaoWord(word: string, accent: "uk" | "us" = "uk"): void {
   const type = accent === "us" ? 1 : 2; // 1=美式 US，2=英式 UK（IELTS 默认英式）
@@ -2173,6 +2345,19 @@ function playYoudaoWord(word: string, accent: "uk" | "us" = "uk"): void {
  * @param lang 该词的语种（决定走有道/Qwen/Web Speech）
  * @param accent 仅英文生效：'uk' 英式（默认）| 'us' 美式
  */
+/** 单词级：先试免费 Azure 音色（按语种取默认音色），失败退系统音 */
+const playEdgeWord = (word: string, lang: Language): void => {
+  const code = TTS_LANG_CODE[lang];
+  const voice = code ? defaultVoiceFor(code) : undefined;
+  if (!voice || !edgeTtsAvailable()) {
+    playWebSpeech(word, { lang });
+    return;
+  }
+  fetchEdgeTtsUrl(word, voice)
+    .then((url) => (url ? playQwenAudio(url) : playWebSpeech(word, { lang })))
+    .catch(() => playWebSpeech(word, { lang }));
+};
+
 export const playWord = (
   word: string,
   lang: Language,
@@ -2181,6 +2366,7 @@ export const playWord = (
   if (!word || !word.trim()) return;
   cancelSpeech();
   const w = word.trim();
+  const seq = ++wordPlaySeq;
 
   if (lang === Language.Chinese) {
     fetchSpeechUrl(w)
@@ -2190,12 +2376,18 @@ export const playWord = (
   }
 
   if (lang === Language.Japanese) {
-    playWebSpeech(w, { lang }); // 有道英汉词典对日语不靠谱
+    // 有道英汉词典对日语不靠谱；先试免费 Azure 日语音色（Nanami），失败再退系统音
+    playEdgeWord(w, lang);
     return;
   }
 
   if (lang === Language.English) {
-    playYoudaoWord(w, accent);
+    // 统一发音：优先词库真人录音（与 reader 同一批 OSS 录音），不在词库才回退有道词典语音。
+    void atlasWordRecording(w, accent).then((url) => {
+      if (seq !== wordPlaySeq) return; // 已被更新的发音请求取代
+      if (url) playAtlasRecording(url, w, accent);
+      else playYoudaoWord(w, accent);
+    });
     return;
   }
 

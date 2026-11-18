@@ -8,7 +8,7 @@ import React, {
   useState,
 } from "react";
 import { Play, Pause, Square, Repeat, Scissors, X, Loader2 } from "lucide-react";
-import { fetchSpeechUrl, getEffectiveTtsVoice } from "../services/aiService";
+import { fetchSpeechUrl, resolveTtsVoiceForText } from "../services/aiService";
 import { getCachedTtsUrl, setCachedTtsUrl, deleteCachedTtsUrl } from "../services/ttsCache";
 
 /**
@@ -61,7 +61,8 @@ const TtsAudioPlayer = forwardRef<TtsAudioPlayerHandle, TtsAudioPlayerProps>(fun
   const audioRef = useRef<HTMLAudioElement | null>(null);
   // 缓存由 services/ttsCache 提供（应用内共享：TypingView 与 RPGView 同段文本互免调用）
   // key 必须和 fetchQwenTtsUrl 实际用的音色一致，否则 URL 失效时 deleteCachedTtsUrl 删不掉死链
-  const cacheVoice = useMemo(() => getEffectiveTtsVoice(voice), [voice]);
+  // 真实音色会按文本语言纠正（Edge 用错语言会回空音频），缓存 key 必须跟着一起算
+  const cacheVoice = useMemo(() => resolveTtsVoiceForText(text, voice), [text, voice]);
   const wsUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   const [audioUrl, setAudioUrl] = useState<string | null>(null);

@@ -68,9 +68,15 @@ const authHeaders = (method: string, key: string, contentType = ''): Record<stri
 const objectUrl = (key: string): string =>
   `https://${BUCKET}.${ENDPOINT}/${key.split('/').map(encodeURIComponent).join('/')}`;
 
-/** 内容寻址 key：同一 (text, voice) 在任何设备上算出来都一样 */
-export const ttsObjectKey = (text: string, voice: string): string => {
-  const hash = createHash('sha256').update(`v1|${voice}|${text}`, 'utf8').digest('hex').slice(0, 32);
+/**
+ * 内容寻址 key：同一 (namespace, text, voice) 在任何设备上算出来都一样。
+ *
+ * namespace 是「哪条合成链路」，不是版本号：Qwen 和 Edge/Azure 对同一句
+ * 同一音色名会给出完全不同的字节，混用同一个 key 会把 A 的音频当成 B 的缓存。
+ * 改音色表/改合成实现时才需要动 namespace（等于换一代缓存）。
+ */
+export const ttsObjectKey = (text: string, voice: string, namespace = 'v1'): string => {
+  const hash = createHash('sha256').update(`${namespace}|${voice}|${text}`, 'utf8').digest('hex').slice(0, 32);
   return `${PREFIX}${hash.slice(0, 2)}/${hash}`;
 };
 
@@ -138,8 +144,12 @@ const ossPut = async (key: string, buf: Uint8Array, contentType: string): Promis
 };
 
 /** 读缓存：内存 → OSS。未命中返回 null（调用方据此回 404，由前端去合成）。 */
-export const readTtsAudio = async (text: string, voice: string): Promise<TtsAudio | null> => {
-  const key = ttsObjectKey(text, voice);
+export const readTtsAudio = async (
+  text: string,
+  voice: string,
+  namespace = 'v1'
+): Promise<TtsAudio | null> => {
+  const key = ttsObjectKey(text, voice, namespace);
   const hot = memGet(key);
   if (hot) return hot;
   const cold = await ossGet(key);
@@ -155,9 +165,10 @@ export const storeTtsAudio = async (
   text: string,
   voice: string,
   buf: Uint8Array,
-  contentType: string
+  contentType: string,
+  namespace = 'v1'
 ): Promise<{ key: string; stored: boolean }> => {
-  const key = ttsObjectKey(text, voice);
+  const key = ttsObjectKey(text, voice, namespace);
   if (!PROXY_ENABLED) return { key, stored: false };
   memSet(key, buf, contentType);
   const stored = await ossPut(key, buf, contentType);

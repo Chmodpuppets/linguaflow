@@ -33,6 +33,8 @@ import {
   type UserRow,
 } from './db';
 import { registerTtsRoutes, ttsProxyEnabled, ossEnabled } from './tts';
+import { registerEdgeTtsRoutes } from './ttsEdge';
+import { edgeTtsEnabled, warmEdgeVoices } from './edgeTts';
 import { registerDictRoutes, dictEnabled } from './dict';
 
 type Env = { Variables: { user: UserRow } };
@@ -128,9 +130,12 @@ const genToken = (): string => randomBytes(24).toString('base64url');
 
 // CORS（匿名 token，无 cookie，默认 `*`；生产可收紧为 CORS_ORIGIN）
 app.use('*', async (c: Context<Env>, next: Next) => {
-  // 公开只读词典 /dict/* 对全部 Pathmora 产品跨域开放（pathmora / linguaflow / linguaflow-reader 共用同一词典服务）；
-  // 其余接口仍收紧到 CORS_ORIGIN。查词无 cookie、无敏感数据，开放 Origin 不引入 CSRF 风险。
-  c.header('Access-Control-Allow-Origin', c.req.path.startsWith('/dict/') ? '*' : CORS_ORIGIN);
+  // 两个公开只读端点对任意来源开放：
+  //  - /dict/*  全部 Pathmora 产品共用同一词典服务（查词无 cookie、无敏感数据）
+  //  - /tts/edge 纯静态 Reader 在别的域名、无登录态，必须放行
+  // 其余接口仍收紧到 CORS_ORIGIN。
+  const openOrigin = c.req.path.startsWith('/dict/') || c.req.path === '/tts/edge';
+  c.header('Access-Control-Allow-Origin', openOrigin ? '*' : CORS_ORIGIN);
   c.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
   c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   // 注意：必须用 c.body() 而非 new Response()——后者不会带上 c.header() 设置的 CORS 头
@@ -312,6 +317,27 @@ setInterval(() => {
 }, 10 * 60 * 1000).unref?.();
 
 registerTtsRoutes(app, { auth, clientIp, rateLimited: rateLimitedTts });
+
+// —— 免费 Azure 音色（Edge 朗读端点）——
+// 独立限流：这条是服务端替用户花上游额度，和「用户自己 Key 的 /tts/audio」不能共用一个桶。
+const EDGE_RATE_LIMIT = Number(process.env.TTS_EDGE_RATE_LIMIT || 900);
+const edgeHits = new Map<string, { count: number; resetAt: number }>();
+const rateLimitedEdge = (key: string): boolean => {
+  const now = Date.now();
+  const rec = edgeHits.get(key);
+  if (!rec || rec.resetAt < now) {
+    edgeHits.set(key, { count: 1, resetAt: now + RATE_WINDOW_MS });
+    return false;
+  }
+  rec.count += 1;
+  return rec.count > EDGE_RATE_LIMIT;
+};
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of edgeHits) if (v.resetAt < now) edgeHits.delete(k);
+}, 10 * 60 * 1000).unref?.();
+
+registerEdgeTtsRoutes(app, { clientIp, rateLimited: rateLimitedEdge });
 
 // 在线词典（公开只读）：查词不再调大模型；数据来自 scripts/build-dict-db.mjs
 registerDictRoutes(app, { clientIp });
@@ -510,4 +536,12 @@ serve({ fetch: app.fetch, port, hostname }, (info) => {
       ? '在线词典：已就绪（GET /dict/lookup?w=word）'
       : '在线词典：未安装（把 en.db 放到 data/dict/ 下即可，见 scripts/build-dict-db.mjs）'
   );
+  if (!edgeTtsEnabled()) {
+    console.log('Edge TTS：已关闭（EDGE_TTS=0）');
+  } else {
+    // 预热音色清单，免得第一个合成请求多等一次 HTTP；失败也不影响服务启动
+    void warmEdgeVoices()
+      .then((n) => console.log(`Edge TTS：已就绪（免费 Azure 音色 ${n ?? '未知'} 个，POST /tts/edge）`))
+      .catch(() => console.log('Edge TTS：音色清单拉取失败，端点仍可用（按需重试）'));
+  }
 });

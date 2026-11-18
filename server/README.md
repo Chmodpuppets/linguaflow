@@ -38,6 +38,33 @@ node scripts/smoke.mjs            # 默认打 http://127.0.0.1:8787
 | `/sync` | PUT / GET | 整包备份 / 恢复（可选） |
 | `/tts/audio` | GET | TTS 音频代理：按 `text` + `voice` 读缓存（命中回音频字节，未命中 404） |
 | `/tts/audio` | POST | 把刚合成的音频落 OSS 并回传字节（`src` = 上游地址，或 `data` = base64） |
+| `/tts/edge` | POST | **免费 Azure 音色合成**：body `{text, voice, rate?, pitch?}` → `audio/mpeg`（公开，无需登录，按 IP 限流） |
+| `/tts/edge` | OPTIONS | CORS 预检（`Access-Control-Allow-Origin: *`），供纯静态的 Reader 跨域调用 |
+
+### 免费 Azure 音色（`/tts/edge`，默认开启）
+
+服务端自己连微软 Edge 的朗读端点合成，音色就是 Azure Neural 那批（`en-US-JennyNeural` /
+`zh-CN-XiaoxiaoNeural` / `ja-JP-NanamiNeural` …），**不花钱、不需要 Key**，前端因此能拿到
+`audio/mpeg` 字节并存进 IndexedDB（Qwen 的音频 CDN 恰恰不给 CORS 头，这也是当年要中转的原因）。
+
+```bash
+# 冒烟：不需要 token
+curl -X POST https://<域名>/api/tts/edge \
+  -H "Content-Type: application/json" \
+  -d '{"text":"Hello from the free edge voice.","voice":"en-US-JennyNeural"}' -o /tmp/edge.mp3
+file /tmp/edge.mp3   # MPEG ADTS, layer III
+```
+
+| 环境变量 | 默认 | 说明 |
+| --- | --- | --- |
+| `EDGE_TTS` | `1` | 置 `0` 关闭该端点（返回 503 `DISABLED`） |
+| `TTS_EDGE_RATE_LIMIT` | `900` | 每 IP / 10 分钟上限；被刷时先调这个，不要急着关端点 |
+
+- 音色白名单来自端点自己的音色清单（缓存 24h），不在清单里的音色返回 `400 VOICE_UNAVAILABLE`；
+- 文本上限 1200 字，超长请前端分段；`rate` 支持 0.5–2（1 = 正常语速）；
+- 合成结果与 `/tts/audio` 共用 OSS 内容寻址，但 namespace 分开（`edge-v1` vs `v1`），不会互相污染；
+- **这不是官方 API**：令牌算法随微软前端版本变化（当前是 `Sec-MS-GEC` v2），上游随时可能断。
+  链路上必须保留兜底（前端已实现：Edge → Qwen → Web Speech）。
 
 ### TTS 音频代理（**开源版默认关闭**）
 

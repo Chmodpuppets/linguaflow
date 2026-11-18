@@ -2,7 +2,8 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { UserProfile, ActivityLog, Language, LanguageProgress, CEFRLevel, MentorPersona, TargetExam } from '../types';
 import { getLogs, ensureLanguageProgress, saveUser, getAIConfig, saveAIConfig, clearAllLearningData, AIConfig, getLevelInfo, TaskCategory, TaskTier, TASK_CATEGORY_LABELS, DEFAULT_TASK_ROUTES, exportAllData, importAllData } from '../services/storageService';
-import { testModelConnection, GLM_ENV_API_KEY, TTS_VOICES, previewVoice } from '../services/aiService';
+import { testModelConnection, GLM_ENV_API_KEY, previewVoice, getEffectiveTtsVoice, edgeTtsAvailable } from '../services/aiService';
+import { ttsVoiceGroups, voiceLabel, findTtsVoice } from '../services/ttsVoices';
 import { Trophy, Flame, Calendar, Clock, PenTool, Type, Zap, TrendingUp, TrendingDown, Activity, Check, Globe, Settings, GraduationCap, ChevronDown, User, LogOut, Download, Upload, Database, Crown, AlertTriangle, Volume2, Cpu, ShieldCheck } from 'lucide-react';
 import { SUPPORTED_LANGUAGES, MENTOR_PERSONAS, TOPIC_PACKAGES, EXAM_LANGUAGE_MAP } from '../constants';
 import { getAiConsentState, setAiConsent, AiConsentState, AI_CONSENT_CHANGED_EVENT } from '../services/aiConsent';
@@ -56,17 +57,33 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout,
 
   // 试听：按当前学习语言给一句样例，直接用所选音色朗读（不依赖保存）
   const handlePreviewVoice = async () => {
-    const samples: Partial<Record<Language, string>> = {
-      [Language.English]: 'Hello! This is how I sound when I read your practice text.',
-      [Language.Japanese]: 'こんにちは。これが私の声です。一緒に練習しましょう。',
-      [Language.Korean]: '안녕하세요. 제 목소리는 이렇습니다.',
-      [Language.Chinese]: '你好，这就是我的声音，我们一起来练习吧。',
-      [Language.Russian]: 'Привет! Так звучит мой голос.',
+    // 试听要读「这个音色对应的语言」，否则用英文音色读日文句子，
+    // Edge 端点会直接回空音频（400 VOICE_UNAVAILABLE）。
+    const voice = getEffectiveTtsVoice(modelCfg.ttsVoice);
+    const voiceLang = findTtsVoice(voice)?.language;
+    const samples: Record<string, string> = {
+      en: 'Hello! This is how I sound when I read your practice text.',
+      zh: '你好，这就是我的声音，我们一起来练习吧。',
+      ja: 'こんにちは。これが私の声です。一緒に練習しましょう。',
+      ko: '안녕하세요. 제 목소리는 이렇습니다.',
+      es: 'Hola, así suena mi voz cuando leo tus textos.',
+      fr: 'Bonjour ! Voici ma voix pour lire vos textes.',
+      de: 'Hallo! So klinge ich, wenn ich deine Texte vorlese.',
+      it: 'Ciao! Ecco come suono quando leggo i tuoi testi.',
+      pt: 'Olá! Esta é a minha voz ao ler os seus textos.',
+      ru: 'Привет! Так звучит мой голос.',
+      ar: 'مرحباً، هذا هو صوتي عندما أقرأ نصوصك.',
+      tr: 'Merhaba! Metinlerinizi okurken sesim böyle.',
+      fa: 'سلام! صدای من هنگام خواندن متن‌های شما این‌طور است.',
+      vi: 'Xin chào! Đây là giọng của tôi khi đọc văn bản của bạn.',
+      hi: 'नमस्ते! आपके पाठ पढ़ते समय मेरी आवाज़ ऐसी है।',
+      th: 'สวัสดี! นี่คือเสียงของฉันเมื่ออ่านข้อความของคุณ',
+      id: 'Halo! Beginilah suara saya saat membacakan teks Anda.',
     };
-    const sample = samples[user.learningLanguage] || samples[Language.English]!;
+    const sample = samples[voiceLang || ''] || samples.en;
     setVoiceTest({ status: 'playing', msg: '正在生成语音…' });
     try {
-      await previewVoice(modelCfg.ttsVoice, sample);
+      await previewVoice(voice, sample);
       setVoiceTest({ status: 'idle', msg: '' });
     } catch (e: any) {
       setVoiceTest({ status: 'error', msg: `试听失败：${e?.message || e}（将回落到浏览器本地音）` });
@@ -877,23 +894,38 @@ const ProfileView: React.FC<ProfileViewProps> = ({ user, onUpdateUser, onLogout,
                   <p className="text-xs text-muted mb-4">该模型的密钥来自 <code className="text-gray-300">.env</code>，在此不可编辑。</p>
                 )}
 
-                {/* --- 语音音色（Qwen3-TTS，一个音色通吃中英日韩俄） --- */}
+                {/* --- 语音音色（Azure Neural，免费端点；按语言分组，146 个音色） --- */}
                 <div className="border-t border-line-strong pt-4 mb-4">
                   <label className="text-sm font-bold text-muted mb-2 flex items-center gap-2">
                     <Volume2 size={16} className="text-neon-2" /> 朗读音色
                   </label>
                   <p className="text-xs text-muted mb-3 leading-relaxed">
-                    打字、字形特训、单词卡等所有「朗读」按钮共用此音色。任一音色都能读中/英/日/韩/俄。
+                    打字、字形特训、单词卡等所有「朗读」按钮共用此音色。音色来自 Azure Neural（与 Edge 朗读同一套），共 17 种语言；
+                    标注「需 Azure 订阅」的暂不支持免费端点，选中后会退回其他链路。
                   </p>
                   <select
-                    value={modelCfg.ttsVoice}
+                    value={getEffectiveTtsVoice(modelCfg.ttsVoice)}
                     onChange={(e) => setModelCfg({ ...modelCfg, ttsVoice: e.target.value })}
                     className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-neon mb-2"
                   >
-                    {TTS_VOICES.map((v) => (
-                      <option key={v.id} value={v.id}>{v.label} — {v.desc}</option>
+                    {ttsVoiceGroups().map(({ language, voices }) => (
+                      <optgroup
+                        key={language.code}
+                        label={`${language.name} ${language.nativeName} · ${voices.filter((v) => v.edgeTts).length} 个可用`}
+                      >
+                        {voices.map((v) => (
+                          <option key={v.id} value={v.voiceId} disabled={!v.edgeTts}>
+                            {voiceLabel(v)}{v.edgeTts ? '' : ' · 需 Azure 订阅'}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
+                  {!edgeTtsAvailable() && (
+                    <p className="text-[11px] text-amber-300 mb-2">
+                      当前是离线/开源构建（未连接服务端）：音色列表仅作预览，实际用你自己的 Qwen Key 或浏览器合成朗读。
+                    </p>
+                  )}
                   <button
                     onClick={handlePreviewVoice}
                     disabled={voiceTest.status === 'playing'}

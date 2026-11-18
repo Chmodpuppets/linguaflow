@@ -134,7 +134,11 @@ export interface AIConfig {
   glm: AIProviderConfig;
   deepseek: AIProviderConfig;
   custom: AIProviderConfig;
-  /** Qwen TTS 音色 id（qwen3-tts-flash 的 voice 参数），见 aiService.TTS_VOICES */
+  /**
+   * 朗读音色：Azure voiceId（如 `en-US-JennyNeural`），见 services/ttsVoices.ts。
+   * 空串 = 自动，取「正在学的语言」的默认音色。
+   * 老版本这里存的是 Qwen 音色名（Cherry/Ethan…），读取时会自动迁移到默认 Azure 音色。
+   */
   ttsVoice: string;
   /** 按任务类别分配模型层级（fast/reason/auto）；缺省项回落 DEFAULT_TASK_ROUTES。 */
   taskRoutes?: Partial<Record<TaskCategory, TaskTier>>;
@@ -151,7 +155,7 @@ export const defaultAIConfig = (): AIConfig => ({
   // 旧的 deepseek-chat / deepseek-reasoner 已于 2026-07-24 下线（调用会 400）。
   deepseek: { baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-flash', apiKey: '' },
   custom: { baseUrl: '', model: '', apiKey: '' },
-  ttsVoice: 'Cherry',
+  ttsVoice: '',
 });
 
 // DeepSeek 旧模型名迁移：deepseek-chat / deepseek-reasoner 已于 2026-07-24 下线，

@@ -1,3 +1,4 @@
+import PathmoraAccountGate from './components/PathmoraAccountGate';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import '@fontsource-variable/inter';
@@ -21,6 +22,6 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <App />
+    {location.hostname === 'linguaflow.pathmora.cn' ? <PathmoraAccountGate><App /></PathmoraAccountGate> : <App />}
   </React.StrictMode>
 );
