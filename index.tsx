@@ -1,3 +1,4 @@
+import ReaderSentencePractice from './components/ReaderSentencePractice';
 import PathmoraAccountGate from './components/PathmoraAccountGate';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
@@ -20,8 +21,13 @@ if (!rootElement) {
 }
 
 const root = ReactDOM.createRoot(rootElement);
+const readerPracticeId = new URLSearchParams(location.search).get('reader_practice') || '';
 root.render(
   <React.StrictMode>
-    {location.hostname === 'linguaflow.pathmora.cn' ? <PathmoraAccountGate><App /></PathmoraAccountGate> : <App />}
+    {location.hostname === 'linguaflow.pathmora.cn'
+      ? <PathmoraAccountGate>{(account: number) => /^[a-f0-9-]{36}$/.test(readerPracticeId)
+        ? <ReaderSentencePractice id={readerPracticeId} account={account} />
+        : <App />}</PathmoraAccountGate>
+      : <App />}
   </React.StrictMode>
 );

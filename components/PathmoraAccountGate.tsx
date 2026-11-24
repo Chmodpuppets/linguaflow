@@ -6,8 +6,9 @@ import flowLogo from '../assets/brand/linguaflow-icon.png';
 
 type AccountStatus = 'loading' | 'allowed' | 'login' | 'unavailable';
 
-export default function PathmoraAccountGate({ children }: { children: React.ReactNode }) {
+export default function PathmoraAccountGate({ children }: { children: React.ReactNode | ((account: number) => React.ReactNode) }) {
   const [status, setStatus] = useState<AccountStatus>('loading');
+  const [account, setAccount] = useState<number | null>(null);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -16,8 +17,15 @@ export default function PathmoraAccountGate({ children }: { children: React.Reac
       credentials: 'include',
       cache: 'no-store',
       signal: controller.signal,
-    }).then(response => {
-      if (response.ok) setStatus('allowed');
+    }).then(async response => {
+      if (controller.signal.aborted) return;
+      if (response.ok) {
+        const { user } = await response.json();
+        if (controller.signal.aborted) return;
+        if (!Number.isSafeInteger(user?.id) || user.id <= 0) throw Error('Invalid account');
+        setAccount(user.id);
+        setStatus('allowed');
+      }
       else if (response.status === 401 || response.status === 403) setStatus('login');
       else setStatus('unavailable');
     }).catch(() => {
@@ -26,7 +34,7 @@ export default function PathmoraAccountGate({ children }: { children: React.Reac
     return () => controller.abort();
   }, [attempt]);
 
-  if (status === 'allowed') return <>{children}</>;
+  if (status === 'allowed' && account !== null) return <>{typeof children === 'function' ? children(account) : children}</>;
   const login = new URL('https://pathmora.cn/');
   login.searchParams.set('product_return', location.href);
 
