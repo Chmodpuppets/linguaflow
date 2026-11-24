@@ -6,6 +6,32 @@ All notable changes to LinguaFlow are documented here. This project adheres to
 ## [Unreleased]
 
 ### Added
+- **Offline dictionary, four languages** (2026-11-10): browser packs (`public/dict/<lang>/`,
+  57k en / 22k ja / 4k ko / 19k es words, ~3 MB total) install into IndexedDB from
+  Model Settings, with a server-side SQLite fallback (`/dict/lookup?w=&lang=&alt=`,
+  725k entries in total). Word lookups in the reading studio, vocabulary auto-fill and
+  word selection no longer spend an AI call. Japanese verb/adjective inflections,
+  Korean particles and Spanish accent/plural forms are normalized before lookup;
+  the client sends candidates via `alt=` so the server keeps a single source of truth.
+  `services/dictLang.ts` unifies three language-code conventions (the `Language` enum,
+  BCP-47, and pack short codes) and fixes an old silent bug where English lookups
+  received `Language.English` and fell through to a Latin-script fallback by accident.
+  Source licenses and attribution ship in `public/dict/LICENSES.md`.
+- **Word Atlas real-voice recordings** (2026-11-18): English `playWord()` now prefers
+  human recordings from the same CC BY 4.0 word atlas the Reader uses (7,298 words /
+  14,596 examples, index mirrored to `public/atlas/index.json`, audio from the project's
+  own OSS), falling back to Youdao `dictvoice` when the word is not in the atlas.
+  Japanese word playback uses the free Azure Neural voice (`ja-JP-NanamiNeural`) via
+  `/tts/edge` first, then Web Speech. A stale in-flight pronunciation request can no
+  longer overwrite a newer one.
+- **Read-time repair for legacy vocabulary** (2026-11-11): words saved before the
+  dictionary shipped had empty `definition` / `partOfSpeech` and rendered as a blank
+  card with a "词性" placeholder. Entering the Vocabulary view now fills only the
+  empty fields from the dictionary — **zero AI calls**, idempotent, bounded (40 items,
+  4 concurrent), with a manual retry for words the dictionary doesn't have.
+- **Pathmora sentence practice hand-off** (unreleased): `?reader_practice=<uuid>` on the
+  online origin renders a standalone rewrite / re-rewrite exercise backed by the
+  Pathmora account API, with self-assessment and review-task routing.
 - **Server-side TTS proxy + OSS persistence** (`GET/POST {COMMUNITY_URL}/tts/audio`).
   Qwen's audio CDN answers `ACAO: null`, so the browser could play an audio URL but
   never read its bytes — the cache could only remember a 24-hour presigned link and
@@ -52,6 +78,7 @@ All notable changes to LinguaFlow are documented here. This project adheres to
   The `/llm/chat` relay whitelist forwards both `thinking` and `enable_thinking`.
 
 ### Fixed
+- **Vocabulary review cards can now pronounce the revealed answer** (2026-11-12).
 - **DeepSeek default model was a retired name.** `deepseek-chat` / `deepseek-reasoner`
   were shut down on 2026-07-24, so any DeepSeek call from a fresh install 400'd. The
   default is now `deepseek-flash`, and saved configs are migrated on read

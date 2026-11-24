@@ -76,9 +76,13 @@
   三级都不产生「用户看不到声音」的情况；`rate` 只在用户显式调速时透传给 `/tts/edge`（服务端 clamp 0.5–2）。
 - **单词级发音**（`playWord`）按语种选源：
   - 中文 → Qwen TTS → Web Speech 兜底
-  - 英语 → **有道 `dictvoice`** 词典音（免 Key，雅思默认英式、可切美式）→ Web Speech 兜底
-  - 日语 → 固定 **Web Speech `ja-JP`**（有道是英汉词典，对日语不可靠）
-  - 韩语及其余语言 → 走 `generateSpeech`（Qwen → Web Speech）
+  - 英语 → **Word Atlas 真人录音优先**（与 Reader 同一批 CC BY 4.0 词库录音，7,298 词；
+    `services/atlasPronounce.ts` 查 `public/atlas/index.json` 后直接播自有 OSS 音频，
+    雅思默认英式、缺英式时用美式）→ 不在词库才回落**有道 `dictvoice`** → Web Speech 兜底。
+    连续点多个词时，旧请求的回调会被丢弃，不会覆盖新发音。
+  - 日语 → 先试**免费 Azure 音色 `ja-JP-NanamiNeural`**（`/tts/edge`）→ Web Speech 兜底；
+    有道是英汉词典，对日语不可靠，不用
+  - 韩语及其余语言 → 走 `generateSpeech`（Edge → Qwen → Web Speech）
 - 实测：DashScope TTS 接口本身 CORS 放行正式域名，所以填了 Key 后云端 TTS 可用；但它返回的音频 CDN（`dashscope-result-bj.oss-cn-beijing.aliyuncs.com`）**返回 `ACAO: null`**，前端抓不到 Blob —— 这也是线上版一定要走 `/tts/audio` 中转的原因。
 
 ### TTS 缓存（同一个词只合成一次）
