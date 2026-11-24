@@ -13,6 +13,7 @@ LinguaFlow 是一个**本地优先**的语言学习应用：学习数据默认�
 ## 目录
 
 - [这个项目能做什么](#这个项目能做什么)
+- [界面一览](#界面一览)
 - [支持的语言](#支持的语言)
 - [核心功能（22 个模块）](./docs/features.md)
 - [AI 与语音能力](./docs/ai-voice.md)
@@ -43,6 +44,35 @@ LinguaFlow 是一个**本地优先**的语言学习应用：学习数据默认�
 | ……其余 12 个模块 | [核心功能详解 →](./docs/features.md) |
 
 > 学习数据（进度、词汇、收藏）默认存在浏览器本地（localStorage / IndexedDB）；线上版可选开启云端同步，方便换设备取回。AI 使用**你自己填写的 API Key**，首次调用前会明确征得同意，可在「模型设置」随时关闭；关闭后相关功能自动走本地兜底。AI 对话内容按合规要求留痕 180 天。详见 [隐私说明](./docs/privacy.md) 与 [AI 与语音能力](./docs/ai-voice.md)。完整模块说明与考试评分体系见 [核心功能（22 个模块）](./docs/features.md)。
+
+---
+
+## 界面一览
+
+<p align="center">
+  <img src="docs/screenshots/daily.png" width="440" alt="今日任务与产出线">
+  <img src="docs/screenshots/flywheel.png" width="440" alt="按语言独立的学习飞轮">
+</p>
+<p align="center"><b>今日 · 产出线</b> — 打字 / 词汇 / 写作三线合一，按「日期 × 语言」独立计进度，切语言不串台。</p>
+
+<p align="center">
+  <img src="docs/screenshots/reading-studio.png" width="440" alt="阅读工作台：正文与浮窗视频">
+  <img src="docs/screenshots/kana-drill.png" width="440" alt="五十音打字特训">
+</p>
+<p align="center"><b>阅读工作台 · 五十音特训</b> — 边读边看配套 B 站视频（可浮窗 / 拖拽 / 缩放）；日语入门关卡**免 AI、免 Key**。</p>
+
+<p align="center">
+  <img src="docs/screenshots/dictionary.png" width="440" alt="四语离线词典设置">
+  <img src="docs/screenshots/vocabulary.png" width="440" alt="词汇库词典自动补全">
+</p>
+<p align="center"><b>四语离线词典</b> — 英 / 日 / 韩 / 西词库按需下载，划词与生词本查释义**不再逐词调用 AI**；老词条也能自动补全。</p>
+
+<p align="center">
+  <img src="docs/screenshots/ai-consent.png" width="440" alt="AI 调用授权弹窗">
+</p>
+<p align="center"><b>AI 调用授权</b> — 首次调用前讲清楚用谁的 Key、发什么内容、怎么中转、留痕多久；随时可关，关闭后走本地兜底。</p>
+
+> 以上截图来自本地开发环境，已裁掉侧栏账号区。完整功能说明见 [核心功能（22 个模块）](./docs/features.md)。
 
 ---
 
